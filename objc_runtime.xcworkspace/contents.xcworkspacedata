@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:testProj/runtime_mac/runtime_test_proj_mac.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:dyld_soucecode_analysis-master/dyld.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:testProj/runtime_test_proj_iOS/runtime_test_proj_iOS.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:objc.xcodeproj">
+   </FileRef>
+</Workspace>
