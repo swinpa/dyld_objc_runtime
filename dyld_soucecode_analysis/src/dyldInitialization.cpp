@@ -110,7 +110,7 @@ static void runDyldInitializers(const struct macho_header* mh, intptr_t slide, i
 static uintptr_t slideOfMainExecutable(const struct macho_header* mh)
 {
 	const uint32_t cmd_count = mh->ncmds;
-	const struct load_command* const cmds = (struct load_command*)(((char*)mh)+sizeof(macho_header));
+	const struct load_command* const cmds = (struct load_command*) (((char*)mh)+sizeof(macho_header));
 	const struct load_command* cmd = cmds;
 	for (uint32_t i = 0; i < cmd_count; ++i) {
 		if ( cmd->cmd == LC_SEGMENT_COMMAND ) {
@@ -238,7 +238,10 @@ uintptr_t start(const struct macho_header* appsMachHeader, int argc, const char*
 	// now that we are done bootstrapping dyld, call dyld's main
 	// 启动dyld完成，调用dyld的main方法
 	uintptr_t appsSlide = slideOfMainExecutable(appsMachHeader);
-	//返回主程序的main函数入口，也就是我们App的main函数地址
+	/*
+	 返回主程序的main函数入口，也就是我们App的main函数地址
+	 也就是dyld::_main函数执行完后返回App的main函数地址
+	 */
 	return dyld::_main(appsMachHeader, appsSlide, argc, argv, envp, apple, startGlue);
 }
 

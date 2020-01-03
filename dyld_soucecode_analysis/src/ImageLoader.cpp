@@ -496,7 +496,9 @@ void ImageLoader::runInitializers(const LinkContext& context, InitializerTimingL
 	ImageLoader::UninitedUpwards up;
 	up.count = 1;
 	up.images[0] = this;
+	//在这过程中，runtime的objc_init 会被执行，对应的回调会被注册（也就是libSystem也在这过程中初始化）
 	processInitializers(context, thisThread, timingInfo, up);
+	//通知runtime
 	context.notifyBatch(dyld_image_state_initialized);
 	mach_port_deallocate(mach_task_self(), thisThread);
 	uint64_t t2 = mach_absolute_time();

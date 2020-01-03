@@ -72,7 +72,12 @@
 
 #if !TARGET_IPHONE_SIMULATOR
 	.text
-	.align	4, 0x90
+	.align	4, 0x90 /*对齐伪指令ALIGN
+	对齐伪指令格式：
+	ALIGN  Num
+	其中：Num必须是2的幂，如：2、4、8和16等。
+	伪指令的作用是：告诉汇编程序，本伪指令下面的内存变量必须从下一个能被Num整除的地址开始分配。
+	如果下一个地址正好能被Num整除，那么，该伪指令不起作用，否则，汇编程序将空出若干个字节，直到下一个地址能被Num整除为止。*/
 	.globl __dyld_start
 __dyld_start:
 	popl	%edx		# edx = mh of app
@@ -90,7 +95,7 @@ L__dyld_start_picbase:
 	subl    %eax, %ebx      # ebx = slide = L__dyld_start_picbase - [__dyld_start_static_picbase]
 	addl	%ebx, %ecx	# ecx = actual load address
 	# call dyldbootstrap::start(app_mh, argc, argv, slide, dyld_mh, &startGlue)
-
+	// 为dyldbootstrap::start方法准备参数
 	movl	%edx,(%esp)	# param1 = app_mh
 	movl	4(%ebp),%eax	
 	movl	%eax,4(%esp)	# param2 = argc
@@ -100,6 +105,7 @@ L__dyld_start_picbase:
 	movl	%ecx,16(%esp)	# param5 = actual load address
 	lea	28(%esp),%eax
 	movl	%eax,20(%esp)	# param6 = &startGlue
+	//准备好参数后，调用函数dyldbootstrap::start
 	call	__ZN13dyldbootstrap5startEPK12macho_headeriPPKclS2_Pm	
 	movl	28(%esp),%edx
 	cmpl	$0,%edx

@@ -651,6 +651,13 @@ static StateHandlers* stateToHandlers(dyld_image_states state, void* handlersArr
 {
 	switch ( state ) {
 		case dyld_image_state_mapped:
+			/*
+			 reinterpret_cast运算符是用来处理无关类型之间的转换；它会产生一个新的值，
+			 这个值会有与原始参数（expressoin）有完全相同的比特位。
+			 
+			 reinterpret_cast用在任意指针（或引用）类型之间的转换；以及指针与足够大的整数类型之间的转换；
+			 从整数类型（包括枚举类型）到指针类型，无视大小。
+			 */
 			return reinterpret_cast<StateHandlers*>(&handlersArray[0]);
 			
 		case dyld_image_state_dependents_mapped:
@@ -674,10 +681,24 @@ static StateHandlers* stateToHandlers(dyld_image_states state, void* handlersArr
 	return NULL;
 }
 
+/*
+	1，从全局的二维数组sSingleHandlers 中获取state对应的函数列表
+	2，遍历该函数列表，并逐个执行函数
+ */
 static void notifySingle(dyld_image_states state, const ImageLoader* image)
 {
 	//dyld::log("notifySingle(state=%d, image=%s)\n", state, image->getPath());
-	//根据dyld_image_states获取对应的回调处理handlers
+	/*
+	 根据dyld_image_states获取对应的回调处理handlers
+	 从全局的二维数组sSingleHandlers 中获取state对应的值，也就是一个存放函数指针的容器
+	 
+	 sSingleHandlers = [
+		[fptr1, fptr2, fptr3, ...],
+		[fptra, fptrb, fptrc, ...],
+		[]
+	 ]
+	 
+	 */
 	std::vector<dyld_image_state_change_handler>* handlers = stateToHandlers(state, sSingleHandlers);
 	if ( handlers != NULL ) {
 		dyld_image_info info;
@@ -685,6 +706,12 @@ static void notifySingle(dyld_image_states state, const ImageLoader* image)
 		info.imageFilePath		= image->getRealPath();
 		info.imageFileModDate	= image->lastModified();
 		
+		/*
+		 遍历函数指针的容器，并逐个执行函数调用
+		 
+		 typedef const char* (*dyld_image_state_change_handler)(enum dyld_image_states state, uint32_t infoCount, const struct dyld_image_info info[]);
+		 
+		 */
 		for (std::vector<dyld_image_state_change_handler>::iterator it = handlers->begin(); it != handlers->end(); ++it) {
 			/*
 			 调用回调，*it就是回调函数指针(state, 1, &info) 为回调函数参数
@@ -702,7 +729,7 @@ static void notifySingle(dyld_image_states state, const ImageLoader* image)
 			 也就是为dyld_image的不同状态注册不同的回调函数
 			 
 			*/
-			const char* result = (*it)(state, 1, &info);
+			const char* result = (*it)(state, 1, &info);//参数说明：（哪个函数，参数个数，具体参数）
 			if ( (result != NULL) && (state == dyld_image_state_mapped) ) {
 				//fprintf(stderr, "  image rejected by handler=%p\n", *it);
 				// make copy of thrown string so that later catch clauses can free it
@@ -4995,6 +5022,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		CRSetCrashLogMessage(sLoadingCrashMessage);
 		// instantiate ImageLoader for main executable
 		/*
+		 将可执行文件加载进内存中
 		实例化Image，实例化的过程中会通过setMapped()执行notifySingle发送 dyld_image_state_mapped 通知,
 		也就是可以调用runtime注册的map_images方法，
 		因此在这之前runtime 的_objc_init()已经被调用了
