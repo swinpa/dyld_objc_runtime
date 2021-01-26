@@ -6,19 +6,19 @@
 	<dict>
 		<key>Resources/Base.lproj/Main.storyboardc/Info.plist</key>
 		<data>
-		/rKJu48MF9E+GJxBT8mn7AGypfQ=
+		KrPBarHCHR6TdM/Y8MtnKUnEefI=
 		</data>
 		<key>Resources/Base.lproj/Main.storyboardc/MainMenu.nib</key>
 		<data>
-		Ewx6ZigDxxwuhQXKm2/DANnGBls=
+		32nkJ5mZoIH61BVf+UEQwnCmLG0=
 		</data>
 		<key>Resources/Base.lproj/Main.storyboardc/NSWindowController-B8D-0N-5wS.nib</key>
 		<data>
-		z0gBQG1MyhvDsGZX6tZwMngH0eI=
+		eBQx671e3Fr9Axyma57cDiukEN0=
 		</data>
 		<key>Resources/Base.lproj/Main.storyboardc/XfG-lQ-9wD-view-m2S-Jp-Qdl.nib</key>
 		<data>
-		TwWGe/mZytbFm4MD6ngxNGJd2qQ=
+		fuYfRurjcmQd4boiSipgHwqOmOc=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -27,37 +27,37 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			dlFm5OhFbJQ9PpB5KxmPA1Cz/YA=
+			orvIDsA8i2csZSL+OaL3pYzbYXU=
 			</data>
 			<key>requirement</key>
-			<string>identifier "libobjc.A" and anchor apple generic and certificate leaf[subject.CN] = "Apple Development: wwwlaowu@163.com (WYJ758H37G)" and certificate 1[field.1.2.840.113635.100.6.2.1] /* exists */</string>
+			<string>identifier "libobjc.A" and anchor apple generic and certificate leaf[subject.CN] = "Apple Development: swinpa@sina.cn (7RM52N3N7E)" and certificate 1[field.1.2.840.113635.100.6.2.1] /* exists */</string>
 		</dict>
 		<key>Resources/Base.lproj/Main.storyboardc/Info.plist</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			AXuDudyPr6HHOpVkVxp8h8HJ0ep5Xd6clvWqGlmE/z8=
+			KbZ6wIGf0WCruf6LJAFemlNNE6GnPXBl594Y30/WuKc=
 			</data>
 		</dict>
 		<key>Resources/Base.lproj/Main.storyboardc/MainMenu.nib</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qMREwTY5qZp57mO17li6XPc0GKgmupn0IuSa07AkTvU=
+			R8vAhmc6x0IFqjdxbnVBjMpIhJGJW7nZ3WjI6qciV1w=
 			</data>
 		</dict>
 		<key>Resources/Base.lproj/Main.storyboardc/NSWindowController-B8D-0N-5wS.nib</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			nMyjSlfU9yFpZB7VTRuPlXZ4BXgbDEWe+jCAKAg7x28=
+			/PfLNYMOas1VIQ3V1/p8w2HfMVe0rvJHAMbtYoa6v5c=
 			</data>
 		</dict>
 		<key>Resources/Base.lproj/Main.storyboardc/XfG-lQ-9wD-view-m2S-Jp-Qdl.nib</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XdkoFU4Xm3xD3YfZAVM65bI7qjpo1JW1wdIP0eGdsig=
+			5ru5debu+19LDqAJ9jxYAhjcLSRpzgDTaFjjlkumeHc=
 			</data>
 		</dict>
 	</dict>

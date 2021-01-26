@@ -2,7 +2,16 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:dyld_soucecode_analysis/dyld.xcodeproj">
+      location = "group:/Users/mac/Desktop/objc-runtime-master-canrun_shezhi/dyld-832.7.1/dyld_832.7.1.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:Libsystem-1281.100.1/Libsystem.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:libdispatch-1271.40.12/libdispatch.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:dyld_soucecode/dyld.xcodeproj">
    </FileRef>
    <FileRef
       location = "group:testProj/runtime_mac/runtime_test_proj_mac.xcodeproj">

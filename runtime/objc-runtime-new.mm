@@ -2543,7 +2543,6 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // Discover classes. Fix up unresolved future classes. Mark bundle classes.
 
     for (EACH_HEADER) {
-        // 获取到类列表
         classref_t *classlist = _getObjc2ClassList(hi, &count);
         
         if (! mustReadClasses(hi)) {
@@ -2554,11 +2553,8 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         bool headerIsBundle = hi->isBundle();
         bool headerIsPreoptimized = hi->isPreoptimized();
 
-        //遍历类列表，并且根据需要将类标志为 RO_FROM_BUNDLE
         for (i = 0; i < count; i++) {
             Class cls = (Class)classlist[i];
-            //Read a class and metaclass as written by a compiler.
-            //读取被编译器写入的class 跟metaclass
             Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
 
             if (newCls != cls  &&  newCls) {

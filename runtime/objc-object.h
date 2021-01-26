@@ -151,7 +151,7 @@ objc_object::isExtTaggedPointer()
 inline Class 
 objc_object::ISA() 
 {
-    assert(!isTaggedPointer()); 
+//    assert(!isTaggedPointer()); 
 #if SUPPORT_INDEXED_ISA
     if (isa.nonpointer) {
         uintptr_t slot = isa.indexcls;

@@ -1,2 +1,0 @@
-dependencies: \
-  /Users/admin/Documents/stu/objc-runtime-master/runtime/Messengers.subproj/objc-msg-simulator-i386.s

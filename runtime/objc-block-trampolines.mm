@@ -35,7 +35,7 @@
 #include <Block.h>
 #include <Block_private.h>
 #include <mach/mach.h>
-#include <objc/objc-block-trampolines.h>
+//#include <objc/objc-block-trampolines.h>
 
 // fixme C++ compilers don't implemement memory_order_consume efficiently.
 // Use memory_order_relaxed and cross our fingers.

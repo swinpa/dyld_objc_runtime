@@ -222,7 +222,7 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
 {
     header_info *hi;
 
-    if (bad_magic(mhdr)) return NULL;//whether the header has invalid Mach-o magic.
+    if (bad_magic(mhdr)) return NULL;
 
     bool inSharedCache = false;
 
@@ -231,7 +231,7 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
     if (hi) {
         // Found an hinfo in the dyld shared cache.
 
-        // Weed out（清除；淘汰；除去） duplicates.
+        // Weed out duplicates.
         if (hi->isLoaded()) {
             return NULL;
         }
@@ -262,7 +262,7 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
 
         // Weed out duplicates
         for (hi = FirstHeader; hi; hi = hi->getNext()) {
-            if (mhdr == hi->mhdr()) return NULL;//如果header_info *FirstHeader 链中已经有对应的headerinfo 了则不需要再添加，直接返回
+            if (mhdr == hi->mhdr()) return NULL;
         }
 
         // Locate the __OBJC segment
@@ -869,12 +869,7 @@ void _objc_atfork_child()
 /***********************************************************************
 * _objc_init
 * Bootstrap initialization. Registers our image notifier with dyld.
-  Bootstrap初始化。 使用dyld注册我们的图像通知程序。
 * Called by libSystem BEFORE library initialization time
-  在library初始化前被libSystem 调用
- 
-* libc calls _objc_init() before dyld would call our static constructors
-  
 **********************************************************************/
 
 void _objc_init(void)

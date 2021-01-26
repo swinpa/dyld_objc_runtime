@@ -225,7 +225,7 @@ void _objc_fatal(const char *fmt, ...)
  * this routine handles soft runtime errors...like not being able
  * add a category to a class (because it wasn't linked in).
  */
-void _objc_inform(const char *fmt, ...)//可变参数
+void _objc_inform(const char *fmt, ...)
 {
     va_list ap; 
     char *buf1;
