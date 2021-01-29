@@ -34,6 +34,11 @@
 #include "objc-cache.h"
 #include <Block.h>
 #include <objc/message.h>
+
+/*
+ for ios
+ //#include <mach/shared_region.h>
+ */
 #include <mach/shared_region.h>
 
 #define newprotocol(p) ((protocol_t *)p)
@@ -6832,6 +6837,28 @@ classSlotForTagIndex(objc_tag_index_t tag)
 * or retrieving payload values. They are filled with randomness on first
 * use.
 **********************************************************************/
+
+/*
+ for ios
+ 
+ static void
+ initializeTaggedPointerObfuscator(void)
+ {
+     //if (sdkIsOlderThan(10_14, 12_0, 12_0, 5_0, 3_0) ||
+         // Set the obfuscator to zero for apps linked against older SDKs,
+         // in case they're relying on the tagged pointer representation.
+         //DisableTaggedPointerObfuscation) {
+         //objc_debug_taggedpointer_obfuscator = 0;
+     //} else {
+         // Pull random data into the variable, then shift away all non-payload bits.
+         arc4random_buf(&objc_debug_taggedpointer_obfuscator,
+                        sizeof(objc_debug_taggedpointer_obfuscator));
+         objc_debug_taggedpointer_obfuscator &= ~_OBJC_TAG_MASK;
+     //}
+ }
+ 
+ */
+
 static void
 initializeTaggedPointerObfuscator(void)
 {
