@@ -3,7 +3,7 @@ tbd-version:     4
 targets:         [ x86_64-ios-simulator ]
 uuids:
   - target:          x86_64-ios-simulator
-    value:           75041147-5D0E-3C8E-9049-E6170F4E94FE
+    value:           09B0F4C5-D143-3176-842F-A0ED88230192
 flags:           [ not_app_extension_safe ]
 install-name:    '/usr/lib/libobjc.A.dylib'
 current-version: 228

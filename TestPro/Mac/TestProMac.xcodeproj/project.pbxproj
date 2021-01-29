@@ -155,6 +155,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 84E9D00322001037007F7365 /* Build configuration list for PBXNativeTarget "TestProMac" */;
 			buildPhases = (
+				04052FCE25C4147900077339 /* ShellScript */,
 				84E9CFD522001035007F7365 /* Sources */,
 				84E9CFD622001035007F7365 /* Frameworks */,
 				84E9CFD722001035007F7365 /* Resources */,
@@ -275,6 +276,23 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		04052FCE25C4147900077339 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nproductPath = $(SRCROOT)../../objc_runtime_products/Debug\nrm -rf $productPath\n";
+		};
 		84E9D01C2200288C007F7365 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

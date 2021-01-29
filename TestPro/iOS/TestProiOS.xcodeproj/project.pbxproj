@@ -156,6 +156,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 84DBEE2C22002D4100EECB30 /* Build configuration list for PBXNativeTarget "TestProiOS" */;
 			buildPhases = (
+				04052FCF25C4155800077339 /* ShellScript */,
 				84DBEDFC22002D4100EECB30 /* Sources */,
 				84DBEDFD22002D4100EECB30 /* Frameworks */,
 				84DBEDFE22002D4100EECB30 /* Resources */,
@@ -293,6 +294,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nlibobjc_A_dylib_Path=\"Debug/libobjc.A.dylib\"\napp_path=\"Debug/TestProiOS.app/TestProiOS\"\ncd $(SRCROOT)../../objc_runtime_products\necho \"==========================\"\necho $libobjc_A_dylib_Path\necho $app_path\necho \"==========================\"\ninstall_name_tool -change /usr/lib/libobjc.A.dylib $libobjc_A_dylib_Path $app_path\n";
+		};
+		04052FCF25C4155800077339 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -478,6 +496,7 @@
 				CONFIGURATION_BUILD_DIR = "$(SRCROOT)/../../objc_runtime_products/$(CONFIGURATION)";
 				DEVELOPMENT_TEAM = FXDNFQ7FRM;
 				INFOPLIST_FILE = runtime_test_proj_iOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -496,6 +515,7 @@
 				CONFIGURATION_BUILD_DIR = "$(SRCROOT)/../../objc_runtime_products/$(CONFIGURATION)";
 				DEVELOPMENT_TEAM = FXDNFQ7FRM;
 				INFOPLIST_FILE = runtime_test_proj_iOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
