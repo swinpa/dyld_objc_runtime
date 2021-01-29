@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04052E0525C4007C00077339 /* libobjc.A.dylib in wp_libobjc动态库链接 */ = {isa = PBXBuildFile; fileRef = 04052E0425C4007C00077339 /* libobjc.A.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		84DBEE0522002D4100EECB30 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 84DBEE0422002D4100EECB30 /* AppDelegate.m */; };
 		84DBEE0822002D4100EECB30 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 84DBEE0722002D4100EECB30 /* ViewController.m */; };
 		84DBEE0B22002D4100EECB30 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 84DBEE0922002D4100EECB30 /* Main.storyboard */; };
@@ -34,7 +35,22 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		0439CC4525C3E4A30012BF3C /* wp_libobjc动态库链接 */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				04052E0525C4007C00077339 /* libobjc.A.dylib in wp_libobjc动态库链接 */,
+			);
+			name = "wp_libobjc动态库链接";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		04052E0425C4007C00077339 /* libobjc.A.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libobjc.A.dylib; path = ../../objc_runtime_products/Debug/libobjc.A.dylib; sourceTree = "<group>"; };
 		84DBEE0022002D4100EECB30 /* TestProiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestProiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		84DBEE0322002D4100EECB30 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		84DBEE0422002D4100EECB30 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
@@ -81,6 +97,7 @@
 		84DBEDF722002D4100EECB30 = {
 			isa = PBXGroup;
 			children = (
+				04052E0425C4007C00077339 /* libobjc.A.dylib */,
 				84DBEE0222002D4100EECB30 /* runtime_test_proj_iOS */,
 				84DBEE1B22002D4100EECB30 /* runtime_test_proj_iOSTests */,
 				84DBEE2622002D4100EECB30 /* runtime_test_proj_iOSUITests */,
@@ -142,6 +159,8 @@
 				84DBEDFC22002D4100EECB30 /* Sources */,
 				84DBEDFD22002D4100EECB30 /* Frameworks */,
 				84DBEDFE22002D4100EECB30 /* Resources */,
+				0439CC4525C3E4A30012BF3C /* wp_libobjc动态库链接 */,
+				04052E0625C4009D00077339 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -256,6 +275,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		04052E0625C4009D00077339 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nlibobjc_A_dylib_Path=\"Debug/libobjc.A.dylib\"\napp_path=\"Debug/TestProiOS.app/TestProiOS\"\ncd $(SRCROOT)../../objc_runtime_products\necho \"==========================\"\necho $libobjc_A_dylib_Path\necho $app_path\necho \"==========================\"\ninstall_name_tool -change /usr/lib/libobjc.A.dylib $libobjc_A_dylib_Path $app_path\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		84DBEDFC22002D4100EECB30 /* Sources */ = {
@@ -436,6 +475,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CONFIGURATION_BUILD_DIR = "$(SRCROOT)/../../objc_runtime_products/$(CONFIGURATION)";
 				DEVELOPMENT_TEAM = FXDNFQ7FRM;
 				INFOPLIST_FILE = runtime_test_proj_iOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -453,6 +493,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CONFIGURATION_BUILD_DIR = "$(SRCROOT)/../../objc_runtime_products/$(CONFIGURATION)";
 				DEVELOPMENT_TEAM = FXDNFQ7FRM;
 				INFOPLIST_FILE = runtime_test_proj_iOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

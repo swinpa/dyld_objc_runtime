@@ -939,7 +939,6 @@
 		08FB7793FE84155DC02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				BuildIndependentTargetsInParallel = NO;
 				LastUpgradeCheck = 0440;
 				TargetAttributes = {
 					30466D8321B665A500DA7B9D = {
@@ -1167,6 +1166,7 @@
 				PRODUCT_NAME = objc.A;
 				PUBLIC_HEADERS_FOLDER_PATH = /usr/include/objc;
 				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_TEXT_BASED_API = YES;
 				SYMROOT = build;
 				TAPI_VERIFY_MODE = Pedantic;
@@ -1245,6 +1245,7 @@
 				PRODUCT_NAME = objc.A;
 				PUBLIC_HEADERS_FOLDER_PATH = /usr/include/objc;
 				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_TEXT_BASED_API = YES;
 				SYMROOT = build;
 				TAPI_VERIFY_MODE = Pedantic;

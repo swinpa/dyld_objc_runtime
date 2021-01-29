@@ -290,7 +290,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\nlibobjc_A_dylib_Path=\"Debug/libobjc.A.dylib\"\napp_path=\"Debug/runtime_test_proj_mac.app/Contents/MacOS/runtime_test_proj_mac\"\ncd $(SRCROOT)../../objc_runtime_products\necho \"==========================\"\necho $libobjc_A_dylib_Path\necho $app_path\necho \"==========================\"\ninstall_name_tool -change /usr/lib/libobjc.A.dylib $libobjc_A_dylib_Path $app_path\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\nlibobjc_A_dylib_Path=\"Debug/libobjc.A.dylib\"\napp_path=\"Debug/TestProMac.app/Contents/MacOS/TestProMac\"\ncd $(SRCROOT)../../objc_runtime_products\necho \"==========================\"\necho $libobjc_A_dylib_Path\necho $app_path\necho \"==========================\"\ninstall_name_tool -change /usr/lib/libobjc.A.dylib $libobjc_A_dylib_Path $app_path\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
