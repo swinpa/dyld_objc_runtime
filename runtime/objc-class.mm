@@ -346,6 +346,7 @@ void _object_setIvar(id obj, Ivar ivar, id value, bool assumeStrong)
         else memoryManagement = objc_ivar_memoryUnretained;
     }
 
+    //获取变量位置
     id *location = (id *)((char *)obj + offset);
 
     switch (memoryManagement) {
@@ -356,6 +357,10 @@ void _object_setIvar(id obj, Ivar ivar, id value, bool assumeStrong)
     }
 }
 
+/// <#Description#>
+/// @param obj 对象
+/// @param ivar 成员变量
+/// @param value 值
 void object_setIvar(id obj, Ivar ivar, id value)
 {
     return _object_setIvar(obj, ivar, value, false /*not strong default*/);

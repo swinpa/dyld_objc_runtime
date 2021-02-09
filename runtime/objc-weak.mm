@@ -391,6 +391,11 @@ id
 weak_register_no_lock(weak_table_t *weak_table, id referent_id, 
                       id *referrer_id, bool crashIfDeallocating)
 {
+    
+    /*
+     weak_register_no_lock(&newTable->weak_table, (id)newObj, location,crashIfDeallocating);
+     */
+    
     objc_object *referent = (objc_object *)referent_id;
     objc_object **referrer = (objc_object **)referrer_id;
 

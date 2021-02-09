@@ -265,6 +265,10 @@ enum CrashIfDeallocating {
 };
 template <HaveOld haveOld, HaveNew haveNew,
           CrashIfDeallocating crashIfDeallocating>
+/*
+ location 变量位置
+ newObj 变量新值
+ */
 static id 
 storeWeak(id *location, objc_object *newObj)
 {

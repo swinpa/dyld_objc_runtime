@@ -78,6 +78,13 @@ typedef DisguisedPtr<objc_object *> weak_referrer_t;
 #define REFERRERS_OUT_OF_LINE 2
 
 struct weak_entry_t {
+    /*
+     被引用的对象，比如
+     NSObject *obj = [[NSObject alloc] init];
+     id __weak obj1 = obj;
+     那么 referent 就等于obj,然后obj1这个弱引用对象的地址 就会被存在referrers 中
+     
+     */
     DisguisedPtr<objc_object> referent;
     union {
         struct {
