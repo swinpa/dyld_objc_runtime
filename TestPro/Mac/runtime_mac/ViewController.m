@@ -8,6 +8,14 @@
 
 #import "ViewController.h"
 
+@implementation TView
+
+- (void)dealloc {
+    NSLog(@"");
+}
+
+@end
+
 @implementation ViewController
 
 - (void)viewDidLoad {
@@ -19,6 +27,13 @@
 //    [self testMethod];
 //    NSLog(@"");
     
+    NSButton *btn = [NSButton buttonWithTitle:@"click me" target:self action:@selector(buttonClick)];
+    CGFloat w = [NSScreen mainScreen].frame.size.width;
+    CGFloat h = [NSScreen mainScreen].frame.size.height;
+    
+    btn.frame = NSMakeRect(30, 40, 450, 50);
+    [self.view addSubview:btn];
+//    btn.backgroundColor = [NSColor yellowColor];
 }
 
 
@@ -30,6 +45,20 @@
 
 - (void)testMethod {
     NSLog(@"%s",__func__);
+}
+
+- (void)buttonClick {
+    NSLog(@"%@",self);
+    NSLog(@"");
+    {
+        TView *vc = [[TView alloc] init];
+        vc.v = [[NSView alloc] init];
+        self.wproperty = vc;
+        NSLog(@"");
+    }
+    
+    
+    NSLog(@"");
 }
 
 @end

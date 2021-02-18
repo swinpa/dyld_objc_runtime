@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		04052E0525C4007C00077339 /* libobjc.A.dylib in wp_libobjc动态库链接 */ = {isa = PBXBuildFile; fileRef = 04052E0425C4007C00077339 /* libobjc.A.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		84DBEE0522002D4100EECB30 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 84DBEE0422002D4100EECB30 /* AppDelegate.m */; };
 		84DBEE0822002D4100EECB30 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 84DBEE0722002D4100EECB30 /* ViewController.m */; };
 		84DBEE0B22002D4100EECB30 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 84DBEE0922002D4100EECB30 /* Main.storyboard */; };
@@ -16,6 +15,7 @@
 		84DBEE1322002D4100EECB30 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 84DBEE1222002D4100EECB30 /* main.m */; };
 		84DBEE1D22002D4100EECB30 /* runtime_test_proj_iOSTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 84DBEE1C22002D4100EECB30 /* runtime_test_proj_iOSTests.m */; };
 		84DBEE2822002D4100EECB30 /* runtime_test_proj_iOSUITests.m in Sources */ = {isa = PBXBuildFile; fileRef = 84DBEE2722002D4100EECB30 /* runtime_test_proj_iOSUITests.m */; };
+		F731240225C4654F007533FD /* libobjc.A.dylib in wp_libobjc动态库链接 */ = {isa = PBXBuildFile; fileRef = F731240125C4654F007533FD /* libobjc.A.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,7 +42,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				04052E0525C4007C00077339 /* libobjc.A.dylib in wp_libobjc动态库链接 */,
+				F731240225C4654F007533FD /* libobjc.A.dylib in wp_libobjc动态库链接 */,
 			);
 			name = "wp_libobjc动态库链接";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -50,7 +50,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		04052E0425C4007C00077339 /* libobjc.A.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libobjc.A.dylib; path = ../../objc_runtime_products/Debug/libobjc.A.dylib; sourceTree = "<group>"; };
 		84DBEE0022002D4100EECB30 /* TestProiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestProiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		84DBEE0322002D4100EECB30 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		84DBEE0422002D4100EECB30 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
@@ -67,6 +66,7 @@
 		84DBEE2322002D4100EECB30 /* TestProiOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestProiOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		84DBEE2722002D4100EECB30 /* runtime_test_proj_iOSUITests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = runtime_test_proj_iOSUITests.m; sourceTree = "<group>"; };
 		84DBEE2922002D4100EECB30 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F731240125C4654F007533FD /* libobjc.A.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libobjc.A.dylib; path = ../../objc_runtime_products/Debug/libobjc.A.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,7 +97,7 @@
 		84DBEDF722002D4100EECB30 = {
 			isa = PBXGroup;
 			children = (
-				04052E0425C4007C00077339 /* libobjc.A.dylib */,
+				F731240125C4654F007533FD /* libobjc.A.dylib */,
 				84DBEE0222002D4100EECB30 /* runtime_test_proj_iOS */,
 				84DBEE1B22002D4100EECB30 /* runtime_test_proj_iOSTests */,
 				84DBEE2622002D4100EECB30 /* runtime_test_proj_iOSUITests */,
@@ -156,7 +156,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 84DBEE2C22002D4100EECB30 /* Build configuration list for PBXNativeTarget "TestProiOS" */;
 			buildPhases = (
-				04052FCF25C4155800077339 /* ShellScript */,
 				84DBEDFC22002D4100EECB30 /* Sources */,
 				84DBEDFD22002D4100EECB30 /* Frameworks */,
 				84DBEDFE22002D4100EECB30 /* Resources */,
@@ -295,23 +294,6 @@
 			shellPath = /bin/sh;
 			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nlibobjc_A_dylib_Path=\"Debug/libobjc.A.dylib\"\napp_path=\"Debug/TestProiOS.app/TestProiOS\"\ncd $(SRCROOT)../../objc_runtime_products\necho \"==========================\"\necho $libobjc_A_dylib_Path\necho $app_path\necho \"==========================\"\ninstall_name_tool -change /usr/lib/libobjc.A.dylib $libobjc_A_dylib_Path $app_path\n";
 		};
-		04052FCF25C4155800077339 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\n";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -427,7 +409,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -480,7 +463,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -501,9 +485,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				PRODUCT_BUNDLE_IDENTIFIER = "swinpa.runtime-test-proj-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -520,9 +506,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				PRODUCT_BUNDLE_IDENTIFIER = "swinpa.runtime-test-proj-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

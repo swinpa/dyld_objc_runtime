@@ -24,6 +24,11 @@
 #ifndef _MACH_O_DYLD_PRIV_H_
 #define _MACH_O_DYLD_PRIV_H_
 
+#define DYLD_MACOSX_VERSION_10_11 0x000A0B00
+#define DYLD_MACOSX_VERSION_10_12 0x000A0C00
+#define DYLD_MACOSX_VERSION_10_13 0x000A0D00
+#define DYLD_MACOSX_VERSION_10_14 0x000A0E00
+
 #include <assert.h>
 #include <stdbool.h>
 #include <Availability.h>
@@ -211,6 +216,17 @@ extern const struct mach_header* dyld_image_header_containing_address(const void
 #define DYLD_IOS_VERSION_9_2        0x00090200
 #define DYLD_IOS_VERSION_9_3        0x00090300
 #define DYLD_IOS_VERSION_10_0       0x000A0000
+#ifndef DYLD_IOS_VERSION_11_0
+#define DYLD_IOS_VERSION_11_0 0x000B0000
+#endif
+
+#ifndef DYLD_IOS_VERSION_11_3
+#define DYLD_IOS_VERSION_11_3 0x000B0300
+#endif
+
+#ifndef DYLD_IOS_VERSION_12_0
+#define DYLD_IOS_VERSION_12_0 0x000C0000
+#endif
     
     
 #define DYLD_WATCHOS_VERSION_1_0    0x00010000

@@ -8,8 +8,17 @@
 
 #import <Cocoa/Cocoa.h>
 
-@interface ViewController : NSViewController
+@interface TView : NSObject
 
+@property(nonatomic, strong) NSView *v;
 
 @end
+
+@interface ViewController : NSViewController
+
+@property(nonatomic, weak) TView *wproperty;
+
+@end
+
+
 

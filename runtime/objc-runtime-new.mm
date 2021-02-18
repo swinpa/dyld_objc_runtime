@@ -6851,17 +6851,17 @@ classSlotForTagIndex(objc_tag_index_t tag)
 static void
 initializeTaggedPointerObfuscator(void)
 {
-    //if (sdkIsOlderThan(10_14, 12_0, 12_0, 5_0, 3_0) ||
+    if (sdkIsOlderThan(10_14, 12_0, 12_0, 5_0, 3_0) ||
         // Set the obfuscator to zero for apps linked against older SDKs,
         // in case they're relying on the tagged pointer representation.
-        //DisableTaggedPointerObfuscation) {
-        //objc_debug_taggedpointer_obfuscator = 0;
-    //} else {
+        DisableTaggedPointerObfuscation) {
+        objc_debug_taggedpointer_obfuscator = 0;
+    } else {
         // Pull random data into the variable, then shift away all non-payload bits.
         arc4random_buf(&objc_debug_taggedpointer_obfuscator,
                        sizeof(objc_debug_taggedpointer_obfuscator));
         objc_debug_taggedpointer_obfuscator &= ~_OBJC_TAG_MASK;
-    //}
+    }
 }
 #else
 

@@ -162,6 +162,64 @@ void SideTable::unlockTwo<DontHaveOld, DoHaveNew>
 // libc calls us before our C++ initializers run. We also don't want a global 
 // pointer to this struct because of the extra indirection.
 // Do it the hard way.
+//静态全局的弱对象hash表
+/*
+ {
+     obj1: weak_table_t,
+     obj2: weak_table_t,
+ }
+ 相当于
+ {
+    [弱引用表1,obj1对应的弱引用变量表
+        {
+            NSObject *obj1,对象
+            id __weak weakvar1 = obj1;弱指针1
+        },
+        {
+            NSObject *obj1,对象
+            id __weak weakvar2 = obj1;弱指针2
+        },
+         {
+             NSObject *obj1,对象
+             id __weak weakvar3 = obj1;弱指针3
+         },
+    ],
+    [弱引用表2,obj2对应的弱引用变量表
+        {
+            NSObject *obj2,对象
+            id __weak weakvar1 = obj2;弱指针1
+        },
+        {
+            NSObject *obj2,对象
+            id __weak weakvar2 = obj2;弱指针2
+        },
+         {
+             NSObject *obj2,对象
+             id __weak weakvar3 = obj2;弱指针3
+         },
+    ]
+ }
+ 
+ struct weak_table_t {
+     weak_entry_t *weak_entries;
+     size_t    num_entries;
+ };
+ 
+ struct weak_entry_t {
+
+  被引用的对象，比如
+  NSObject *obj = [[NSObject alloc] init];
+  id __weak obj1 = obj;
+  那么 referent 就等于obj,然后obj1这个弱引用对象的地址 就会被存在referrers 中
+ DisguisedPtr<objc_object> referent;
+ union {
+     struct {
+         weak_referrer_t *referrers;
+     };
+ };
+
+ 
+ */
 alignas(StripedMap<SideTable>) static uint8_t 
     SideTableBuf[sizeof(StripedMap<SideTable>)];
 
@@ -169,7 +227,18 @@ static void SideTableInit() {
     new (SideTableBuf) StripedMap<SideTable>();
 }
 
+/*
+ reinterpret_cast类型转换方法
+ reinterpret_cast<类型说明符>(表达式）
+ */
 static StripedMap<SideTable>& SideTables() {
+    /*
+     ----------------------- 转换成StripedMap<SideTable>*类型
+     {
+        obj1:[weak1, weak2, weak3],
+        obj2:[weak1, weak2, weak3]
+     }
+    */
     return *reinterpret_cast<StripedMap<SideTable>*>(SideTableBuf);
 }
 
@@ -263,12 +332,15 @@ objc_storeStrong(id *location, id obj)
 enum CrashIfDeallocating {
     DontCrashIfDeallocating = false, DoCrashIfDeallocating = true
 };
+
+/*
+ C++ 模板函数？
+location 变量位置
+newObj 变量新值
+*/
+
 template <HaveOld haveOld, HaveNew haveNew,
           CrashIfDeallocating crashIfDeallocating>
-/*
- location 变量位置
- newObj 变量新值
- */
 static id 
 storeWeak(id *location, objc_object *newObj)
 {
@@ -285,6 +357,7 @@ storeWeak(id *location, objc_object *newObj)
     // Retry if the old value changes underneath us.
  retry:
     if (haveOld) {
+        //根据对象指针，从弱引用hash表中获取对象对应的弱引用变量列表
         oldObj = *location;
         oldTable = &SideTables()[oldObj];
     } else {
