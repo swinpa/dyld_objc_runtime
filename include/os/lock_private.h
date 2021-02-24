@@ -644,9 +644,14 @@ os_unfair_lock_lock_with_options_inline(os_unfair_lock_t lock,
 			_PTHREAD_TSD_SLOT_MACH_THREAD_SELF);
 	os_unfair_lock unlocked = OS_UNFAIR_LOCK_UNLOCKED, locked = { mts };
 	if (!OSLOCK_STD(atomic_compare_exchange_strong_explicit)(
-			(_os_atomic_unfair_lock*)lock, &unlocked, locked,
-			OSLOCK_STD(memory_order_acquire),
-			OSLOCK_STD(memory_order_relaxed))) {
+                (_os_atomic_unfair_lock*)lock,//参数1
+                &unlocked,//参数2
+                locked,//参数3
+			    OSLOCK_STD(memory_order_acquire),//参数4
+			    OSLOCK_STD(memory_order_relaxed)//参数5
+            )
+        )
+    {
 		return os_unfair_lock_lock_with_options(lock, options);
 	}
 }

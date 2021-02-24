@@ -90,9 +90,9 @@ enum HaveOld { DontHaveOld = false, DoHaveOld = true };
 enum HaveNew { DontHaveNew = false, DoHaveNew = true };
 
 struct SideTable {
-    spinlock_t slock;
-    RefcountMap refcnts;
-    weak_table_t weak_table;
+    spinlock_t slock;//自旋锁
+    RefcountMap refcnts;//引用计数表
+    weak_table_t weak_table;//弱引用表
 
     SideTable() {
         memset(&weak_table, 0, sizeof(weak_table));
@@ -162,17 +162,17 @@ void SideTable::unlockTwo<DontHaveOld, DoHaveNew>
 // libc calls us before our C++ initializers run. We also don't want a global 
 // pointer to this struct because of the extra indirection.
 // Do it the hard way.
-//静态全局的弱对象hash表
+//静态全局的散列表(哈希表，根据对象地址，通过hash(哈希)算法直接计算出下标)
 /*
- {
-     obj1: weak_table_t,
-     obj2: weak_table_t,
- }
+ [
+    SideTable,
+    SideTable,
+ ]
  相当于
- {
-    [弱引用表1,obj1对应的弱引用变量表
+ [
+    [弱引用表1,obj1对应的弱引用变量表SideTable
         {
-            NSObject *obj1,对象
+            NSObject *obj1,对象,因为hash计算可能会出现冲突，所以这里仍需要保持对象obj1
             id __weak weakvar1 = obj1;弱指针1
         },
         {
@@ -198,7 +198,7 @@ void SideTable::unlockTwo<DontHaveOld, DoHaveNew>
              id __weak weakvar3 = obj2;弱指针3
          },
     ]
- }
+ ]
  
  struct weak_table_t {
      weak_entry_t *weak_entries;
@@ -238,6 +238,7 @@ static StripedMap<SideTable>& SideTables() {
         obj1:[weak1, weak2, weak3],
         obj2:[weak1, weak2, weak3]
      }
+     SideTable 散列表
     */
     return *reinterpret_cast<StripedMap<SideTable>*>(SideTableBuf);
 }
@@ -357,7 +358,9 @@ storeWeak(id *location, objc_object *newObj)
     // Retry if the old value changes underneath us.
  retry:
     if (haveOld) {
-        //根据对象指针，从弱引用hash表中获取对象对应的弱引用变量列表
+        /*
+         根据对象指针，从弱引用hash表中获取对象对应的弱引用变量列表
+         */
         oldObj = *location;
         oldTable = &SideTables()[oldObj];
     } else {
