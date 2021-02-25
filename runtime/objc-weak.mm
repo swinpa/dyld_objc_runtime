@@ -301,7 +301,7 @@ static void weak_entry_remove(weak_table_t *weak_table, weak_entry_t *entry)
  * Performs a lookup.
  *
  * @param weak_table 
- * @param referent The object. Must not be nil.
+ * @param referent The object. Must not be nil.（被引用的对象地址）
  * 
  * @return The table of weak referrers to this object. 
  */
@@ -341,8 +341,8 @@ weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
  * FIXME unregistration should be automatic if referrer is collected
  * 
  * @param weak_table The global weak table.
- * @param referent The object.
- * @param referrer The weak reference.
+ * @param referent The object.（弱引用变量指向的对象）
+ * @param referrer The weak reference.（弱引用变量的地址）
  */
 void
 weak_unregister_no_lock(weak_table_t *weak_table, id referent_id, 
@@ -384,8 +384,8 @@ weak_unregister_no_lock(weak_table_t *weak_table, id referent_id,
  * object entry if it does not exist.
  * 
  * @param weak_table The global weak table.
- * @param referent The object pointed to by the weak reference.
- * @param referrer The weak pointer address.
+ * @param referent The object pointed to by the weak reference.（被弱引用变量指向的对象）
+ * @param referrer The weak pointer address.（弱引用变量的地址）
  */
 id 
 weak_register_no_lock(weak_table_t *weak_table, id referent_id, 

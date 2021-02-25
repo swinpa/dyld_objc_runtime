@@ -336,8 +336,24 @@ enum CrashIfDeallocating {
 
 /*
  C++ 模板函数？
-location 变量位置
-newObj 变量新值
+ location 弱指针变量地址
+ newObj 弱指针指向的对象
+ 如：
+ NSObject *obj1 = [NSObject new];
+ id __weak weakvar1 = obj1;弱指针1
+ 那么此时，
+ location = weakvar1，
+ newObj = obj1
+*/
+
+/**
+* This function stores a new value into a __weak variable. It would
+* be used anywhere a __weak variable is the target of an assignment.
+*
+* @param location The address of the weak pointer itself（弱指针变量地址）
+* @param newObj The new object this weak ptr should now point to（弱指针指向的对象）
+*
+* @return \e
 */
 
 template <HaveOld haveOld, HaveNew haveNew,
@@ -345,7 +361,7 @@ template <HaveOld haveOld, HaveNew haveNew,
 static id 
 storeWeak(id *location, objc_object *newObj)
 {
-    assert(haveOld  ||  haveNew);
+    assert(haveOld  ||  haveNew);//不能同时为false
     if (!haveNew) assert(newObj == nil);
 
     Class previouslyInitializedClass = nil;
@@ -358,6 +374,16 @@ storeWeak(id *location, objc_object *newObj)
     // Retry if the old value changes underneath us.
  retry:
     if (haveOld) {
+        /*
+         根据对象地址，从弱引用hash表中获取对象对应的弱引用变量列表(弱引用变量列表存储了所有指向该对象的弱引用变量)
+         location 为存储对象地址的指针变量
+         *location 为取指针变量中存储的值
+         例如：
+         int a = 10;此时a 的内存地址为0x000000a0
+         生命指针变量p指向a
+         int *p = &a;此时指针变量p中保存的就是a的地址0x000000a0
+         *p 为获取p变量中存储的值0x000000a0
+         */
         /*
          根据对象指针，从弱引用hash表中获取对象对应的弱引用变量列表
          */
@@ -436,8 +462,8 @@ storeWeak(id *location, objc_object *newObj)
  * This function stores a new value into a __weak variable. It would
  * be used anywhere a __weak variable is the target of an assignment.
  * 
- * @param location The address of the weak pointer itself
- * @param newObj The new object this weak ptr should now point to
+ * @param location The address of the weak pointer itself（弱指针变量地址）
+ * @param newObj The new object this weak ptr should now point to（弱指针指向的对象）
  * 
  * @return \e newObj
  */

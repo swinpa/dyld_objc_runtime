@@ -49,11 +49,22 @@
 
 - (void)buttonClick {
     NSLog(@"%@",self);
+    __weak TView *wvar1 = nil;
+    __weak TView *wvar2 = nil;
+    __weak TView *wvar3 = nil;
+    
+    NSString *addr1 = [NSString stringWithFormat:@"wvar1地址=%p",&wvar1];
+    NSString *addr2 = [NSString stringWithFormat:@"wvar2地址=%p",&wvar2];
+    NSString *addr3 = [NSString stringWithFormat:@"wvar3地址=%p",&wvar3];
+    
     NSLog(@"");
     {
         TView *vc = [[TView alloc] init];
         vc.v = [[NSView alloc] init];
         self.wproperty = vc;
+        wvar1 = vc;
+        wvar2 = vc;
+        wvar3 = vc;
         NSLog(@"");
     }
     
