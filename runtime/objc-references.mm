@@ -192,6 +192,31 @@ using namespace objc_references_support;
 
 spinlock_t AssociationsManagerLock;
 
+
+/*
+ 
+ AssociationsHashMap 大概如下
+ [
+    ObjectAssociationMap,//对象obj0，
+        //ObjectAssociationMap 大概如下
+        [
+            ObjcAssociation,//对象obj0中的key_a 对应的值
+            ObjcAssociation,//对象obj0中的key_b 对应的值
+            ObjcAssociation//对象obj0中的key_c 对应的值
+        ]
+ 
+ 
+    ObjectAssociationMap,//对象obj1
+    ObjectAssociationMap//对象obj2
+ ]
+ 
+ 访问流程大概如下：
+ 通过对象地址在全局的AssociationsHashMap 下查找到对应的 对象相关的ObjectAssociationMap，再在
+ ObjectAssociationMap 中根据key找到对应的值（被封装成ObjcAssociation）
+ 
+ 
+ */
+
 class AssociationsManager {
     // associative references: object pointer -> PtrPtrHashMap.
     static AssociationsHashMap *_map;
@@ -271,18 +296,21 @@ struct ReleaseValue {
 void _object_set_associative_reference(id object, void *key, id value, uintptr_t policy) {
     // retain the new value (if any) outside the lock.
     ObjcAssociation old_association(0, nil);
+    //acquireValue 现根据关联策略，对value进行相应的内存管理操作，retain，或者copy，或者什么都不用做
     id new_value = value ? acquireValue(value, policy) : nil;
     {
-        AssociationsManager manager;
+        AssociationsManager manager;//关联管理类中有个static的用来存放所有有关联属性的hash map
         AssociationsHashMap &associations(manager.associations());
         disguised_ptr_t disguised_object = DISGUISE(object);
         if (new_value) {
+            //有新值
             // break any existing association.
+            //根据对象的地址，从关联对象的hash map 中查找
             AssociationsHashMap::iterator i = associations.find(disguised_object);
-            if (i != associations.end()) {
+            if (i != associations.end()) {//从全局的hash map 中找到
                 // secondary table exists
-                ObjectAssociationMap *refs = i->second;
-                ObjectAssociationMap::iterator j = refs->find(key);
+                ObjectAssociationMap *refs = i->second;// 这是一个与对象相关的所有关联字段表
+                ObjectAssociationMap::iterator j = refs->find(key);//根据key 找对应的值
                 if (j != refs->end()) {
                     old_association = j->second;
                     j->second = ObjcAssociation(policy, new_value);
@@ -297,6 +325,7 @@ void _object_set_associative_reference(id object, void *key, id value, uintptr_t
                 object->setHasAssociatedObjects();
             }
         } else {
+            // 删除，比如置nil
             // setting the association to nil breaks the association.
             AssociationsHashMap::iterator i = associations.find(disguised_object);
             if (i !=  associations.end()) {
