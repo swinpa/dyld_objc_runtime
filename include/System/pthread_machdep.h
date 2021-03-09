@@ -201,7 +201,24 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
-    
+
+    /*
+     
+     黑魔法之Thread Local Storage
+     Thread Local Storage（TLS）线程局部存储，目的很简单，将一块内存作为某个线程专有的存储，以key-value的形式进行读写，比如在非arm架构下，使用pthread提供的方法实现：
+
+     void* pthread_getspecific(pthread_key_t);
+     int pthread_setspecific(pthread_key_t , const void *);
+     说它是黑魔法可能被懂pthread的笑话- -
+
+     在返回值身上调用objc_autoreleaseReturnValue方法时，runtime将这个返回值object储存在TLS中，然后直接返回这个object（不调用autorelease）；同时，在外部接收这个返回值的objc_retainAutoreleasedReturnValue里，发现TLS中正好存了这个对象，那么直接返回这个object（不调用retain）。
+     于是乎，调用方和被调方利用TLS做中转，很有默契的免去了对返回值的内存管理。
+
+     于是问题又来了，假如被调方和主调方只有一边是ARC环境编译的该咋办？（比如我们在ARC环境下用了非ARC编译的第三方库，或者反之）
+     只能动用更高级的黑魔法。
+     
+     */
+
     extern void *pthread_getspecific(unsigned long);
     extern int pthread_setspecific(unsigned long, const void *);
     /* setup destructor function for static key as it is not created with pthread_key_create() */

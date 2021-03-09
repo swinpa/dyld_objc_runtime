@@ -738,6 +738,38 @@ struct magic_t {
 #   undef M1
 };
     
+/**
+ 参考文章：https://draveness.me/autoreleasepool/
+ */
+
+/*
+ 
+ @autoreleasepool {
+     NSObject *obj0 = [[[NSObject alloc] init] autorelease];
+     @autoreleasepool {
+         NSObject *obj10 = [[[NSObject alloc] init] autorelease];
+         @autoreleasepool {
+             NSObject *obj20 = [[[NSObject alloc] init] autorelease];
+         }
+     }
+     NSObject *obj1 = [[[NSObject alloc] init] autorelease];
+ }
+ 会转变成
+ 
+ void * autoreleasepool0 = objc_autoreleasePoolPush();
+     ++++++++++++++++++++++++++++++++++++++++++++++++++++
+     void * autoreleasepool1 = objc_autoreleasePoolPush();
+     // do whatever you want
+         ----------------------------------------------------
+         void * autoreleasepool2 = objc_autoreleasePoolPush();
+         // do whatever you want
+         objc_autoreleasePoolPop(autoreleasepool2);
+         ----------------------------------------------------
+    objc_autoreleasePoolPop(autoreleasepool1);
+    ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ // do whatever you want
+ objc_autoreleasePoolPop(autoreleasepool0);
+*/
 
 class AutoreleasePoolPage 
 {
@@ -745,8 +777,12 @@ class AutoreleasePoolPage
     // pushed and it has never contained any objects. This saves memory 
     // when the top level (i.e. libdispatch) pushes and pops pools but 
     // never uses them.
+    /*
+     这是为了节省内存
+     */
 #   define EMPTY_POOL_PLACEHOLDER ((id*)1)
 
+    //这就是所谓的哨兵吗？
 #   define POOL_BOUNDARY nil
     static pthread_key_t const key = AUTORELEASE_POOL_KEY;
     static uint8_t const SCRIBBLE = 0xA3;  // 0xA3A3A3A3 after releasing
@@ -760,7 +796,7 @@ class AutoreleasePoolPage
 
     magic_t const magic;
     id *next;
-    pthread_t const thread;
+    pthread_t const thread;//保存了当前页所在的线程
     AutoreleasePoolPage * const parent;
     AutoreleasePoolPage *child;
     uint32_t const depth;
@@ -876,7 +912,7 @@ class AutoreleasePoolPage
         assert(!full());
         unprotect();
         id *ret = next;  // faster than `return next-1` because of aliasing
-        *next++ = obj;
+        *next++ = obj;//保存autorelease 对象，先指向当前next，然后移动next(移动到一新的内存)
         protect();
         return ret;
     }
@@ -890,7 +926,7 @@ class AutoreleasePoolPage
     {
         // Not recursive: we don't want to blow out the stack 
         // if a thread accumulates a stupendous amount of garbage
-        
+        //next不断出栈，得到对象，并向对象发送release 消息
         while (this->next != stop) {
             // Restart from hotPage() every time, in case -release 
             // autoreleased more objects
@@ -970,6 +1006,7 @@ class AutoreleasePoolPage
         return pageForPointer((uintptr_t)p);
     }
 
+    ///通过内存地址的操作，获取当前指针所在页的首地址：
     static AutoreleasePoolPage *pageForPointer(uintptr_t p) 
     {
         AutoreleasePoolPage *result;
@@ -997,12 +1034,23 @@ class AutoreleasePoolPage
         return EMPTY_POOL_PLACEHOLDER;
     }
 
+    /**
+     可以理解为获取当前正在使用的 AutoreleasePoolPage。
+     */
     static inline AutoreleasePoolPage *hotPage() 
     {
-        AutoreleasePoolPage *result = (AutoreleasePoolPage *)
-            tls_get_direct(key);
-        if ((id *)result == EMPTY_POOL_PLACEHOLDER) return nil;
-        if (result) result->fastcheck();
+        /*
+         Thread Local Storage（TLS）线程局部存储，目的很简单，将一块内存作为某个线程专有的存储，以key-value的形式进行读写
+         tls_get_direct和fetch_cache，这两个函数都是与TLS（Thread Local Storage线程局部存储）相关的，它们只会获取自己线程私有的数据，所以tls_get_direct和fetch_cache在不同的线程中查找的是不一样的。
+         */
+        AutoreleasePoolPage *result = (AutoreleasePoolPage *)tls_get_direct(key);
+        if ((id *)result == EMPTY_POOL_PLACEHOLDER) {
+            return nil;
+        }
+        if (result) {
+            //做线程校验，应该是校验获取到的pool是否在当前线程的
+            result->fastcheck();
+        }
         return result;
     }
 
@@ -1024,11 +1072,21 @@ class AutoreleasePoolPage
         return result;
     }
 
-
+    /**
+     NSObject *obj = [[[NSObject alloc] init] autorelease];
+     对象在 调用autorelease方法时会执行到下面的方法
+     @param obj, 为调用autorelease 方法的对象
+     */
     static inline id *autoreleaseFast(id obj)
     {
         AutoreleasePoolPage *page = hotPage();
+        /*
+         1，如果当前autoreleasepool《未满》，则将autorelease对象添加到当前autoreleasepool 中
+         2，如果当前autoreleasepool《已满》，则需要新的autoreleasepool，用来添加当前autorelease对象
+         3，如果当前还没创建过autoreleasepool，则创建autoreleasepool，并添加autorelease对象到autoreleasepool 中
+         */
         if (page && !page->full()) {
+            //将autorelease 对象添加到当前autoreleasepool 中
             return page->add(obj);
         } else if (page) {
             return autoreleaseFullPage(obj, page);
@@ -1113,6 +1171,11 @@ class AutoreleasePoolPage
     }
 
 public:
+    /**
+     NSObject *obj = [[[NSObject alloc] init] autorelease];
+     对象在 调用autorelease方法时会执行到下面的方法
+     @param obj, 为调用autorelease 方法的对象
+     */
     static inline id autorelease(id obj)
     {
         assert(obj);
@@ -1128,9 +1191,9 @@ public:
         id *dest;
         if (DebugPoolAllocation) {
             // Each autorelease pool starts on a new pool page.
-            dest = autoreleaseNewPage(POOL_BOUNDARY);
+            dest = autoreleaseNewPage(POOL_BOUNDARY);//传进来一个哨兵
         } else {
-            dest = autoreleaseFast(POOL_BOUNDARY);
+            dest = autoreleaseFast(POOL_BOUNDARY);//传进来一个哨兵
         }
         assert(dest == EMPTY_POOL_PLACEHOLDER || *dest == POOL_BOUNDARY);
         return dest;
@@ -1179,7 +1242,7 @@ public:
             return;
         }
 
-        page = pageForPointer(token);
+        page = pageForPointer(token);//使用 pageForPointer 获取当前 token 所在的 AutoreleasePoolPage
         stop = (id *)token;
         if (*stop != POOL_BOUNDARY) {
             if (stop == page->begin()  &&  !page->parent) {
@@ -1195,6 +1258,7 @@ public:
 
         if (PrintPoolHiwat) printHiwat();
 
+        //释放对象，直到遇到哨兵
         page->releaseUntil(stop);
 
         // memory: delete empty children
@@ -1939,6 +2003,9 @@ objc_autoreleasePoolPush(void)
     return AutoreleasePoolPage::push();
 }
 
+/**
+ 释放指定释放池（autoreleasePool）ctxt
+ */
 void
 objc_autoreleasePoolPop(void *ctxt)
 {
