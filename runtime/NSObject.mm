@@ -907,6 +907,7 @@ class AutoreleasePoolPage
         return (next - begin() < (end() - begin()) / 2);
     }
 
+    ///压栈操作：将对象加入AutoreleaseNoPage并移动栈顶的指针
     id *add(id obj)
     {
         assert(!full());
@@ -1105,8 +1106,11 @@ class AutoreleasePoolPage
         assert(page->full()  ||  DebugPoolAllocation);
 
         do {
-            if (page->child) page = page->child;
-            else page = new AutoreleasePoolPage(page);
+            if (page->child) {
+                page = page->child;
+            }else {
+                page = new AutoreleasePoolPage(page);
+            }
         } while (page->full());
 
         setHotPage(page);
@@ -1242,7 +1246,11 @@ public:
             return;
         }
 
-        page = pageForPointer(token);//使用 pageForPointer 获取当前 token 所在的 AutoreleasePoolPage
+        /*
+         使用 pageForPointer 获取当前 token 所在的 AutoreleasePoolPage
+         向栈中的对象发送release消息，直到遇到第一个哨兵对象
+         */
+        page = pageForPointer(token);
         stop = (id *)token;
         if (*stop != POOL_BOUNDARY) {
             if (stop == page->begin()  &&  !page->parent) {
