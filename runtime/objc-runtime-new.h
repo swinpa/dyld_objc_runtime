@@ -558,14 +558,14 @@ struct class_ro_t {
     uint32_t reserved;
 #endif
 
-    const uint8_t * ivarLayout;
+    const uint8_t * ivarLayout;// <- 记录了哪些是 strong 的 ivar
     
     const char * name;
     method_list_t * baseMethodList;
     protocol_list_t * baseProtocols;
     const ivar_list_t * ivars;
 
-    const uint8_t * weakIvarLayout;
+    const uint8_t * weakIvarLayout;// <- 记录了哪些是 weak 的 ivar
     property_list_t *baseProperties;
 
     method_list_t *baseMethods() const {

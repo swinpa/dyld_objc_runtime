@@ -552,6 +552,7 @@ static void addUnattachedCategoryForClass(category_t *cat, Class cls,
         list = (category_list *)
             realloc(list, sizeof(*list) + sizeof(list->list[0]) * (list->count + 1));
     }
+    //将分类信息插入到一个表中，后续需要的时候从这个表获取
     list->list[list->count++] = (locstamped_category_t){cat, catHeader};
     NXMapInsert(cats, cls, list);
 }
@@ -769,7 +770,7 @@ prepareMethodLists(Class cls, method_list_t **addedLists, int addedCount,
     }
 }
 
-
+//将分类的方法，属性，协议添加到类的class_rw_t字段中对应的methods ,properties, protocols
 // Attach method lists and properties and protocols from categories to a class.
 // Assumes the categories in cats are all loaded and sorted by load order, 
 // oldest categories first.
@@ -851,7 +852,13 @@ static void methodizeClass(Class cls)
                      cls->nameForLogging(), isMeta ? "(meta)" : "");
     }
 
-    // Install methods and properties that the class implements itself.
+    /*
+     Install methods and properties that the class implements itself.
+     也就是：
+     1，将class_ro_t 中的baseMethods 拷贝到 class_rw_t 中的methods 中去
+     2，将class_ro_t 中的baseProperties 拷贝到 class_rw_t 中的properties 中去
+     3，将class_ro_t 中的baseProtocols 拷贝到 class_rw_t 中的protocols 中去
+     */
     method_list_t *list = ro->baseMethods();
     if (list) {
         prepareMethodLists(cls, &list, 1, YES, isBundleClass(cls));
@@ -875,7 +882,10 @@ static void methodizeClass(Class cls)
         addMethod(cls, SEL_initialize, (IMP)&objc_noop_imp, "", NO);
     }
 
-    // Attach categories.
+    /*
+     Attach categories.
+     获取类对应的所有分类
+     */
     category_list *cats = unattachedCategoriesForClass(cls, true /*realizing*/);
     attachCategories(cls, cats, false /*don't flush caches*/);
 
@@ -2717,6 +2727,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     // Discover categories. 
     for (EACH_HEADER) {
+        //从 __objc_catlist 段中读取image中的所有的分类信息
         category_t **catlist = 
             _getObjc2CategoryList(hi, &count);
         bool hasClassProperties = hi->info()->hasCategoryClassProperties();
@@ -2745,6 +2756,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
             if (cat->instanceMethods ||  cat->protocols  
                 ||  cat->instanceProperties) 
             {
+                /*
+                 如果分类中有实例方法，协议，或者属性，则执行addUnattachedCategoryForClass方法
+                 将分类信息插入一表中
+                 */
                 addUnattachedCategoryForClass(cat, cls, hi);
                 if (cls->isRealized()) {
                     remethodizeClass(cls);
