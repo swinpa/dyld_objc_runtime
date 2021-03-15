@@ -83,6 +83,7 @@ static inline void reallySetProperty(id self, SEL _cmd, id newValue, ptrdiff_t o
         newValue = [newValue mutableCopyWithZone:nil];
     } else {
         if (*slot == newValue) return;
+        //retain 新对象的引用计数
         newValue = objc_retain(newValue);
     }
 
@@ -97,6 +98,7 @@ static inline void reallySetProperty(id self, SEL _cmd, id newValue, ptrdiff_t o
         slotlock.unlock();
     }
 
+    //release 旧对象的引用计数
     objc_release(oldValue);
 }
 

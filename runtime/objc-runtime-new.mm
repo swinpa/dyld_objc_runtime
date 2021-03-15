@@ -2557,6 +2557,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // Discover classes. Fix up unresolved future classes. Mark bundle classes.
 
     for (EACH_HEADER) {
+        //从数据段__objc_classlist 中读取所有的类
         classref_t *classlist = _getObjc2ClassList(hi, &count);
         
         if (! mustReadClasses(hi)) {
