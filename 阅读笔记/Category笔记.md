@@ -41,3 +41,8 @@
 	
 * 关联时，根据当前对象地址，从AssociationsHashMap中找到对象对应的ObjectAssociationMap，然后再根据key，在
 ObjectAssociationMap 中找到关联信息
+
+### 如何把framework的私有方法公开？
+* 在分类中定义一个方法跟私有方法同名的就可以了
+
+

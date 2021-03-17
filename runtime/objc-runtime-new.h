@@ -830,6 +830,7 @@ struct class_rw_t {
 
     const class_ro_t *ro;
 
+    //类realize后(realizeClass()执行后)，所有的实例方法都放在该变量中，包括分类中定义的
     method_array_t methods;
     property_array_t properties;
     protocol_array_t protocols;
