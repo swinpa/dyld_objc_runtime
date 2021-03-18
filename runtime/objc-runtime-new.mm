@@ -2751,7 +2751,9 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     ts.log("IMAGE TIMES: realize future classes");
 
-    // Discover categories. 
+    /*
+     Discover categories.
+     */
     for (EACH_HEADER) {
         //从 __objc_catlist 段中读取image中的所有的分类信息
         category_t **catlist = 

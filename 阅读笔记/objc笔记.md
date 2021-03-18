@@ -64,7 +64,7 @@ Objective-C 是一门动态语音，他的动态特性之一就是对象在发�
 }
 @end
 ```
-### 最终编译器转化成如下
+### 最终编译器转化成如下(xcrun --sdk iphoneos clang -arch arm64 -rewrite-objc main.m -o main.cpp)
 ```
 #ifndef _REWRITER_typedef_Person
 #define _REWRITER_typedef_Person
