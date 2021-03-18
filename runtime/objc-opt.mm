@@ -309,7 +309,7 @@ struct objc_headeropt_rw_t {
 };
 };
 
-
+///从dyld的共享缓存中查找mhdr 对应的 header_info
 header_info *preoptimizedHinfoForHeader(const headerType *mhdr)
 {
 #if !__OBJC2__

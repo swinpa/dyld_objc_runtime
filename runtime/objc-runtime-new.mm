@@ -1175,8 +1175,10 @@ static void addNamedClass(Class cls, const char *name, Class replacing = nil)
         // lookup must be in the secondary meta->nonmeta table.
         addNonMetaClass(cls);
     } else {
+        //将非元类添加到一张map上, 以name 作为key ,以cls 作为value
         NXMapInsert(gdb_objc_realized_classes, name, cls);
     }
+    //如果该类为元类，则抛出异常，断言中断
     assert(!(cls->data()->flags & RO_META));
 
     // wrong: constructed classes are already realized when they get here
@@ -1557,7 +1559,7 @@ Class firstRealizedClass()
     runtimeLock.assertLocked();
     return _firstRealizedClass;
 }
-
+///该接口主要在realizeClass中调用，或者用户动态创建类时调用
 static void addRootClass(Class cls)
 {
     runtimeLock.assertLocked();
@@ -1879,6 +1881,16 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
 * Returns the real class structure for the class. 
 * Locking: runtimeLock must be write-locked by the caller
 **********************************************************************/
+
+/**
+* 主要做一下几件事情:
+* 1，申请 rw (class_rw_t) 的内存空间， 并将rw 的 ro 指向 编译器确定了的 ro 内存空间，然后将申请的class 中的rw 指向申请的 rw。
+* 2，设置类的父类(superclass)，以及设置类的isa (指向元类)
+* 3，将ro中的一些标志(flag) 设置到类的rw 中的标志中（可能是为了后续方便访问）
+* 4，将ro中的方法，协议，属性拷贝到rw中，并且把分类的方法，协议，属性也拷贝到rw中，后续通过class 的rw中的methods 就能访问到该了的
+ 所有的方法，协议，与属性
+*/
+
 static Class realizeClass(Class cls)
 {
     runtimeLock.assertLocked();
@@ -1893,9 +1905,11 @@ static Class realizeClass(Class cls)
     if (cls->isRealized()) return cls;
     assert(cls == remapClass(cls));
 
-    // fixme verify class is not in an un-dlopened part of the shared cache?
-
-    ro = (const class_ro_t *)cls->data();
+    /*
+     fixme verify class is not in an un-dlopened part of the shared cache?
+     调整class 中的rw（class_rw_t） 数据
+     */
+    ro = (const class_ro_t *)cls->data();//编译器已确定的ro
     if (ro->flags & RO_FUTURE) {
         // This was a future class. rw data is already allocated.
         rw = cls->data();
@@ -1903,9 +1917,12 @@ static Class realizeClass(Class cls)
         cls->changeInfo(RW_REALIZED|RW_REALIZING, RW_FUTURE);
     } else {
         // Normal class. Allocate writeable class data.
+        //为class 申请rw 的空间
         rw = (class_rw_t *)calloc(sizeof(class_rw_t), 1);
+        //将rw->ro 指向编译期已确定的ro内存
         rw->ro = ro;
         rw->flags = RW_REALIZED|RW_REALIZING;
+        //将申请的rw 内存设置给class
         cls->setData(rw);
     }
 
@@ -1976,7 +1993,10 @@ static Class realizeClass(Class cls)
     // Set fastInstanceSize if it wasn't set already.
     cls->setInstanceSize(ro->instanceSize);
 
-    // Copy some flags from ro to rw
+    /*
+     Copy some flags from ro to rw
+     将ro 中的某些标识拷贝到rw 中
+     */
     if (ro->flags & RO_HAS_CXX_STRUCTORS) {
         cls->setHasCxxDtor();
         if (! (ro->flags & RO_HAS_CXX_DTOR_ONLY)) {
@@ -2280,7 +2300,7 @@ bool mustReadClasses(header_info *hi)
 
 /***********************************************************************
 * readClass
-* Read a class and metaclass as written by a compiler.
+* Read a class and metaclass as written by a compiler.（读取被编译器写的class 和 metaclass）
 * Returns the new class pointer. This could be: 
 * - cls
 * - nil  (cls has a missing weak-linked superclass)
@@ -2335,10 +2355,12 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
                         "because the real class is too big.", 
                         cls->nameForLogging());
         }
-        
+        //获取objc_class 中的class_rw_t 数据
         class_rw_t *rw = newCls->data();
         const class_ro_t *old_ro = rw->ro;
         memcpy(newCls, cls, sizeof(objc_class));
+        
+        // 将class_rw_t 中的ro(class_ro_t) 指向objc_class 中的 data(class_rw_t)部分数据
         rw->ro = (class_ro_t *)newCls->data();
         newCls->setData(rw);
         freeIfMutable((char *)old_ro->name);
@@ -2580,6 +2602,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
         for (i = 0; i < count; i++) {
             Class cls = (Class)classlist[i];
+            //读取被编译器写的class 和 metaclass,主要是存放到一些map 上
             Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
 
             if (newCls != cls  &&  newCls) {
@@ -2683,7 +2706,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     ts.log("IMAGE TIMES: fix up @protocol references");
 
-    // Realize non-lazy classes (for +load methods and static instances)
+    /*
+     Realize non-lazy classes (for +load methods and static instances)
+     non-lazy classes 也就是没有 +load 的类
+     */
     for (EACH_HEADER) {
         classref_t *classlist = 
             _getObjc2NonlazyClassList(hi, &count);

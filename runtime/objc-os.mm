@@ -226,7 +226,10 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
 
     bool inSharedCache = false;
 
-    // Look for hinfo from the dyld shared cache.
+    /*
+     Look for hinfo from the dyld shared cache.
+     从dyld的共享缓存中查找mhdr 对应的 header_info
+     */
     hi = preoptimizedHinfoForHeader(mhdr);
     if (hi) {
         // Found an hinfo in the dyld shared cache.
@@ -478,7 +481,7 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
                 // Size some data structures based on main executable's size
 #if __OBJC2__
                 size_t count;
-                _getObjc2SelectorRefs(hi, &count);
+                _getObjc2SelectorRefs(hi, &count);//获取数据段中的 __objc_selrefs 段信息
                 selrefCount += count;
                 _getObjc2MessageRefs(hi, &count);
                 selrefCount += count;

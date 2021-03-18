@@ -551,6 +551,11 @@ static_assert(FAST_IS_SWIFT_STABLE == 2, "resistance is futile");
 
 
 struct class_ro_t {
+    /*
+     标志位，根据该变量与不同的标志位进行 & 操作判断 是否为元类，是否为跟类，是否为ARC
+     class is a metaclass 等
+     RO_META，RW_INITIALIZED
+     */
     uint32_t flags;
     uint32_t instanceStart;
     uint32_t instanceSize;
@@ -825,6 +830,11 @@ class protocol_array_t :
 
 struct class_rw_t {
     // Be warned that Symbolication knows the layout of this structure.
+    /*
+     标志位，根据该变量与不同的标志位进行 & 操作判断 是否为元类，是否为跟类，是否为ARC
+     class is a metaclass 等
+     RO_META，RW_INITIALIZED
+     */
     uint32_t flags;
     uint32_t version;
 
@@ -836,6 +846,7 @@ struct class_rw_t {
     protocol_array_t protocols;
 
     Class firstSubclass;
+    //Sibling: 兄弟姊妹；同胞
     Class nextSiblingClass;
 
     char *demangledName;
