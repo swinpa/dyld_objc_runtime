@@ -1389,7 +1389,7 @@ struct swift_class_t : objc_class {
     }
 };
 
-
+///分类中没有存放成员变量的字段，故不能添加属性， 不像类有个class_rw_t->class_ro_t->ivar 列表，专门存放变量
 struct category_t {
     const char *name;
     classref_t cls;

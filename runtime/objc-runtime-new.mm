@@ -378,10 +378,18 @@ static class_ro_t *make_ro_writeable(class_rw_t *rw)
 
 
 /***********************************************************************
-* unattachedCategories
+* unattachedCategories//
 * Returns the class => categories map of unattached categories.
 * Locking: runtimeLock must be held by the caller.
 **********************************************************************/
+/**
+ * 全局的用来专门存放类与之相关联的所有分类的map
+ * {
+ *    classA : category_list, (category_list 用来存放类A的所有分类)
+ *    classB : category_list,
+ *    classC : category_list
+ * }
+ */
 static NXMapTable *unattachedCategories(void)
 {
     runtimeLock.assertLocked();
@@ -535,15 +543,17 @@ static void checkIsKnownClass(Class cls)
 * Records an unattached category.
 * Locking: runtimeLock must be held by the caller.
 **********************************************************************/
+///将cat(分类) 插入到 与cls 对应的List中,
 static void addUnattachedCategoryForClass(category_t *cat, Class cls, 
                                           header_info *catHeader)
 {
     runtimeLock.assertLocked();
 
     // DO NOT use cat->cls! cls may be cat->cls->isa instead
-    NXMapTable *cats = unattachedCategories();
+    NXMapTable *cats = unattachedCategories();//全局的保存了所有类对应的分类的map
     category_list *list;
 
+    //以class 作为key ,获取专门存放class对应的分类的list
     list = (category_list *)NXMapGet(cats, cls);
     if (!list) {
         list = (category_list *)
@@ -554,6 +564,7 @@ static void addUnattachedCategoryForClass(category_t *cat, Class cls,
     }
     //将分类信息插入到一个表中，后续需要的时候从这个表获取
     list->list[list->count++] = (locstamped_category_t){cat, catHeader};
+    //将<cls,list> 插入到cats 这张全局map中
     NXMapInsert(cats, cls, list);
 }
 
@@ -2753,6 +2764,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     /*
      Discover categories.
+     将分类从image中获取，并插入到类对应的分类列表中
      */
     for (EACH_HEADER) {
         //从 __objc_catlist 段中读取image中的所有的分类信息
@@ -2786,7 +2798,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
             {
                 /*
                  如果分类中有实例方法，协议，或者属性，则执行addUnattachedCategoryForClass方法
-                 将分类信息插入一表中
+                 将分类信息插入到类对应的分类列表中
                  */
                 addUnattachedCategoryForClass(cat, cls, hi);
                 if (cls->isRealized()) {
@@ -2803,6 +2815,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
             if (cat->classMethods  ||  cat->protocols  
                 ||  (hasClassProperties && cat->_classProperties)) 
             {
+                /*
+                如果分类中有类方法，协议，或者属性，则执行addUnattachedCategoryForClass方法
+                将分类信息插入到类的元类对应的分类列表中（元类才保存类的类方法）
+                */
                 addUnattachedCategoryForClass(cat, cls->ISA(), hi);
                 if (cls->ISA()->isRealized()) {
                     remethodizeClass(cls->ISA());
