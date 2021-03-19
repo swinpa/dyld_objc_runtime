@@ -8,9 +8,6 @@
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
       <FileRef
-         location = "group:Category&#x7ecf;clang&#x540e;&#x7684;&#x6e90;&#x7801;.cpp">
-      </FileRef>
-      <FileRef
          location = "group:isa.cpp">
       </FileRef>
       <FileRef
@@ -21,6 +18,9 @@
       </FileRef>
       <FileRef
          location = "group:dyld&#x7b14;&#x8bb0;.md">
+      </FileRef>
+      <FileRef
+         location = "group:extention.cpp">
       </FileRef>
       <FileRef
          location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;.md">
