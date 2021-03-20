@@ -34329,7 +34329,10 @@ extern "C" __declspec(dllimport) struct objc_cache _objc_empty_cache;
 extern "C" unsigned long int OBJC_IVAR_$_Animal$_pAge __attribute__ ((used, section ("__DATA,__objc_ivar"))) = __OFFSETOFIVAR__(struct Animal, _pAge);
 extern "C" unsigned long int OBJC_IVAR_$_Animal$_name __attribute__ ((used, section ("__DATA,__objc_ivar"))) = __OFFSETOFIVAR__(struct Animal, _name);
 
-//从这里可以看出类扩展的属性会存放到类的变量量表中
+/*
+ 从这里可以看出类扩展的属性会存放到类的变量量表中
+ 同时也可以看出，类的成员变量在编译期就已经确定了，会存放在rw->ro->ivar_list 中
+ */
 static struct /*_ivar_list_t*/ {
 	unsigned int entsize;  // sizeof(struct _prop_t)
 	unsigned int count;

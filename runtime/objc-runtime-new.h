@@ -932,6 +932,10 @@ private:
 public:
 
     class_rw_t* data() {
+        /*
+         通过bits & FAST_DATA_MASK进行与操作，拿到类的class_rw_t 这个结构体的数据
+         也就是类的class_rw_t 结构体数据存放在bits 中的从第3到34 位中，总共31位
+         */
         return (class_rw_t *)(bits & FAST_DATA_MASK);
     }
     void setData(class_rw_t *newData)
@@ -1389,7 +1393,7 @@ struct swift_class_t : objc_class {
     }
 };
 
-///分类中没有存放成员变量的字段，故不能添加属性， 不像类有个class_rw_t->class_ro_t->ivar 列表，专门存放变量
+///在编译后，分类会转成该结构体的变量，分类中没有存放成员变量的字段，故不能添加属性， 不像类有个class_rw_t->class_ro_t->ivar 列表，专门存放变量
 struct category_t {
     const char *name;
     classref_t cls;

@@ -622,6 +622,7 @@ static void _class_resolveClassMethod(Class cls, SEL sel, id inst)
 **********************************************************************/
 static void _class_resolveInstanceMethod(Class cls, SEL sel, id inst)
 {
+    //查询类有没有实现resolveInstanceMethod 这个方法，没有则直接返回
     if (! lookUpImpOrNil(cls->ISA(), SEL_resolveInstanceMethod, cls, 
                          NO/*initialize*/, YES/*cache*/, NO/*resolver*/)) 
     {
@@ -629,6 +630,10 @@ static void _class_resolveInstanceMethod(Class cls, SEL sel, id inst)
         return;
     }
 
+    /*
+     如果类有实现resolveInstanceMethod 这个方法，
+     那么就执行该方法，让类有机会动态的为当前类添加当前的方法的实现IMP
+     */
     BOOL (*msg)(Class, SEL, SEL) = (typeof(msg))objc_msgSend;
     bool resolved = msg(cls, SEL_resolveInstanceMethod, sel);
 

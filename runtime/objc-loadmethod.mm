@@ -44,6 +44,7 @@ struct loadable_category {
 
 // List of classes that need +load called (pending superclass +load)
 // This list always has superclasses first because of the way it is constructed
+//用来存放+load 方法的全局的列表（先放父类的）
 static struct loadable_class *loadable_classes = nil;
 static int loadable_classes_used = 0;
 static int loadable_classes_allocated = 0;
@@ -65,6 +66,9 @@ void add_class_to_loadable_list(Class cls)
 
     loadMethodLock.assertLocked();
 
+    /**
+     从cls 的元类中的rw->ro->baseMethods(); 获取+load 的IMP
+     */
     method = cls->getLoadMethod();
     if (!method) return;  // Don't bother if cls has no +load method
     
@@ -72,7 +76,7 @@ void add_class_to_loadable_list(Class cls)
         _objc_inform("LOAD: class '%s' scheduled for +load", 
                      cls->nameForLogging());
     }
-    
+    //如果存放类的+load的IMP的列表的内存空间不够，则从新调整其内存大小
     if (loadable_classes_used == loadable_classes_allocated) {
         loadable_classes_allocated = loadable_classes_allocated*2 + 16;
         loadable_classes = (struct loadable_class *)
@@ -81,6 +85,7 @@ void add_class_to_loadable_list(Class cls)
                               sizeof(struct loadable_class));
     }
     
+    //将类cls 以及他对应的+load的IMP 存放到列表中
     loadable_classes[loadable_classes_used].cls = cls;
     loadable_classes[loadable_classes_used].method = method;
     loadable_classes_used++;
@@ -93,12 +98,16 @@ void add_class_to_loadable_list(Class cls)
 * to its class. Schedule this category for +load after its parent class
 * becomes connected and has its own +load method called.
 **********************************************************************/
+///将分类cat 以及他对应的+load的IMP 存放到一全局的列表中
 void add_category_to_loadable_list(Category cat)
 {
     IMP method;
 
     loadMethodLock.assertLocked();
 
+    /**
+    从分类category_t 的classMethods 列表中; 获取+load 的IMP
+    */
     method = _category_getLoadMethod(cat);
 
     // Don't bother if cat has no +load method
@@ -108,7 +117,7 @@ void add_category_to_loadable_list(Category cat)
         _objc_inform("LOAD: category '%s(%s)' scheduled for +load", 
                      _category_getClassName(cat), _category_getName(cat));
     }
-    
+    //如果存放分类的+load的IMP的列表的内存空间不够，则从新调整其内存大小
     if (loadable_categories_used == loadable_categories_allocated) {
         loadable_categories_allocated = loadable_categories_allocated*2 + 16;
         loadable_categories = (struct loadable_category *)
@@ -117,6 +126,7 @@ void add_category_to_loadable_list(Category cat)
                               sizeof(struct loadable_category));
     }
 
+    //将分类cat 以及他对应的+load的IMP 存放到列表中
     loadable_categories[loadable_categories_used].cat = cat;
     loadable_categories[loadable_categories_used].method = method;
     loadable_categories_used++;
@@ -205,6 +215,7 @@ static void call_class_loads(void)
     }
     
     // Destroy the detached list.
+    // 执行完+load方法后，释放掉全局的用来存放+load方法的列表
     if (classes) free(classes);
 }
 
@@ -334,6 +345,7 @@ static bool call_category_loads(void)
 * Locking: loadMethodLock must be held by the caller 
 *   All other locks must not be held.
 **********************************************************************/
+//先
 void call_load_methods(void)
 {
     static bool loading = NO;
@@ -350,10 +362,12 @@ void call_load_methods(void)
     do {
         // 1. Repeatedly call class +loads until there aren't any more
         while (loadable_classes_used > 0) {
+            //先执行类的+load方法
             call_class_loads();
         }
 
         // 2. Call category +loads ONCE
+        //再执行分类的+load方法
         more_categories = call_category_loads();
 
         // 3. Run more +loads if there are classes OR more untried categories

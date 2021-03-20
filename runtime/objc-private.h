@@ -70,13 +70,24 @@ union isa_t {
         /*
          ISA_BITFIELD 这是宏定义，展开如下，就能看到有has_assoc 这字段
          uintptr_t nonpointer        : 1;                                         \
+         //是否有关联对象
          uintptr_t has_assoc         : 1;                                         \
+         //是否有C++析构函数
          uintptr_t has_cxx_dtor      : 1;                                         \
+         //存储着class对象的内存地址信息
          uintptr_t shiftcls          : 44;                                        \
+         //用于在调试时分辨对象释放未完成初始化
          uintptr_t magic             : 6;                                         \
+         //是否有被弱引用指向过
          uintptr_t weakly_referenced : 1;                                         \
+         //是否正在释放
          uintptr_t deallocating      : 1;                                         \
+         //
+         //引用计数器是否大过无法存储在ISA中，如果为1，
+         //那么引用计数会存储在一个叫sidetable的表中
+         //sidetable 是一个全局的，用来存放所有的类的引用计数，弱引用等属性的表
          uintptr_t has_sidetable_rc  : 1;                                         \
+         //里面存储的值是弱引用计数器减1
          uintptr_t extra_rc          : 8
          */
     };

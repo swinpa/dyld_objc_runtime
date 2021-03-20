@@ -384,7 +384,8 @@ static class_ro_t *make_ro_writeable(class_rw_t *rw)
 **********************************************************************/
 /**
  * 全局的用来专门存放类与之相关联的所有分类的map
- * {
+ *  以类cls 作为key,以category_list 作为value的map
+ * category_map = {
  *    classA : category_list, (category_list 用来存放类A的所有分类)
  *    classB : category_list,
  *    classC : category_list
@@ -564,7 +565,7 @@ static void addUnattachedCategoryForClass(category_t *cat, Class cls,
     }
     //将分类信息插入到一个表中，后续需要的时候从这个表获取
     list->list[list->count++] = (locstamped_category_t){cat, catHeader};
-    //将<cls,list> 插入到cats 这张全局map中
+    //以cls作为key ,list作为value 插入到cats 这张全局map中
     NXMapInsert(cats, cls, list);
 }
 
@@ -604,6 +605,7 @@ static void removeUnattachedCategoryForClass(category_t *cat, Class cls)
 * deletes them from the list. 
 * The result must be freed by the caller. 
 * Locking: runtimeLock must be held by the caller.
+* 《获取类对应的分类列表》
 **********************************************************************/
 static category_list *
 unattachedCategoriesForClass(Class cls, bool realizing)
@@ -931,6 +933,7 @@ static void methodizeClass(Class cls)
 * Fixes up cls's method list, protocol list, and property list.
 * Updates method caches for cls and its subclasses.
 * Locking: runtimeLock must be held by the caller
+* 《将分类的信息，方法，协议，属性添加到类中的对应列表中methods，protocols，properties》
 **********************************************************************/
 static void remethodizeClass(Class cls)
 {
@@ -947,7 +950,7 @@ static void remethodizeClass(Class cls)
             _objc_inform("CLASS: attaching categories to class '%s' %s", 
                          cls->nameForLogging(), isMeta ? "(meta)" : "");
         }
-        
+        //将分类cats的方法，协议，属性添加到类cls中的对应列表中methods，protocols，properties
         attachCategories(cls, cats, true /*flush caches*/);        
         free(cats);
     }
@@ -2238,10 +2241,22 @@ load_images(const char *path __unused, const struct mach_header *mh)
     // Discover load methods
     {
         mutex_locker_t lock2(runtimeLock);
+        /*
+         1, 获取非懒加载的类（带+load方法的类），将其以及他对应的+load 的IMP放到一全局的loadable_classes 数组中，
+            A：通过递归的方式获取，确保父类的+load放在最前面
+            B：通过查询类的元类（类方法在其元类中）中的rw->ro->baseMethods()列表中有没有名字为"load"方法得知
+         
+         2，获取非懒加载的分类（带+load方法的分类），将其以及他对应的+load 的IMP放到一全局的loadable_categories 数组中
+            A：从分类category_t 的classMethods 列表中查询有没有名字为"load"方法得知
+         */
         prepare_load_methods((const headerType *)mh);
     }
 
     // Call +load methods (without runtimeLock - re-entrant)
+    /*
+     上面将+load的方法都放到全局的列表后，下面就开始调用执行
+     先遍历类的loadable_classes 执行，再遍历分类的loadable_categories 执行
+     */
     call_load_methods();
 }
 
@@ -2502,6 +2517,9 @@ readProtocol(protocol_t *newproto, Class protocol_class,
 *
 * Locking: runtimeLock acquired by map_images
 **********************************************************************/
+/*
+ 将分类的方法添加到类的rw中的methods 列表中
+ */
 void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int unoptimizedTotalClasses)
 {
     header_info *hi;
@@ -2799,9 +2817,20 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
                 /*
                  如果分类中有实例方法，协议，或者属性，则执行addUnattachedCategoryForClass方法
                  将分类信息插入到类对应的分类列表中
+                 有一个全局的map
+                 category_map = {
+                    class_A : category_list,
+                    class_B : category_list
+                 }
+                 category_list = [category_t,category_t,category_t]
                  */
                 addUnattachedCategoryForClass(cat, cls, hi);
                 if (cls->isRealized()) {
+                    /*
+                     内部使用attachCategories 接口，将分类的方法添加到类的rw中的的methods 中
+                     同时也会把属性，协议添加到类的rw中对应的列表中
+                     
+                     */
                     remethodizeClass(cls);
                     classExists = YES;
                 }
@@ -2821,6 +2850,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
                 */
                 addUnattachedCategoryForClass(cat, cls->ISA(), hi);
                 if (cls->ISA()->isRealized()) {
+                    /*
+                    内部使用attachCategories 接口，将分类的方法添加到类的rw中的的methods 中
+                    同时也会把属性，协议添加到类的rw中对应的列表中
+                    */
                     remethodizeClass(cls->ISA());
                 }
                 if (PrintConnecting) {
@@ -2914,6 +2947,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 **********************************************************************/
 // Recursively schedule +load for cls and any un-+load-ed superclasses.
 // cls must already be connected.
+/////将类以及他对应的+load 的IMP 加入到一个全局的loadable_classes 数组中
 static void schedule_class_load(Class cls)
 {
     if (!cls) return;
@@ -2921,9 +2955,13 @@ static void schedule_class_load(Class cls)
 
     if (cls->data()->flags & RW_LOADED) return;
 
-    // Ensure superclass-first ordering
+    /*
+     Ensure superclass-first ordering
+     为确保父类的+load会被先执行，在这里通过递归的方式，先将父类以及他对应的+load 的IMP 加入到一个全局的loadable_classes 数组中
+     */
     schedule_class_load(cls->superclass);
 
+    //将类以及他对应的+load 的IMP 加入到一个全局的loadable_classes 数组中
     add_class_to_loadable_list(cls);
     cls->setInfo(RW_LOADED); 
 }
@@ -2943,14 +2981,22 @@ void prepare_load_methods(const headerType *mhdr)
 
     runtimeLock.assertLocked();
 
+    //获取非懒加载的类，也就是有+load方法的类
     classref_t *classlist = 
         _getObjc2NonlazyClassList(mhdr, &count);
     for (i = 0; i < count; i++) {
+        /*
+         遍历所有的类，将类以及他对应的+load 的IMP 加入到一个全局的loadable_classes 数组中
+         */
         schedule_class_load(remapClass(classlist[i]));
     }
 
+    //获取非懒加载的分类，也就是有+load方法的分类
     category_t **categorylist = _getObjc2NonlazyCategoryList(mhdr, &count);
     for (i = 0; i < count; i++) {
+        /*
+        遍历所有的非懒加载分类，将其以及他对应的+load 的IMP 加入到一个全局的loadable_categories 数组中
+        */
         category_t *cat = categorylist[i];
         Class cls = remapClass(cat->cls);
         if (!cls) continue;  // category for ignored weak-linked class
@@ -5032,6 +5078,10 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
 
     if (resolver  &&  !triedResolver) {
         runtimeLock.unlock();
+        /*
+         从这里可以看出，不管类有没有进行动态方法决议（有没有实现resolveInstanceMethod这个方法），或者动态方法决议返回的值是什么
+         都会再查下一遍，同样的类方法也是（resolveClassMethod）
+         */
         _class_resolveMethod(cls, sel, inst);
         runtimeLock.lock();
         // Don't cache the result; we don't hold the lock so it may have 
@@ -5042,7 +5092,11 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
 
     // No implementation found, and method resolver didn't help. 
     // Use forwarding.
-
+    /*
+     如果走到这一步，那么说明类没实现方法（也就是没有IMP）
+     同时也没进行动态方法决议（也没动态的给方法指定IMP（实现resolveInstanceMethod，并在其中给方法绑定IMP ））
+     那么就尝试进行消息转发
+     */
     imp = (IMP)_objc_msgForward_impcache;
     cache_fill(cls, sel, imp, inst);
 
