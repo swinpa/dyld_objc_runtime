@@ -776,10 +776,15 @@ CF_INLINE void __CFRunLoopLockInit(pthread_mutex_t *lock) {
     }
 }
 
-/* call with rl locked, returns mode locked */
+/*
+ call with rl locked, returns mode locked
+ 在RunLoop rl的 _modes（rl->_modes） 中 查找有没有名字为modeName 的mode,如果有则返回该mode
+ 如果没有，则创建一个mode,然后添加到 rl->_modes 中并返回创建的mode
+ */
 static CFRunLoopModeRef __CFRunLoopFindMode(CFRunLoopRef rl, CFStringRef modeName, Boolean create) {
     CHECK_FOR_FORK();
     CFRunLoopModeRef rlm;//__CFRunLoopMode 的指针
+    //声明一个__CFRunLoopMode 变量
     struct __CFRunLoopMode srlm;
     memset(&srlm, 0, sizeof(srlm));
     _CFRuntimeSetInstanceTypeIDAndIsa(&srlm, __kCFRunLoopModeTypeID);
@@ -2814,7 +2819,10 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
         return kCFRunLoopRunFinished;
     }
     __CFRunLoopLock(rl);
-    //根据modeName找到本次将要运行的mode
+    /*
+     在RunLoop rl的 _modes（rl->_modes） 中 查找有没有名字为modeName 的mode,如果有则返回该mode
+     如果没有，则创建一个mode,然后添加到 rl->_modes 中并返回创建的mode
+     */
     CFRunLoopModeRef currentMode = __CFRunLoopFindMode(rl, modeName, false);
     if (NULL == currentMode || __CFRunLoopModeIsEmpty(rl, currentMode, rl->_currentMode)) {
         Boolean did = false;
@@ -2856,6 +2864,10 @@ void CFRunLoopRun(void) {	/* DOES CALLOUT */
     } while (kCFRunLoopRunStopped != result && kCFRunLoopRunFinished != result);
 }
 
+/// <#Description#>
+/// @param modeName <#modeName description#>
+/// @param seconds 超时时间
+/// @param returnAfterSourceHandled <#returnAfterSourceHandled description#>
 SInt32 CFRunLoopRunInMode(CFStringRef modeName, CFTimeInterval seconds, Boolean returnAfterSourceHandled) {     /* DOES CALLOUT */
     CHECK_FOR_FORK();
     return CFRunLoopRunSpecific(CFRunLoopGetCurrent(), modeName, seconds, returnAfterSourceHandled);

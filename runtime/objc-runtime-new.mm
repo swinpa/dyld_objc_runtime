@@ -833,6 +833,16 @@ attachCategories(Class cls, category_list *cats, bool flush_caches)
     auto rw = cls->data();
 
     prepareMethodLists(cls, mlists, mcount, NO, fromBundle);
+    /*
+     将分类中的方法添加到rw->methods 中，
+     添加步骤分3步：
+     1，先追加更多内存空间，
+     2，将rw->methods中旧的数据往后挪
+     3，将新的数据添加到rw->methods的前面
+     这也就是为什么，如果分类中有与类原来同名的方法，
+     调用同名方法时，被执行的是分类的方法
+     
+     */
     rw->methods.attachLists(mlists, mcount);
     free(mlists);
     if (flush_caches  &&  mcount > 0) flushCaches(cls);

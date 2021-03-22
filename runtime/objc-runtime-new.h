@@ -731,8 +731,15 @@ class list_array_tt {
             uint32_t newCount = oldCount + addedCount;
             setArray((array_t *)realloc(array(), array_t::byteSize(newCount)));
             array()->count = newCount;
+            /*
+             void *memcpy(void *restrict s1, const void *restrict s2, size_t n);
+             void *memmove(void *s1, const void *s2, size_t n);
+             将s2指向位置的n字节数据拷贝到s1指向的位置
+             */
+            //将原来的数据往后n挪
             memmove(array()->lists + addedCount, array()->lists, 
                     oldCount * sizeof(array()->lists[0]));
+            //将新的数据放在前面
             memcpy(array()->lists, addedLists, 
                    addedCount * sizeof(array()->lists[0]));
         }

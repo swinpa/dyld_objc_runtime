@@ -34254,8 +34254,12 @@ extern "C" __declspec(dllimport) void objc_setProperty (id, SEL, long, id, bool,
 
 static void _I_Animal_setName_(Animal * self, SEL _cmd, NSString * _Nonnull name) { objc_setProperty (self, _cmd, __OFFSETOFIVAR__(struct Animal, _name), (id)name, 0, 1); }
 
-static int _I_Animal_pAge(Animal * self, SEL _cmd) { return (*(int *)((char *)self + OBJC_IVAR_$_Animal$_pAge)); }
-static void _I_Animal_setPAge_(Animal * self, SEL _cmd, int pAge) { (*(int *)((char *)self + OBJC_IVAR_$_Animal$_pAge)) = pAge; }
+static int _I_Animal_pAge(Animal * self, SEL _cmd) {
+    return (*(int *)((char *)self + OBJC_IVAR_$_Animal$_pAge));
+}
+static void _I_Animal_setPAge_(Animal * self, SEL _cmd, int pAge) {
+    (*(int *)((char *)self + OBJC_IVAR_$_Animal$_pAge)) = pAge;
+}
 // @end
 
 struct _prop_t {
