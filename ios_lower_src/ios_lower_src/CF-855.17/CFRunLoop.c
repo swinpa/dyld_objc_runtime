@@ -653,7 +653,7 @@ typedef struct _per_run_data {
 } _per_run_data;
 
 /*
- __CFRunLoop的定义，从这里可以看出，RunLoop是一个对象，
+ __CFRunLoop的定义，从这里可以看出，RunLoop是一个结构体的实例，
  */
 struct __CFRunLoop {
     CFRuntimeBase _base;
@@ -1358,6 +1358,9 @@ static CFRunLoopRef __CFRunLoopCreate(pthread_t t) {
     CFRunLoopRef loop = NULL;
     CFRunLoopModeRef rlm;
     uint32_t size = sizeof(struct __CFRunLoop) - sizeof(CFRuntimeBase);
+    /*
+     _CFRuntimeCreateInstance 接口会根据__kCFRunLoopTypeID 这个ID获取它所对应的类型，然后
+     */
     loop = (CFRunLoopRef)_CFRuntimeCreateInstance(kCFAllocatorSystemDefault, __kCFRunLoopTypeID, size, NULL);
     if (NULL == loop) {
         return NULL;
@@ -1419,16 +1422,17 @@ CF_EXPORT CFRunLoopRef _CFRunLoopGet0(pthread_t t) {
     CFRunLoopRef loop = (CFRunLoopRef)CFDictionaryGetValue(__CFRunLoops, pthreadPointer(t));
     __CFSpinUnlock(&loopsLock);
     if (!loop) {
-	CFRunLoopRef newLoop = __CFRunLoopCreate(t);
+        CFRunLoopRef newLoop = __CFRunLoopCreate(t);
         __CFSpinLock(&loopsLock);
-	loop = (CFRunLoopRef)CFDictionaryGetValue(__CFRunLoops, pthreadPointer(t));
-	if (!loop) {
-	    CFDictionarySetValue(__CFRunLoops, pthreadPointer(t), newLoop);
-	    loop = newLoop;
-	}
+        //这里需要从__CFRunLoops 再次查询确认，避免代码跑到if语句后被其他地方创建了
+        loop = (CFRunLoopRef)CFDictionaryGetValue(__CFRunLoops, pthreadPointer(t));
+        if (!loop) {
+            CFDictionarySetValue(__CFRunLoops, pthreadPointer(t), newLoop);
+            loop = newLoop;
+        }
         // don't release run loops inside the loopsLock, because CFRunLoopDeallocate may end up taking it
         __CFSpinUnlock(&loopsLock);
-	CFRelease(newLoop);
+        CFRelease(newLoop);
     }
     if (pthread_equal(t, pthread_self())) {
         _CFSetTSD(__CFTSDKeyRunLoop, (void *)loop, NULL);
@@ -1534,11 +1538,23 @@ CFRunLoopRef CFRunLoopGetMain(void) {
 #pragma mark -
 #pragma mark 获取当前线程的RunLoop
 #pragma mark -
-
+/**
+ * 先在当前线程的STD 数据中查找当前有没有runloop 对象，有就返回
+ * 如果没有，则调用_CFRunLoopGet0(pthread_t t) 接口创建一runloop对象并返回，创建的runloop的对象会在
+ * 创建的过程中保存在线程的STD中
+ *  runloop 会存储在两个地方，一个是线程的STD中，一个是全局的__RunLoop 这个全局字典中，
+ *  __RunLoop 以线程的指针为key ，runloop 对象为value存储
+ */
 CFRunLoopRef CFRunLoopGetCurrent(void) {
     CHECK_FOR_FORK();
+    //先在当前线程的STD 数据中查找当前有没有runloop 对象
     CFRunLoopRef rl = (CFRunLoopRef)_CFGetTSD(__CFTSDKeyRunLoop);
     if (rl) return rl;
+    /*
+     当前线程的STD 数据中查找不到runloop 对象，那么就通过获取runloop对象，
+     _CFRunLoopGet0(pthread_t t) 接口会从全局的字典中查询线程对应的runloop，如果有则返回，没有则创建
+     并且存在STD 中
+     */
     return _CFRunLoopGet0(pthread_self());
 }
 
@@ -2483,7 +2499,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
     }
     // mach端口，内核进程通信消息端口。初始为0
     mach_port_name_t dispatchPort = MACH_PORT_NULL;
-    // 判断是否为主线程
+    // 判断是否为主线程，/* returns non-zero if the current thread is the main thread */
     Boolean libdispatchQSafe = pthread_main_np() && ((HANDLE_DISPATCH_ON_BASE_INVOCATION_ONLY && NULL == previousMode) || (!HANDLE_DISPATCH_ON_BASE_INVOCATION_ONLY && 0 == _CFGetTSD(__CFTSDKeyIsInGCDMainQ)));
     // 如果在主线程 && runloop是主线程的runloop && 该mode是commonMode，则给 dispatchPort 赋值为主线程收发消息的端口
     if (libdispatchQSafe && (CFRunLoopGetMain() == rl) && CFSetContainsValue(rl->_commonModes, rlm->_name)) {

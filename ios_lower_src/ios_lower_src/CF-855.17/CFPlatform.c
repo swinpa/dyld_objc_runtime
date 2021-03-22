@@ -656,6 +656,7 @@ CF_EXPORT void *_CFGetTSD(uint32_t slot) {
         _CFLogSimple(kCFLogLevelWarning, "Warning: TSD slot %d retrieved but the thread data has already been torn down.", slot);
         return NULL;
     }
+    //slots 美  [slɑːts] -- 插槽
     uintptr_t *slots = (uintptr_t *)(table->data);
     return (void *)slots[slot];
 }
