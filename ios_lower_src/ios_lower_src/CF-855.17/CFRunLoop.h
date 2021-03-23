@@ -48,10 +48,10 @@ typedef struct __CFRunLoopTimer * CFRunLoopTimerRef;
 
 /* Reasons for CFRunLoopRunInMode() to Return */
 enum {
-    kCFRunLoopRunFinished = 1,
-    kCFRunLoopRunStopped = 2,
-    kCFRunLoopRunTimedOut = 3,
-    kCFRunLoopRunHandledSource = 4
+    kCFRunLoopRunFinished = 1,// 结束
+    kCFRunLoopRunStopped = 2,// 停止（指当前循环结束，但整个 RunLoop 还没有结束）
+    kCFRunLoopRunTimedOut = 3,// 超时
+    kCFRunLoopRunHandledSource = 4// 已经处理完事件
 };
 
 /* Run Loop Observer Activities */

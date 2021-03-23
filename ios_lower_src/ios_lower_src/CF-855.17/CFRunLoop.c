@@ -2370,6 +2370,7 @@ static Boolean __CFRunLoopServiceMachPort(mach_port_name_t port, mach_msg_header
         } else {
             CFRUNLOOP_POLL();
         }
+        //接收消息，如果没有别人发送 port 消息过来，内核会将线程置于等待状态
         ret = mach_msg(msg, MACH_RCV_MSG|MACH_RCV_LARGE|((TIMEOUT_INFINITY != timeout) ? MACH_RCV_TIMEOUT : 0)|MACH_RCV_TRAILER_TYPE(MACH_MSG_TRAILER_FORMAT_0)|MACH_RCV_TRAILER_ELEMENTS(MACH_RCV_TRAILER_AV), 0, msg->msgh_size, port, timeout, MACH_PORT_NULL);
         CFRUNLOOP_WAKEUP(ret);
         if (MACH_MSG_SUCCESS == ret) {
@@ -2573,7 +2574,9 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
          2. 通知observer，即将触发timer回调，处理timer事件
          如果RunLoopMode中的observer有监听kCFRunLoopBeforeTimers事件的，则执行回调通知observer即将触发timer回调，处理timer事件
          */
-        if (rlm->_observerMask & kCFRunLoopBeforeTimers) {
+        //通过与(&)操作,判断当前的 mode 下有没有对kCFRunLoopBeforeTimers事件的监听者
+        if (rlm->_observerMask & kCFRunLoopBeforeTimers) {//
+            //有监听者，触发监听回调
             __CFRunLoopDoObservers(rl, rlm, kCFRunLoopBeforeTimers);
         }
         /*
@@ -2643,6 +2646,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 #if USE_DISPATCH_SOURCE_FOR_TIMERS
         // 这里有个内循环，用于接收等待端口的消息
         // 进入此循环后，线程进入休眠，直到收到新消息才跳出该循环，继续执行run loop
+        
         do {
             if (kCFUseCollectableAllocator) {
                 objc_clear_stack(0);
@@ -2650,7 +2654,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
                 memset(msg_buffer, 0, sizeof(msg_buffer));
             }
             msg = (mach_msg_header_t *)msg_buffer;
-            // 7. 接收waitSet端口的消息
+            // 7. 接收waitSet端口的消息,,7. 等待 mach_port 的消息，线程进入休眠，直到被 9 中的条件唤醒
             __CFRunLoopServiceMachPort(waitSet, &msg, sizeof(msg_buffer), &livePort, poll ? 0 : TIMEOUT_INFINITY);
             // 收到消息之后，livePort 的值为本地接收消息的活动端口
             if (modeQueuePort != MACH_PORT_NULL && livePort == modeQueuePort) {
@@ -2674,6 +2678,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             memset(msg_buffer, 0, sizeof(msg_buffer));
         }
         msg = (mach_msg_header_t *)msg_buffer;
+        // 7. 等待 mach_port 的消息，线程进入休眠，直到被 9 中的条件唤醒
         __CFRunLoopServiceMachPort(waitSet, &msg, sizeof(msg_buffer), &livePort, poll ? 0 : TIMEOUT_INFINITY);
 #endif
         __CFRunLoopLock(rl);
@@ -2724,6 +2729,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             }
         }
 #endif
+        
 #if USE_MK_TIMER_TOO
         else if (rlm->_timerPort != MACH_PORT_NULL && livePort == rlm->_timerPort) {
             CFRUNLOOP_WAKEUP_FOR_TIMER();
