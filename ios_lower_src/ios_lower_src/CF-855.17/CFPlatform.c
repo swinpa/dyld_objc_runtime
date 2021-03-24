@@ -622,7 +622,7 @@ static void __CFTSDFinalize(void *arg) {
 extern int pthread_key_init_np(int, void (*)(void *));
 #endif
 
-// Get or initialize a thread local storage. It is created on demand.
+/// Get or initialize a thread local storage. It is created on demand.
 static __CFTSDTable *__CFTSDGetTable() {
     __CFTSDTable *table = (__CFTSDTable *)__CFTSDGetSpecific();
     // Make sure we're not setting data again after destruction.
@@ -667,6 +667,7 @@ CF_EXPORT void *_CFSetTSD(uint32_t slot, void *newVal, tsdDestructor destructor)
         _CFLogSimple(kCFLogLevelError, "Error: TSD slot %d out of range (set)", slot);
         HALT;
     }
+    //获取线程的tsd 数据
     __CFTSDTable *table = __CFTSDGetTable();
     if (!table) {
         // Someone is setting TSD during thread destruction. The table is gone, so we can't get any data anymore.

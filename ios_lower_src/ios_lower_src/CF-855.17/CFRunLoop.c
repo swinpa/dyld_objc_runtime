@@ -1441,8 +1441,13 @@ CF_EXPORT CFRunLoopRef _CFRunLoopGet0(pthread_t t) {
         CFRelease(newLoop);
     }
     if (pthread_equal(t, pthread_self())) {
+        //将loop对象添加到线程的TSD数据中
         _CFSetTSD(__CFTSDKeyRunLoop, (void *)loop, NULL);
+        
         if (0 == _CFGetTSD(__CFTSDKeyRunLoopCntr)) {
+            /*
+             在线程的TSD 数据中添加一个runloop释放的函数指针（__CFFinalizeRunLoop），当线程销毁时，会从线程的TSD中获取到__CFFinalizeRunLoop，然后执行
+             */
             _CFSetTSD(__CFTSDKeyRunLoopCntr, (void *)(PTHREAD_DESTRUCTOR_ITERATIONS-1), (void (*)(void *))__CFFinalizeRunLoop);
         }
     }
@@ -1469,20 +1474,21 @@ static void __CFRunLoopRemoveAllSources(CFRunLoopRef rl, CFStringRef modeName);
 CF_PRIVATE void __CFFinalizeRunLoop(uintptr_t data) {
     CFRunLoopRef rl = NULL;
     if (data <= 1) {
-	__CFSpinLock(&loopsLock);
-	if (__CFRunLoops) {
-	    rl = (CFRunLoopRef)CFDictionaryGetValue(__CFRunLoops, pthreadPointer(pthread_self()));
-	    if (rl) CFRetain(rl);
-	    CFDictionaryRemoveValue(__CFRunLoops, pthreadPointer(pthread_self()));
-	}
-	__CFSpinUnlock(&loopsLock);
+        __CFSpinLock(&loopsLock);
+        if (__CFRunLoops) {
+            rl = (CFRunLoopRef)CFDictionaryGetValue(__CFRunLoops, pthreadPointer(pthread_self()));
+            if (rl) CFRetain(rl);//释放
+            //从全局的__CFRunLoops 字典中移除
+            CFDictionaryRemoveValue(__CFRunLoops, pthreadPointer(pthread_self()));
+        }
+        __CFSpinUnlock(&loopsLock);
     } else {
         _CFSetTSD(__CFTSDKeyRunLoopCntr, (void *)(data - 1), (void (*)(void *))__CFFinalizeRunLoop);
     }
     if (rl && CFRunLoopGetMain() != rl) { // protect against cooperative threads
         if (NULL != rl->_counterpart) {
             CFRelease(rl->_counterpart);
-	    rl->_counterpart = NULL;
+            rl->_counterpart = NULL;
         }
 	// purge all sources before deallocation
         CFArrayRef array = CFRunLoopCopyAllModes(rl);
@@ -2653,7 +2659,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 #if USE_DISPATCH_SOURCE_FOR_TIMERS
         // 这里有个内循环，用于接收等待端口的消息
         // 进入此循环后，线程进入休眠，直到收到新消息才跳出该循环，继续执行run loop
-        
+        /*
         do {
             if (kCFUseCollectableAllocator) {
                 objc_clear_stack(0);
@@ -2679,6 +2685,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
                 break;
             }
         } while (1);
+        */
 #else
         if (kCFUseCollectableAllocator) {
             objc_clear_stack(0);
