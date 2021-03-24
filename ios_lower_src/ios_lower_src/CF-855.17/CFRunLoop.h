@@ -56,12 +56,19 @@ enum {
 
 /* Run Loop Observer Activities */
 typedef CF_OPTIONS(CFOptionFlags, CFRunLoopActivity) {
+    //RunLoop准备启动
     kCFRunLoopEntry = (1UL << 0),
+    //RunLoop将要处理一些Timer相关事件
     kCFRunLoopBeforeTimers = (1UL << 1),
+    //RunLoop将要处理一些Source事件
     kCFRunLoopBeforeSources = (1UL << 2),
+    //RunLoop将要进行休眠状态,即将由用户态切换到内核态
     kCFRunLoopBeforeWaiting = (1UL << 5),
+    //RunLoop被唤醒，即从内核态切换到用户态后
     kCFRunLoopAfterWaiting = (1UL << 6),
+    //RunLoop退出
     kCFRunLoopExit = (1UL << 7),
+    //监听所有状态
     kCFRunLoopAllActivities = 0x0FFFFFFFU
 };
 

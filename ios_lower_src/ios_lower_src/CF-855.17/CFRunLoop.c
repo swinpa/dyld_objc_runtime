@@ -439,7 +439,8 @@ CF_INLINE AbsoluteTime __CFUInt64ToAbsoluteTime(uint64_t x) {
     return a;
 }
 #endif
-
+//Trivial 英[ˈtrɪviəl] 美[ˈtrɪviəl] 不重要的,无关重要的
+//发送无关重要的mach 消息
 static uint32_t __CFSendTrivialMachMessage(mach_port_t port, uint32_t msg_id, CFOptionFlags options, uint32_t timeout) {
     kern_return_t result;
     mach_msg_header_t header;
@@ -1789,7 +1790,10 @@ static void __CFRunLoopDoObservers(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFRunL
     //为什么要这样？？？可能因为在栈上最多只能申请1024，所以为了申请更大的内存块，需要从堆中申请
     CFRunLoopObserverRef *collectedObservers = (cnt <= 1024) ? buffer : (CFRunLoopObserverRef *)malloc(cnt * sizeof(CFRunLoopObserverRef));
     CFIndex obs_cnt = 0;
-    //将RunLoop中指定Mode的所有的observe添加到一个临时的内存collectedObservers中
+    /*
+     将RunLoop中指定Mode的所有的observe添加到一个临时的内存collectedObservers中
+     避免回调过程中耗时，而这里又被lock住
+     */
     for (CFIndex idx = 0; idx < cnt; idx++) {
         //获取observe
         CFRunLoopObserverRef rlo = (CFRunLoopObserverRef)CFArrayGetValueAtIndex(rlm->_observers, idx);
@@ -2506,6 +2510,9 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
     // mach端口，内核进程通信消息端口。初始为0
     mach_port_name_t dispatchPort = MACH_PORT_NULL;
     // 判断是否为主线程，/* returns non-zero if the current thread is the main thread */
+    /*
+     NULL == previousMode 说明此处为首次进入RunLoop
+     */
     Boolean libdispatchQSafe = pthread_main_np() && ((HANDLE_DISPATCH_ON_BASE_INVOCATION_ONLY && NULL == previousMode) || (!HANDLE_DISPATCH_ON_BASE_INVOCATION_ONLY && 0 == _CFGetTSD(__CFTSDKeyIsInGCDMainQ)));
     // 如果在主线程 && runloop是主线程的runloop && 该mode是commonMode，则给 dispatchPort 赋值为主线程收发消息的端口
     if (libdispatchQSafe && (CFRunLoopGetMain() == rl) && CFSetContainsValue(rl->_commonModes, rlm->_name)) {
@@ -2850,10 +2857,10 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
     //调用__CFRunLoopRun()跑RunLoop
 	result = __CFRunLoopRun(rl, currentMode, seconds, returnAfterSourceHandled, previousMode);
     
+    // 通知Observer即将进入Loop
     if (currentMode->_observerMask & kCFRunLoopExit ){
         __CFRunLoopDoObservers(rl, currentMode, kCFRunLoopExit);
     }
-    // 通知Observer即将退出Loop
     __CFRunLoopModeUnlock(currentMode);
     __CFRunLoopPopPerRunData(rl, previousPerRun);
     //将RunLoopMode还原回旧的Mode
@@ -2897,7 +2904,7 @@ Boolean CFRunLoopIsWaiting(CFRunLoopRef rl) {
     CHECK_FOR_FORK();
     return __CFRunLoopIsSleeping(rl);
 }
-
+///底层通过mach_msg发送消息唤醒已经休眠的RunLoop
 void CFRunLoopWakeUp(CFRunLoopRef rl) {
     CHECK_FOR_FORK();
     // This lock is crucial to ignorable wakeups, do not remove it.
@@ -2912,7 +2919,10 @@ void CFRunLoopWakeUp(CFRunLoopRef rl) {
      * to lose a wakeup, but the send may fail if there is already a
      * wakeup pending, since the queue length is 1. */
     ret = __CFSendTrivialMachMessage(rl->_wakeUpPort, 0, MACH_SEND_TIMEOUT, 0);
-    if (ret != MACH_MSG_SUCCESS && ret != MACH_SEND_TIMED_OUT) CRASH("*** Unable to send message to wake up port. (%d) ***", ret);
+    if (ret != MACH_MSG_SUCCESS && ret != MACH_SEND_TIMED_OUT) {
+        //如果没超时，也不成功
+        CRASH("*** Unable to send message to wake up port. (%d) ***", ret);
+    }
 #elif DEPLOYMENT_TARGET_WINDOWS
     SetEvent(rl->_wakeUpPort);
 #endif
