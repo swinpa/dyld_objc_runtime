@@ -522,6 +522,22 @@ static CFTypeID __kCFRunLoopTimerTypeID = _kCFRuntimeNotATypeID;
 
 typedef struct __CFRunLoopMode *CFRunLoopModeRef;
 
+/*
+ Source有两个种：Source0 和 Source1。
+ 我们知道APP运行的过程其实就是处理各种事件的过程，那么把事件进行分类，大概有下面这几种：
+ 系统层事件、应用层事件、特殊事件。
+ 其中source1基本就是系统事件，source0基本就是应用层事件。复杂点说：
+
+ Source1 :基于mach_Port的,来自系统内核或者其他进程或线程的事件，可以主动唤醒休眠中的RunLoop（iOS里进程间通信开发过程中我们一般不主动使用）。
+ mach_port大家就理解成进程间相互发送消息的一种机制就好。
+ 
+ Source0 ：非基于Port的 处理事件，什么叫非基于Port的呢？就是说你这个消息不是其他进程或者内核直接发送给你的。
+ 简单举个例子：一个APP在前台静止着，此时，用户用手指点击了一下APP界面，那么过程就是下面这样的：
+ 我们触摸屏幕,先摸到硬件(屏幕)，屏幕表面的事件会先包装成Event, Event先告诉source1（mach_port）,source1唤醒RunLoop, 然后将事件Event分发给source0,然后由source0来处理。
+
+ 如果没有事件,也没有timer,则runloop就会睡眠, 如果有,则runloop就会被唤醒,然后跑一圈。
+
+ */
 struct __CFRunLoopMode {
     CFRuntimeBase _base;
     pthread_mutex_t _lock;	/* must have the run loop locked before locking this */
@@ -2627,7 +2643,9 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             // 从缓冲区读取消息
             msg = (mach_msg_header_t *)msg_buffer;
             /* 5. 接收 dispatchPort 端口的消息，dispatch 到 main queue 的事件。
-               如果有接收到消息，则处理消息，如果没消息，则下一步进入睡眠
+               这里去读取消息，如果没消息则直接返回(__CFRunLoopServiceMachPort 方法最后的参数传了0，表示接收消息的等待时间)
+               接收到消息去处理消息，也就是跑source1 事件
+               相当于判断是否有source1 事件，有就跑source1处理流程，没有就跑进入休眠流程
              */
             if (__CFRunLoopServiceMachPort(dispatchPort, &msg, sizeof(msg_buffer), &livePort, 0)) {
                 // 如果接收到了消息的话，前往 handle_msg 开始处理 msg
@@ -2692,7 +2710,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             memset(msg_buffer, 0, sizeof(msg_buffer));
         }
         msg = (mach_msg_header_t *)msg_buffer;
-        // 7. 等待 mach_port 的消息，线程进入休眠，直到被 9 中的条件唤醒
+        // 7. 等待 mach_port 的消息，线程进入休眠，直到被 9 中的条件唤醒（其实是直到收到消息，可以是系统事件，也可以是其他线程唤醒）
         __CFRunLoopServiceMachPort(waitSet, &msg, sizeof(msg_buffer), &livePort, poll ? 0 : TIMEOUT_INFINITY);
 #endif
         __CFRunLoopLock(rl);
@@ -2820,7 +2838,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 }
 
 #pragma mark -
-#pragma mark 指定mode运行RunLoop，根据mode来切换RunLoop
+#pragma mark 指定mode运行RunLoop，切换RunLoop的mode
 #pragma mark -
 
 /*
@@ -2971,46 +2989,64 @@ CF_EXPORT Boolean _CFRunLoopModeContainsMode(CFRunLoopRef rl, CFStringRef modeNa
 void CFRunLoopPerformBlock(CFRunLoopRef rl, CFTypeRef mode, void (^block)(void)) {
     CHECK_FOR_FORK();
     if (CFStringGetTypeID() == CFGetTypeID(mode)) {
-	mode = CFStringCreateCopy(kCFAllocatorSystemDefault, (CFStringRef)mode);
+	
+        mode = CFStringCreateCopy(kCFAllocatorSystemDefault, (CFStringRef)mode);
         __CFRunLoopLock(rl);
 	// ensure mode exists
         CFRunLoopModeRef currentMode = __CFRunLoopFindMode(rl, (CFStringRef)mode, true);
-        if (currentMode) __CFRunLoopModeUnlock(currentMode);
+        if (currentMode) {
+            __CFRunLoopModeUnlock(currentMode);
+        }
         __CFRunLoopUnlock(rl);
+    
     } else if (CFArrayGetTypeID() == CFGetTypeID(mode)) {
         CFIndex cnt = CFArrayGetCount((CFArrayRef)mode);
-	const void **values = (const void **)malloc(sizeof(const void *) * cnt);
+	
+        const void **values = (const void **)malloc(sizeof(const void *) * cnt);
         CFArrayGetValues((CFArrayRef)mode, CFRangeMake(0, cnt), values);
-	mode = CFSetCreate(kCFAllocatorSystemDefault, values, cnt, &kCFTypeSetCallBacks);
+	
+        mode = CFSetCreate(kCFAllocatorSystemDefault, values, cnt, &kCFTypeSetCallBacks);
         __CFRunLoopLock(rl);
-	// ensure modes exist
-	for (CFIndex idx = 0; idx < cnt; idx++) {
+	
+        // ensure modes exist
+        for (CFIndex idx = 0; idx < cnt; idx++) {
             CFRunLoopModeRef currentMode = __CFRunLoopFindMode(rl, (CFStringRef)values[idx], true);
-            if (currentMode) __CFRunLoopModeUnlock(currentMode);
-	}
+            if (currentMode) {
+                __CFRunLoopModeUnlock(currentMode);
+            }
+        }
         __CFRunLoopUnlock(rl);
-	free(values);
+        free(values);
     } else if (CFSetGetTypeID() == CFGetTypeID(mode)) {
         CFIndex cnt = CFSetGetCount((CFSetRef)mode);
-	const void **values = (const void **)malloc(sizeof(const void *) * cnt);
+	
+        const void **values = (const void **)malloc(sizeof(const void *) * cnt);
         CFSetGetValues((CFSetRef)mode, values);
-	mode = CFSetCreate(kCFAllocatorSystemDefault, values, cnt, &kCFTypeSetCallBacks);
+	
+        mode = CFSetCreate(kCFAllocatorSystemDefault, values, cnt, &kCFTypeSetCallBacks);
         __CFRunLoopLock(rl);
-	// ensure modes exist
-	for (CFIndex idx = 0; idx < cnt; idx++) {
+        // ensure modes exist
+        for (CFIndex idx = 0; idx < cnt; idx++) {
             CFRunLoopModeRef currentMode = __CFRunLoopFindMode(rl, (CFStringRef)values[idx], true);
-            if (currentMode) __CFRunLoopModeUnlock(currentMode);
-	}
+            if (currentMode) {
+                __CFRunLoopModeUnlock(currentMode);
+            }
+        }
         __CFRunLoopUnlock(rl);
-	free(values);
+        free(values);
     } else {
-	mode = NULL;
+        mode = NULL;
     }
     block = Block_copy(block);
     if (!mode || !block) {
-	if (mode) CFRelease(mode);
-	if (block) Block_release(block);
-	return;
+	
+        if (mode) {
+            CFRelease(mode);
+        }
+        if (block) {
+            Block_release(block);
+        }
+        return;
     }
     __CFRunLoopLock(rl);
     struct _block_item *new_item = (struct _block_item *)malloc(sizeof(struct _block_item));
@@ -3018,9 +3054,9 @@ void CFRunLoopPerformBlock(CFRunLoopRef rl, CFTypeRef mode, void (^block)(void))
     new_item->_mode = mode;
     new_item->_block = block;
     if (!rl->_blocks_tail) {
-	rl->_blocks_head = new_item;
+        rl->_blocks_head = new_item;
     } else {
-	rl->_blocks_tail->_next = new_item;
+        rl->_blocks_tail->_next = new_item;
     }
     rl->_blocks_tail = new_item;
     __CFRunLoopUnlock(rl);
