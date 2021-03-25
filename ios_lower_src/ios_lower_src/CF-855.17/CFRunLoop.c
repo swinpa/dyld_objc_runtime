@@ -2657,6 +2657,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 
         // 6. 通知观察者RunLoop即将进入休眠
         if (!poll && (rlm->_observerMask & kCFRunLoopBeforeWaiting)) {
+            /// 此处有Observer释放并新建AutoreleasePool: _objc_autoreleasePoolPop(); _objc_autoreleasePoolPush();
             __CFRunLoopDoObservers(rl, rlm, kCFRunLoopBeforeWaiting);
         }
 	
@@ -2710,7 +2711,12 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             memset(msg_buffer, 0, sizeof(msg_buffer));
         }
         msg = (mach_msg_header_t *)msg_buffer;
-        // 7. 等待 mach_port 的消息，线程进入休眠，直到被 9 中的条件唤醒（其实是直到收到消息，可以是系统事件，也可以是其他线程唤醒）
+        /// 7. 等待 mach_port 的消息，线程进入休眠，直到被 9 中的条件唤醒（其实是直到收到消息，可以是系统事件，也可以是其他线程唤醒）
+        /// 7. 调用 mach_msg 等待接受 mach_port 的消息。线程将进入休眠, 直到被下面某一个事件唤醒。
+        /// • 一个基于 port 的Source 的事件。
+        /// • 一个 Timer 到时间了
+        /// • RunLoop 自身的超时时间到了
+        /// • 被其他什么调用者手动唤醒
         __CFRunLoopServiceMachPort(waitSet, &msg, sizeof(msg_buffer), &livePort, poll ? 0 : TIMEOUT_INFINITY);
 #endif
         __CFRunLoopLock(rl);
@@ -2731,6 +2737,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
         __CFRunLoopUnsetSleeping(rl);
 	
         // 8. 通知观察者runloop被唤醒
+        /// 8. 通知 Observers: RunLoop 的线程刚刚被唤醒了。
         if (!poll && (rlm->_observerMask & kCFRunLoopAfterWaiting))
         {
             __CFRunLoopDoObservers(rl, rlm, kCFRunLoopAfterWaiting);
@@ -2752,6 +2759,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
         }
 #if USE_DISPATCH_SOURCE_FOR_TIMERS
         // 如果是 timer 事件
+        /// 9.1 如果一个 Timer 到时间了，触发这个Timer的回调。
         else if (modeQueuePort != MACH_PORT_NULL && livePort == modeQueuePort) {
             CFRUNLOOP_WAKEUP_FOR_TIMER();
             // 处理timer事件
@@ -2763,6 +2771,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 #endif
         
 #if USE_MK_TIMER_TOO
+        /// 9.1 如果一个 Timer 到时间了，触发这个Timer的回调。
         else if (rlm->_timerPort != MACH_PORT_NULL && livePort == rlm->_timerPort) {
             CFRUNLOOP_WAKEUP_FOR_TIMER();
             // On Windows, we have observed an issue where the timer port is set before the time which we requested it to be set. For example, we set the fire time to be TSR 167646765860, but it is actually observed firing at TSR 167646764145, which is 1715 ticks early. The result is that, when __CFRunLoopDoTimers checks to see if any of the run loop timers should be firing, it appears to be 'too early' for the next timer, and no timers are handled.
@@ -2791,13 +2800,14 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             didDispatchPortLastTime = true;
         } else {
             // source1 事件
+            
             CFRUNLOOP_WAKEUP_FOR_SOURCE();
             // Despite the name, this works for windows handles as well
             CFRunLoopSourceRef rls = __CFRunLoopModeFindSourceForMachPort(rl, rlm, livePort);
             // 根据接收消息的 port 寻找 source1 事件
-            if (rls) {
+            if (rls) {/// 9.3 如果一个 Source1 (基于port) 发出事件了，处理这个事件
 #if DEPLOYMENT_TARGET_MACOSX || DEPLOYMENT_TARGET_EMBEDDED || DEPLOYMENT_TARGET_EMBEDDED_MINI
-		mach_msg_header_t *reply = NULL;
+                mach_msg_header_t *reply = NULL;
                 // 处理 source1 事件
                 sourceHandledThisLoop = __CFRunLoopDoSource1(rl, rlm, rls, msg, msg->msgh_size, &reply) || sourceHandledThisLoop;
                 if (NULL != reply) {
@@ -2877,6 +2887,8 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
 
     // 通知Observer即将进入Loop
     if (currentMode->_observerMask & kCFRunLoopEntry ){
+        /// 1. 通知Observers，即将进入RunLoop
+        /// 此处有Observer会创建AutoreleasePool: _objc_autoreleasePoolPush();
         __CFRunLoopDoObservers(rl, currentMode, kCFRunLoopEntry);
     }
     //调用__CFRunLoopRun()跑RunLoop
@@ -2884,6 +2896,7 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
     
     // 通知Observer即将进入Loop
     if (currentMode->_observerMask & kCFRunLoopExit ){
+        /// 此处有Observer释放AutoreleasePool: _objc_autoreleasePoolPop();
         __CFRunLoopDoObservers(rl, currentMode, kCFRunLoopExit);
     }
     __CFRunLoopModeUnlock(currentMode);
