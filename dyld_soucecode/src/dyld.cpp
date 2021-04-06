@@ -4471,7 +4471,10 @@ void preflight(ImageLoader* image, const ImageLoader::RPathChain& loaderRPaths)
 	preflight_finally(image);
 }
 
-//加载insert dylib
+/*
+ 加载inserted dylib
+ 也就是加载静态库
+ */
 static void loadInsertedDylib(const char* path)
 {
 	ImageLoader* image = NULL;
@@ -4520,6 +4523,10 @@ static bool processRestricted(const macho_header* mainExecutableMH, bool* ignore
 #else
     // ask kernel if code signature of program makes it restricted
     uint32_t flags;
+	/*
+	 code signature of program status
+	 csops()也就是获取program 的签名状态
+	 */
 	if ( csops(0, CS_OPS_STATUS, &flags, sizeof(flags)) != -1 ) { //return status
 		if (flags & CS_REQUIRE_LV)
 			*processRequiresLibraryValidation = true;
@@ -4838,12 +4845,16 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 {
 	uintptr_t result = 0;
 	sMainExecutableMachHeader = mainExecutableMH;
+	
+	
+	//与主题逻辑无关
+	{
 #if __MAC_OS_X_VERSION_MIN_REQUIRED
 	// if this is host dyld, check to see if iOS simulator is being run
 	const char* rootPath = _simple_getenv(envp, "DYLD_ROOT_PATH");
 	if ( rootPath != NULL ) {
 		// look to see if simulator has its own dyld，如果有指定的IOS模拟器，就打开指定的模拟器，否则就使用默认的。
-		char simDyldPath[PATH_MAX]; 
+		char simDyldPath[PATH_MAX];
 		strlcpy(simDyldPath, rootPath, PATH_MAX);
 		strlcat(simDyldPath, "/usr/lib/dyld_sim", PATH_MAX);
 		int fd = my_open(simDyldPath, O_RDONLY, 0);
@@ -4855,40 +4866,54 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		}
 	}
 #endif
+	}
 
 	CRSetCrashLogMessage("dyld: launch started");
 
+	//与主题逻辑无关
+	{
 #if LOG_BINDINGS //与主题逻辑无关
-	char bindingsLogPath[256];
-	
-	const char* shortProgName = "unknown";
-	if ( argc > 0 ) {
-		shortProgName = strrchr(argv[0], '/');
-		if ( shortProgName == NULL )
-			shortProgName = argv[0];
-		else 
-			++shortProgName;
-	}
-	mysprintf(bindingsLogPath, "/tmp/bindings/%d-%s", getpid(), shortProgName);
-	sBindingsLogfile = open(bindingsLogPath, O_WRONLY | O_CREAT, 0666);
-	if ( sBindingsLogfile == -1 ) {
-		::mkdir("/tmp/bindings", 0777);
+		char bindingsLogPath[256];
+		
+		const char* shortProgName = "unknown";
+		if ( argc > 0 ) {
+			shortProgName = strrchr(argv[0], '/');
+			if ( shortProgName == NULL )
+				shortProgName = argv[0];
+			else
+				++shortProgName;
+		}
+		mysprintf(bindingsLogPath, "/tmp/bindings/%d-%s", getpid(), shortProgName);
 		sBindingsLogfile = open(bindingsLogPath, O_WRONLY | O_CREAT, 0666);
+		if ( sBindingsLogfile == -1 ) {
+			::mkdir("/tmp/bindings", 0777);
+			sBindingsLogfile = open(bindingsLogPath, O_WRONLY | O_CREAT, 0666);
+		}
+		//dyld::log("open(%s) => %d, errno = %d\n", bindingsLogPath, sBindingsLogfile, errno);
+#endif
 	}
-	//dyld::log("open(%s) => %d, errno = %d\n", bindingsLogPath, sBindingsLogfile, errno);
-#endif	
-	setContext(mainExecutableMH, argc, argv, envp, apple);	//设置全局属性。除了穿进去的参数 其他都是写死的
+	
+
+	setContext(mainExecutableMH, argc, argv, envp, apple);	//设置全局属性。除了传进去的参数 其他都是写死的
 
 	// Pickup the pointer to the exec path.
 	sExecPath = _simple_getenv(apple, "executable_path");
 
 	// <rdar://problem/13868260> Remove interim apple[0] transition code from dyld
-	if (!sExecPath) sExecPath = apple[0];
+	if (!sExecPath) {
+		sExecPath = apple[0];
+	}
 	
 	bool ignoreEnvironmentVariables = false;
 	if ( sExecPath[0] != '/' ) {
 		// have relative path, use cwd to make absolute
 		char cwdbuff[MAXPATHLEN];
+		/*
+		 The getcwd() function copies the absolute pathname of the current working directory into the
+		 memory referenced by buf and returns a pointer to buf.  The size argument is the size, in
+		 bytes, of the array referenced by buf.
+		 获取当前目录的绝对路径，如在控制台上执行pwd 命令输出的目录
+		 */
 	    if ( getcwd(cwdbuff, MAXPATHLEN) != NULL ) {
 			// maybe use static buffer to avoid calling malloc so early...
 			char* s = new char[strlen(cwdbuff) + strlen(sExecPath) + 2];
@@ -4899,12 +4924,22 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		}
 	}
 	// Remember short name of process for later logging
+	/*
+	 char * strrchr(const char *s, int c);
+	 The strrchr() function locates the last occurrence of c (converted to a char) in the string
+	 pointed to by s.
+	 也就是从path 的最后一个‘/’开始 就是可执行文件名
+	 */
 	sExecShortName = ::strrchr(sExecPath, '/');
-	if ( sExecShortName != NULL )
-		++sExecShortName;
-	else
+	if ( sExecShortName != NULL ) {
+		++sExecShortName;//++是为了去掉'/'这个字符
+	}else{
 		sExecShortName = sExecPath;
-    sProcessIsRestricted = processRestricted(mainExecutableMH, &ignoreEnvironmentVariables, &sProcessRequiresLibraryValidation); //检查是否受限
+	}
+	//检查是否受限
+    sProcessIsRestricted = processRestricted(mainExecutableMH,
+											 &ignoreEnvironmentVariables,
+											 &sProcessRequiresLibraryValidation);
     if ( sProcessIsRestricted ) {
 #if SUPPORT_LC_DYLD_ENVIRONMENT
 		checkLoadCommandEnvironmentVariables();
@@ -4920,15 +4955,24 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		}
 		defaultUninitializedFallbackPaths(envp);
 	}//根据给出的受限情况，重新设置LINK的上下文。
-	if ( sEnv.DYLD_PRINT_OPTS )
+	if ( sEnv.DYLD_PRINT_OPTS ){
 		printOptions(argv);
-	if ( sEnv.DYLD_PRINT_ENV ) 
+	}
+	if ( sEnv.DYLD_PRINT_ENV ) {
 		printEnvironmentVariables(envp);
+	}
+	
 	getHostInfo(mainExecutableMH, mainExecutableSlide);
-	// install gdb notifier
+	/*
+	 install gdb notifier
+	 注册回调
+	 */
 	stateToHandlers(dyld_image_state_dependents_mapped, sBatchHandlers)->push_back(notifyGDB);
 	stateToHandlers(dyld_image_state_mapped, sSingleHandlers)->push_back(updateAllImages);
-	// make initial allocations large enough that it is unlikely to need to be re-alloced 尽可能大的初始化一堆容器
+	/*
+	 make initial allocations large enough that it is unlikely to need to be re-alloced
+	 尽可能大的初始化一堆容器
+	 */
 	sAllImages.reserve(INITIAL_IMAGE_COUNT);
 	sImageRoots.reserve(16);
 	sAddImageCallbacks.reserve(4);
@@ -4946,8 +4990,9 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		// add dyld itself to UUID list
 		addDyldImageToUUIDList();
 		CRSetCrashLogMessage(sLoadingCrashMessage);
-		// instantiate ImageLoader for main executable
-		//调用instantiateFromLoadedImage函数实例化主程序
+		/* instantiate ImageLoader for main executable
+		 调用instantiateFromLoadedImage函数实例化主程序
+		 */
 		sMainExecutable = instantiateFromLoadedImage(mainExecutableMH, mainExecutableSlide, sExecPath);//加载MACHO到image
 		gLinkContext.mainExecutable = sMainExecutable;
 		gLinkContext.processIsRestricted = sProcessIsRestricted;
@@ -4964,10 +5009,20 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 			if ( ! isSimulatorBinary((uint8_t*)mainExecutableMH, sExecPath) ) {
 				throwf("program was built for Mac OS X and cannot be run in simulator"); 
 			}
+			/*
+			 读取最小支持的系统版本
+			 根据load command 中读取最小支持的系统版本
+			 */
 			uint32_t mainMinOS = sMainExecutable->minOSVersion();
 			// dyld is always built for the current OS, so we can get the current OS version
 			// from the load command in dyld itself.
+			/*
+			 因为dyld 通常是使用当前的系统build的，所以通过获取dyld 的最小系统版本即可获知当前系统版本
+			 */
 			uint32_t dyldMinOS = ImageLoaderMachO::minOSVersion((const mach_header*)&__dso_handle);
+			/*
+			 通过比较《可执行文件支持的最小系统版本》与《当前系统版本》
+			 */
 			if ( mainMinOS > dyldMinOS ) {
 				throwf("app was built for iOS %d.%d which is newer than this simulator %d.%d", 
 						mainMinOS >> 16, ((mainMinOS >> 8) & 0xFF),
@@ -4981,9 +5036,10 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		// 检查共享区域是否有覆盖的情况
 		checkSharedRegionDisable();
 	#if DYLD_SHARED_CACHE_SUPPORT
-		if ( gLinkContext.sharedRegionMode != ImageLoader::kDontUseSharedRegion )
+		if ( gLinkContext.sharedRegionMode != ImageLoader::kDontUseSharedRegion ){
 			//对sharecahe做映射
 			mapSharedCache();
+		}
 	#endif
 
 		// Now that shared cache is loaded, setup an versioned dylib overrides

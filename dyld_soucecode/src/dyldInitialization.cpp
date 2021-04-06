@@ -107,6 +107,9 @@ static void runDyldInitializers(const struct macho_header* mh, intptr_t slide, i
 //
 //  The kernel may have slid a Position Independent Executable
 //
+/**
+ 根据load command 中可以知道代码段的起始地址
+ */
 static uintptr_t slideOfMainExecutable(const struct macho_header* mh)
 {
 	const uint32_t cmd_count = mh->ncmds;
@@ -205,6 +208,7 @@ extern "C" void __guard_setup(const char* apple[]);
 //	dyldStartup.s中调用的dyldbootstrap::start()就是该方法
 //  dyldbootstrap::start(dyld3::MachOLoaded const*, int, char const**, dyld3::MachOLoaded const*, unsigned long*) ()
 //	因为dyld 在加载其他动态库时，自己也需要先初始化自己
+//	https://zhangbuhuai.com/post/dyld-bootstrap.html
 //
 uintptr_t start(const struct macho_header* appsMachHeader, int argc, const char* argv[], 
 				intptr_t slide, const struct macho_header* dyldsMachHeader,
@@ -236,6 +240,9 @@ uintptr_t start(const struct macho_header* appsMachHeader, int argc, const char*
 #endif
 
 	// now that we are done bootstrapping dyld, call dyld's main
+	/*
+	 从load command 中读取代码段的起始地址
+	 */
 	uintptr_t appsSlide = slideOfMainExecutable(appsMachHeader);
 	return dyld::_main(appsMachHeader, appsSlide, argc, argv, envp, apple, startGlue);
 }
