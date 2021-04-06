@@ -325,8 +325,15 @@ ImageLoader* ImageLoaderMachO::instantiateMainExecutable(const macho_header* mh,
 	unsigned int libCount;
 	const linkedit_data_command* codeSigCmd;
 	const encryption_info_command* encryptCmd;
+	/*
+	 sniff 英  [snɪf]   美  [snɪf]  嗅；闻；用力吸；发觉
+	 这里应该翻译成解析loadcammand(也就是解析mach-o 中的Load Commands 段)
+	*/
 	sniffLoadCommands(mh, path, false, &compressed, &segCount, &libCount, context, &codeSigCmd, &encryptCmd); //判断macho是普通的还是压缩的
-	// instantiate concrete class based on content of load commands
+	/*
+	    实例化       具体    类
+	 instantiate concrete class based on content of load commands
+	 */
 	if ( compressed ) 
 		return ImageLoaderMachOCompressed::instantiateMainExecutable(mh, slide, path, segCount, libCount, context);
 	else

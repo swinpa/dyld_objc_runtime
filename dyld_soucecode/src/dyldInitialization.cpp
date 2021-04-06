@@ -202,6 +202,9 @@ extern "C" void __guard_setup(const char* apple[]);
 //
 //  This is code to bootstrap(自举) dyld.  This work in normally done for a program by dyld and crt.
 //  In dyld we have to do this manually.
+//	dyldStartup.s中调用的dyldbootstrap::start()就是该方法
+//  dyldbootstrap::start(dyld3::MachOLoaded const*, int, char const**, dyld3::MachOLoaded const*, unsigned long*) ()
+//	因为dyld 在加载其他动态库时，自己也需要先初始化自己
 //
 uintptr_t start(const struct macho_header* appsMachHeader, int argc, const char* argv[], 
 				intptr_t slide, const struct macho_header* dyldsMachHeader,

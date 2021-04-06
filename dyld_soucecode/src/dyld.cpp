@@ -2252,6 +2252,7 @@ static bool fatFindBest(const fat_header* fh, uint64_t* offset, uint64_t* len)
 //
 // This is used to validate if a non-fat (aka thin or raw) mach-o file can be used
 // on the current processor. //
+///根据mach-o 的header 头部信息
 bool isCompatibleMachO(const uint8_t* firstPage, const char* path)
 {
 #if CPU_SUBTYPES_SUPPORTED
@@ -4501,6 +4502,17 @@ static void loadInsertedDylib(const char* path)
 	}
 }
 
+/*
+ struct mach_header {
+	 uint32_t	magic;		// mach magic number identifier
+	 cpu_type_t	cputype;	// cpu specifier
+	 cpu_subtype_t	cpusubtype;	// machine specifier
+	 uint32_t	filetype;	// type of file
+	 uint32_t	ncmds;		// number of load commands
+	 uint32_t	sizeofcmds;	// the size of all the load commands
+	 uint32_t	flags;		// flags 
+ };
+ */
 static bool processRestricted(const macho_header* mainExecutableMH, bool* ignoreEnvVars, bool* processRequiresLibraryValidation)
 {	
 #if TARGET_IPHONE_SIMULATOR
@@ -4902,8 +4914,10 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		setContext(mainExecutableMH, argc, argv, envp, apple);
 	}
 	else {
-		if ( !ignoreEnvironmentVariables )
+		if ( !ignoreEnvironmentVariables ){
+			//这里会对sEnv 做初始化
 			checkEnvironmentVariables(envp);
+		}
 		defaultUninitializedFallbackPaths(envp);
 	}//根据给出的受限情况，重新设置LINK的上下文。
 	if ( sEnv.DYLD_PRINT_OPTS )
@@ -4933,6 +4947,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		addDyldImageToUUIDList();
 		CRSetCrashLogMessage(sLoadingCrashMessage);
 		// instantiate ImageLoader for main executable
+		//调用instantiateFromLoadedImage函数实例化主程序
 		sMainExecutable = instantiateFromLoadedImage(mainExecutableMH, mainExecutableSlide, sExecPath);//加载MACHO到image
 		gLinkContext.mainExecutable = sMainExecutable;
 		gLinkContext.processIsRestricted = sProcessIsRestricted;
@@ -4979,8 +4994,13 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		// load any inserted libraries
 		// 类似于linux里面的LD_PRELOAD
 		if	( sEnv.DYLD_INSERT_LIBRARIES != NULL ) {
-			for (const char* const* lib = sEnv.DYLD_INSERT_LIBRARIES; *lib != NULL; ++lib) 
+			/*
+			 加载动态库
+			 越狱的插件一般是在这里发光发热的
+			 */
+			for (const char* const* lib = sEnv.DYLD_INSERT_LIBRARIES; *lib != NULL; ++lib) {
 				loadInsertedDylib(*lib);
+			}
 		}
 		// record count of inserted libraries so that a flat search will look at 
 		// inserted libraries, then main, then others.
