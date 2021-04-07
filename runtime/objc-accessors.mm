@@ -75,6 +75,17 @@ static inline void reallySetProperty(id self, SEL _cmd, id newValue, ptrdiff_t o
     }
 
     id oldValue;
+    /*
+     根据变量与对象的相对偏移量，计算出变量位置
+     
+     这里的self是对象，如
+     Person *p = [[Person alloc] init];
+     p.name = @"xiaoming";
+     这时候传进来的self 则就是p
+     
+     所以根据变量与对象的相对偏移量就可以算出变量的内存地址
+     
+     */
     id *slot = (id*) ((char*)self + offset);
 
     if (copy) {

@@ -550,6 +550,7 @@ static_assert(FAST_IS_SWIFT_LEGACY == 1, "resistance is futile");
 static_assert(FAST_IS_SWIFT_STABLE == 2, "resistance is futile");
 
 
+
 struct class_ro_t {
     /*
      标志位，根据该变量与不同的标志位进行 & 操作判断 是否为元类，是否为跟类，是否为ARC
@@ -557,7 +558,9 @@ struct class_ro_t {
      RO_META，RW_INITIALIZED
      */
     uint32_t flags;
+    /// 成员变量开始的首地址，这里是以第一个成员变量为开始
     uint32_t instanceStart;
+    /// 所有成员变量所占用内存空间大小
     uint32_t instanceSize;
 #ifdef __LP64__
     uint32_t reserved;
@@ -568,6 +571,7 @@ struct class_ro_t {
     const char * name;
     method_list_t * baseMethodList;
     protocol_list_t * baseProtocols;
+    /// 存放的是成员变量相对于对象首地址的偏移量
     const ivar_list_t * ivars;
 
     const uint8_t * weakIvarLayout;// <- 记录了哪些是 weak 的 ivar
