@@ -360,6 +360,7 @@ void *object_getIndexedIvars(id obj)
 * make_ro_writeable
 * Reallocates rw->ro if necessary to make it writeable.
 * Locking: runtimeLock must be held by the caller.
+* 申请一块新的内存，然后将旧的rw中的ro通过内存拷贝，拷贝到新的内存中，然后返回新的内存地址
 **********************************************************************/
 static class_ro_t *make_ro_writeable(class_rw_t *rw)
 {
@@ -368,8 +369,11 @@ static class_ro_t *make_ro_writeable(class_rw_t *rw)
     if (rw->flags & RW_COPIED_RO) {
         // already writeable, do nothing
     } else {
-        class_ro_t *ro = (class_ro_t *)
-            memdup(rw->ro, sizeof(*rw->ro));
+        /*
+         memdup()会新申请一块内存，然后将旧的ro通过内存拷贝，拷贝到新的内存中
+         */
+        class_ro_t *ro = (class_ro_t *)memdup(rw->ro, sizeof(*rw->ro));
+        //将rw中的ro指向新的ro的内存地址
         rw->ro = ro;
         rw->flags |= RW_COPIED_RO;
     }
@@ -6019,6 +6023,10 @@ class_addIvar(Class cls, const char *name, size_t size,
         return NO;
     }
 
+    /*
+     申请一块新的内存，然后将旧的rw中的ro通过内存拷贝，拷贝到新的内存中，然后返回新的内存地址
+     也就是扩展内存，用来存放新的成员变量
+     */
     class_ro_t *ro_w = make_ro_writeable(cls->data());
 
     // fixme allocate less memory here

@@ -1021,7 +1021,9 @@ extern int secure_open(const char *filename, int flags, uid_t euid);
 static inline void *
 memdup(const void *mem, size_t len)
 {
+    //先新申请一块内存
     void *dup = malloc(len);
+    //将旧内存拷贝到新内存中
     memcpy(dup, mem, len);
     return dup;
 }
