@@ -243,6 +243,14 @@ static std::vector<RegisteredDOF>	sImageFilesNeedingDOFUnregistration;
 static std::vector<ImageCallback>   sAddImageCallbacks;
 static std::vector<ImageCallback>   sRemoveImageCallbacks;
 static bool							sRemoveImageCallbacksInUse = false;
+/**
+ 用来存放回调的二维数组
+ [
+	0, = [std::vector<dyld_image_state_change_handler>, std::vector<dyld_image_state_change_handler>, std::vector<dyld_image_state_change_handler>]
+	1, = [std::vector<dyld_image_state_change_handler>, std::vector<dyld_image_state_change_handler>, std::vector<dyld_image_state_change_handler>]
+	2 = [std::vector<dyld_image_state_change_handler>, std::vector<dyld_image_state_change_handler>, std::vector<dyld_image_state_change_handler>]
+ ]
+ */
 static void*						sSingleHandlers[7][3];
 static void*						sBatchHandlers[7][3];
 static ImageLoader*					sLastImageByAddressCache;
@@ -2252,7 +2260,7 @@ static bool fatFindBest(const fat_header* fh, uint64_t* offset, uint64_t* len)
 //
 // This is used to validate if a non-fat (aka thin or raw) mach-o file can be used
 // on the current processor. //
-///根据mach-o 的header 头部信息
+///根据mach-o 的header 头部信中的CPU 类型字段判断
 bool isCompatibleMachO(const uint8_t* firstPage, const char* path)
 {
 #if CPU_SUBTYPES_SUPPORTED
@@ -2313,6 +2321,11 @@ bool isCompatibleMachO(const uint8_t* firstPage, const char* path)
 static ImageLoader* instantiateFromLoadedImage(const macho_header* mh, uintptr_t slide, const char* path)
 {
 	// try mach-o loader
+	/*
+	 Compatible  英  [kəmˈpætəbl]   美  [kəmˈpætəbl]
+	 兼容的；能共处的；可并立的
+	 根据mach-o 的header 头部信中的cputype 类型以及cpusubtype字段判断
+	 */
 	if ( isCompatibleMachO((const uint8_t*)mh, path) ) {//检测是否合法
 		ImageLoader* image = ImageLoaderMachO::instantiateMainExecutable(mh, slide, path, gLinkContext); //加载
 		addImage(image);
@@ -4968,6 +4981,10 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 	 注册回调
 	 */
 	stateToHandlers(dyld_image_state_dependents_mapped, sBatchHandlers)->push_back(notifyGDB);
+	/*
+	 当收到dyld_image_state_mapped 这个通知时，会执行updateAllImages 这个回调方法
+	 sSingleHandlers 为全局的存放回调函数指针的二维数组
+	 */
 	stateToHandlers(dyld_image_state_mapped, sSingleHandlers)->push_back(updateAllImages);
 	/*
 	 make initial allocations large enough that it is unlikely to need to be re-alloced
@@ -4992,6 +5009,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		CRSetCrashLogMessage(sLoadingCrashMessage);
 		/* instantiate ImageLoader for main executable
 		 调用instantiateFromLoadedImage函数实例化主程序
+		 根据_objc_init() 的调用栈来看，instantiateFromLoadedImage过程中还没有给runtime注册回调
 		 */
 		sMainExecutable = instantiateFromLoadedImage(mainExecutableMH, mainExecutableSlide, sExecPath);//加载MACHO到image
 		gLinkContext.mainExecutable = sMainExecutable;
@@ -5121,11 +5139,15 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		CRSetCrashLogMessage("dyld: launch, running initializers");
 	#if SUPPORT_OLD_CRT_INITIALIZATION
 		// Old way is to run initializers via a callback from crt1.o
-		if ( ! gRunInitializersOldWay ) 
-			initializeMainExecutable(); 
+		if ( ! gRunInitializersOldWay ) {
+			initializeMainExecutable();
+		}
 	#else
 		// run all initializers
-		// 执行所有image的初始化函数
+		/*
+		 执行所有image的初始化函数
+		 这个过程中runtime才有机会注册回调
+		 */
 		initializeMainExecutable(); 
 	#endif
 		// find entry point for main executable

@@ -316,11 +316,17 @@ void ImageLoaderMachO::sniffLoadCommands(const macho_header* mh, const char* pat
 
 
 // create image for main executable
+
+/// <#Description#>
+/// @param mh
+/// @param slide
+/// @param path
+/// @param context 传进来的是gLinkContext
 ImageLoader* ImageLoaderMachO::instantiateMainExecutable(const macho_header* mh, uintptr_t slide, const char* path, const LinkContext& context)
 {
 	//dyld::log("ImageLoader=%ld, ImageLoaderMachO=%ld, ImageLoaderMachOClassic=%ld, ImageLoaderMachOCompressed=%ld\n",
 	//	sizeof(ImageLoader), sizeof(ImageLoaderMachO), sizeof(ImageLoaderMachOClassic), sizeof(ImageLoaderMachOCompressed));
-	bool compressed;
+	bool compressed;//英  [kəm'prest]   美  [kəmˈprest] adj. （被）压缩的；扁的
 	unsigned int segCount;
 	unsigned int libCount;
 	const linkedit_data_command* codeSigCmd;
@@ -329,7 +335,8 @@ ImageLoader* ImageLoaderMachO::instantiateMainExecutable(const macho_header* mh,
 	 sniff 英  [snɪf]   美  [snɪf]  嗅；闻；用力吸；发觉
 	 这里应该翻译成解析loadcammand(也就是解析mach-o 中的Load Commands 段)
 	*/
-	sniffLoadCommands(mh, path, false, &compressed, &segCount, &libCount, context, &codeSigCmd, &encryptCmd); //判断macho是普通的还是压缩的
+	sniffLoadCommands(mh, path, false, &compressed, &segCount, &libCount, context, &codeSigCmd, &encryptCmd);
+	//判断macho是普通的还是压缩的
 	/*
 	    实例化       具体    类
 	 instantiate concrete class based on content of load commands

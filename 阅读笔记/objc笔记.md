@@ -126,7 +126,9 @@ static void _C_Man_m_clsFunc(Class self, SEL _cmd) {
 static NSString * _I_Man_name(Man * self, SEL _cmd) { return (*(NSString **)((char *)self + OBJC_IVAR_$_Man$_name)); }
 extern "C" __declspec(dllimport) void objc_setProperty (id, SEL, long, id, bool, bool);
 
-static void _I_Man_setName_(Man * self, SEL _cmd, NSString *name) { objc_setProperty (self, _cmd, __OFFSETOFIVAR__(struct Man, _name), (id)name, 0, 1); }
+static void _I_Man_setName_(Man * self, SEL _cmd, NSString *name) { 
+    objc_setProperty (self, _cmd, __OFFSETOFIVAR__(struct Man, _name), (id)name, 0, 1); 
+}
 // @end
 
 int main(int argc, const char * argv[]) {

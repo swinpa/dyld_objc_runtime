@@ -243,6 +243,7 @@ public:
 	};
 	
 	struct LinkContext {
+		/*一堆函数指针*/
 		ImageLoader*	(*loadLibrary)(const char* libraryName, bool search, const char* origin, const RPathChain* rpaths);
 		void			(*terminationRecorder)(ImageLoader* image);
 		bool			(*flatExportFinder)(const char* name, const Symbol** sym, const ImageLoader** image);
