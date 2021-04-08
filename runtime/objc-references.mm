@@ -176,6 +176,7 @@ namespace objc_references_support {
         void operator delete(void *ptr) { ::free(ptr); }
     };
     typedef ObjcAllocator<std::pair<const disguised_ptr_t, ObjectAssociationMap*> > AssociationsHashMapAllocator;
+    
     class AssociationsHashMap : public unordered_map<disguised_ptr_t, ObjectAssociationMap *, DisguisedPointerHash, DisguisedPointerEqual, AssociationsHashMapAllocator> {
     public:
         void *operator new(size_t n) { return ::malloc(n); }
@@ -219,6 +220,7 @@ spinlock_t AssociationsManagerLock;
 
 class AssociationsManager {
     // associative references: object pointer -> PtrPtrHashMap.
+    //这是一个静态的，类全员变量，相当于全局的变量
     static AssociationsHashMap *_map;
 public:
     AssociationsManager()   { AssociationsManagerLock.lock(); }
@@ -346,12 +348,21 @@ void _object_remove_assocations(id object) {
     vector< ObjcAssociation,ObjcAllocator<ObjcAssociation> > elements;
     {
         AssociationsManager manager;
+        /*
+         manager.associations() 这个是获取类静态变量(相当于一个全局的变量)
+         */
         AssociationsHashMap &associations(manager.associations());
-        if (associations.size() == 0) return;
+        if (associations.size() == 0) {
+            //全局都没有关联对象
+            return;
+        }
+        //对象转指针
         disguised_ptr_t disguised_object = DISGUISE(object);
+        //根据对象的指针找到对应的map
         AssociationsHashMap::iterator i = associations.find(disguised_object);
         if (i != associations.end()) {
             // copy all of the associations that need to be removed.
+            //将类对象的所有关联对象放到一个vector中，方便后续release
             ObjectAssociationMap *refs = i->second;
             for (ObjectAssociationMap::iterator j = refs->begin(), end = refs->end(); j != end; ++j) {
                 elements.push_back(j->second);
@@ -362,5 +373,6 @@ void _object_remove_assocations(id object) {
         }
     }
     // the calls to releaseValue() happen outside of the lock.
+    // 遍历所有的关联对象，然后调用ReleaseValue 方法进行处理
     for_each(elements.begin(), elements.end(), ReleaseValue());
 }

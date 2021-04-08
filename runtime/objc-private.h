@@ -68,6 +68,7 @@ union isa_t {
     struct {
         ISA_BITFIELD;  // defined in isa.h
         /*
+         这不就相当于 isa bit field 吗？ 不就是 isa 中的 bits 这个成员变量 的个个段的意思吗？？
          ISA_BITFIELD 这是宏定义，展开如下，就能看到有has_assoc 这字段
          uintptr_t nonpointer        : 1;                                         \
          //是否有关联对象
