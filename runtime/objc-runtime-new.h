@@ -1364,7 +1364,10 @@ struct objc_class : objc_object {
     size_t instanceSize(size_t extraBytes) {
         size_t size = alignedInstanceSize() + extraBytes;
         // CF requires all objects be at least 16 bytes.
-        if (size < 16) size = 16;
+        //从这里可以看出，一个对象的最小占用的内存空间为16字节
+        if (size < 16) {
+            size = 16;
+        }
         return size;
     }
 

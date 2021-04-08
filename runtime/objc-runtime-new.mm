@@ -6688,8 +6688,11 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
     bool hasCxxDtor = cls->hasCxxDtor();
     bool fast = cls->canAllocNonpointer();
 
+    //获取一个对象需要申请多少内存空间，最小占用的内存空间为16字节
     size_t size = cls->instanceSize(extraBytes);
-    if (outAllocatedSize) *outAllocatedSize = size;
+    if (outAllocatedSize) {
+        *outAllocatedSize = size;
+    }
 
     id obj;
     if (!zone  &&  fast) {

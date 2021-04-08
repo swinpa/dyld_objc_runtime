@@ -618,7 +618,10 @@ objc_object::rootRelease(bool performDealloc, bool handleUnderflow)
             goto retry;
         }
 
-        // Try to remove some retain counts from the side table.        
+        // Try to remove some retain counts from the side table.
+        /*
+         更新存放在sidetable 中的引用计数器的值
+         */
         size_t borrowed = sidetable_subExtraRC_nolock(RC_HALF);
 
         // To avoid races, has_sidetable_rc must remain set 
@@ -627,6 +630,7 @@ objc_object::rootRelease(bool performDealloc, bool handleUnderflow)
         if (borrowed > 0) {
             // Side table retain count decreased.
             // Try to add them to the inline count.
+            //更新对象引用计数的值（减 1）
             newisa.extra_rc = borrowed - 1;  // redo the original decrement too
             bool stored = StoreReleaseExclusive(&isa.bits, 
                                                 oldisa.bits, newisa.bits);
@@ -663,6 +667,7 @@ objc_object::rootRelease(bool performDealloc, bool handleUnderflow)
             return false;
         }
         else {
+            //当引用计数为0 后，往下跑dealloc 流程
             // Side table is empty after all. Fall-through to the dealloc path.
         }
     }

@@ -1549,8 +1549,10 @@ size_t
 objc_object::sidetable_subExtraRC_nolock(size_t delta_rc)
 {
     assert(isa.nonpointer);
+    //从全局的散列表中获取当前对象对应的表（SideTable，该SideTable 中存储了对象对应的很多信息，比如弱引用，引用计数）
     SideTable& table = SideTables()[this];
 
+    //获取当前对象的引用计数
     RefcountMap::iterator it = table.refcnts.find(this);
     if (it == table.refcnts.end()  ||  it->second == 0) {
         // Side table retain count is zero. Can't borrow.
@@ -1562,6 +1564,7 @@ objc_object::sidetable_subExtraRC_nolock(size_t delta_rc)
     assert((oldRefcnt & SIDE_TABLE_DEALLOCATING) == 0);
     assert((oldRefcnt & SIDE_TABLE_WEAKLY_REFERENCED) == 0);
 
+    //更新引用计数
     size_t newRefcnt = oldRefcnt - (delta_rc << SIDE_TABLE_RC_SHIFT);
     assert(oldRefcnt > newRefcnt);  // shouldn't underflow
     it->second = newRefcnt;
@@ -1918,6 +1921,8 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
         if (fastpath(cls->canAllocFast())) {
             // No ctors, raw isa, etc. Go straight to the metal.
             bool dtor = cls->hasCxxDtor();
+            
+            //申请内存空间，内存空间的大小由cls->rw->ro 中的instanceSize 决定的
             id obj = (id)calloc(1, cls->bits.fastInstanceSize());
             if (slowpath(!obj)) return callBadAllocHandler(cls);
             obj->initInstanceIsa(cls, dtor);
