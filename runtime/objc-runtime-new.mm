@@ -1877,6 +1877,10 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
         }
     }
 
+    /*
+     这里是否是父类没成员变量？？，也就是父类不需要分配成员变量的内存空间？？
+     或者当前类的收个成员变量的前面的内存空间已经足够父类使用？？
+     */
     if (ro->instanceStart >= super_ro->instanceSize) {
         // Superclass has not overgrown its space. We're done here.
         return;
@@ -1894,8 +1898,12 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
                          cls->nameForLogging(), ro->instanceStart, 
                          super_ro->instanceSize);
         }
+        //这里扩展成员变量的内存空间
         class_ro_t *ro_w = make_ro_writeable(rw);
         ro = rw->ro;
+        /*
+         这里将当前类的成员变量已到父类成员变量后面（其实是更新当前类的成员变量的offset,将offset变更到父类的instanceSize 后面）
+         */
         moveIvars(ro_w, super_ro->instanceSize);
         gdb_objc_class_changed(cls, OBJC_CLASS_IVARS_CHANGED, ro->name);
     } 
@@ -1913,6 +1921,10 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
 /**
 * 主要做一下几件事情:
 * 1，申请 rw (class_rw_t) 的内存空间， 并将rw 的 ro 指向 编译器确定了的 ro 内存空间，然后将申请的class 中的rw 指向申请的 rw。
+* 《《很重要》》
+ 根据父类的ro空间，为当前类的ro扩展父类的成员变量的内存空间，并且把当前类的成员变量的offset更新到父类成员变量的空间后面
+ （其实编译期间当前类的instanceSize 已经包含了父类的空间大小，只是offset没做好处理，而在这里主要就是offset的处理）
+ 
 * 2，设置类的父类(superclass)，以及设置类的isa (指向元类)
 * 3，将ro中的一些标志(flag) 设置到类的rw 中的标志中（可能是为了后续方便访问）
 * 4，将ro中的方法，协议，属性拷贝到rw中，并且把分类的方法，协议，属性也拷贝到rw中，后续通过class 的rw中的methods 就能访问到该了的
@@ -2016,7 +2028,16 @@ static Class realizeClass(Class cls)
 
     // Reconcile instance variable offsets / layout.
     // This may reallocate class_ro_t, updating our ro variable.
-    if (supercls  &&  !isMeta) reconcileInstanceVariables(cls, supercls, ro);
+    
+    if (supercls  &&  !isMeta) {
+        
+        /*
+         《《很重要》》
+         根据父类的ro空间，为当前类的ro扩展父类的成员变量的内存空间，并且把当前类的成员变量的offset更新到父类成员变量的空间后面
+         （其实编译期间当前类的instanceSize 已经包含了父类的空间大小，只是offset没做好处理，而在这里主要就是offset的处理）
+         */
+        reconcileInstanceVariables(cls, supercls, ro);
+    }
 
     // Set fastInstanceSize if it wasn't set already.
     cls->setInstanceSize(ro->instanceSize);
@@ -2378,10 +2399,14 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
     // This (and the __ARCLite__ hack below) can be removed 
     // once the simulator drops 10.8 support.
 #if TARGET_OS_SIMULATOR
-    if (cls->cache._mask) cls->cache._mask = 0;
-    if (cls->cache._occupied) cls->cache._occupied = 0;
-    if (cls->ISA()->cache._mask) cls->ISA()->cache._mask = 0;
-    if (cls->ISA()->cache._occupied) cls->ISA()->cache._occupied = 0;
+    if (cls->cache._mask)
+        cls->cache._mask = 0;
+    if (cls->cache._occupied)
+        cls->cache._occupied = 0;
+    if (cls->ISA()->cache._mask)
+        cls->ISA()->cache._mask = 0;
+    if (cls->ISA()->cache._occupied)
+        cls->ISA()->cache._occupied = 0;
 #endif
 
     Class replacing = nil;
@@ -6024,7 +6049,9 @@ class_addIvar(Class cls, const char *name, size_t size,
     }
 
     /*
-     申请一块新的内存，然后将旧的rw中的ro通过内存拷贝，拷贝到新的内存中，然后返回新的内存地址
+     make_ro_writeable 接口内部为rw中额ro重新申请一块内存，然后将旧的rw中的ro通过内存拷贝，
+     拷贝到新的内存中，然后返回新的内存地址
+     
      也就是扩展内存，用来存放新的成员变量
      */
     class_ro_t *ro_w = make_ro_writeable(cls->data());

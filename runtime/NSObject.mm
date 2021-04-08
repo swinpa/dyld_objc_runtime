@@ -1925,6 +1925,10 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
         }
         else {
             // Has ctor or raw isa or something. Use the slower path.
+            /*
+             申请内存空间（申请的内存空间的大小是根据cls->rw->ro 中的instanceSize 决定的）
+             其实在编译期间，这个instanceSize 已经是包含了父类的空间了的
+             */
             id obj = class_createInstance(cls, 0);
             if (slowpath(!obj)) return callBadAllocHandler(cls);
             return obj;

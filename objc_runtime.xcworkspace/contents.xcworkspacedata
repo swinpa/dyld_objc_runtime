@@ -8,6 +8,9 @@
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
       <FileRef
+         location = "group:class-has-superclass.cpp">
+      </FileRef>
+      <FileRef
          location = "group:Category&#x7ecf;clang&#x540e;&#x7684;&#x6e90;&#x7801;.cpp">
       </FileRef>
       <FileRef

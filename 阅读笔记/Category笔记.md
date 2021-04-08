@@ -161,7 +161,7 @@ extern "C" unsigned long int OBJC_IVAR_$_Animal$_name __attribute__ ((used, sect
 /*
  从这里可以看出类扩展的属性会存放到类的变量量表中
  同时也可以看出，类的成员变量在编译期就已经确定了，会存放在rw->ro->ivar_list 中
- 生成一个存放变量的列表，厘米的元素指向属性对应的静态变量
+ 生成一个存放变量信息的列表，里面的元素指向属性对应的静态变量
  */
 static struct /*_ivar_list_t*/ {
 	unsigned int entsize;  // sizeof(struct _prop_t)
