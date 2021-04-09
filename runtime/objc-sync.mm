@@ -29,7 +29,9 @@
 // in time, keep them on a single list.
 //
 
-
+/*
+ 用来实现一个用来存放对象，锁相关联的链表
+ */
 typedef struct alignas(CacheLineSize) SyncData {
     struct SyncData* nextData;
     DisguisedPtr<objc_object> object;
@@ -116,6 +118,9 @@ static SyncData* id2data(id object, enum usage why)
 #if SUPPORT_DIRECT_THREAD_KEYS
     // Check per-thread single-entry fast cache for matching object
     bool fastCacheOccupied = NO;
+    /*
+     既然是多线程访问才需要加锁，这里为什么将锁相关的数据存放在tls 中呢？
+     */
     SyncData *data = (SyncData *)tls_get_direct(SYNC_DATA_DIRECT_KEY);
     if (data) {
         fastCacheOccupied = YES;
@@ -286,6 +291,7 @@ int objc_sync_enter(id obj)
     int result = OBJC_SYNC_SUCCESS;
 
     if (obj) {
+        //拿到与对象绑定的锁（recursive_mutex_t）
         SyncData* data = id2data(obj, ACQUIRE);
         assert(data);
         data->mutex.lock();

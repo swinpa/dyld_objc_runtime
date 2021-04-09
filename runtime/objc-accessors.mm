@@ -45,6 +45,7 @@ StripedMap<spinlock_t> CppObjectLocks;
 
 #define MUTABLE_COPY 2
 
+
 id objc_getProperty(id self, SEL _cmd, ptrdiff_t offset, BOOL atomic) {
     if (offset == 0) {
         return object_getClass(self);
