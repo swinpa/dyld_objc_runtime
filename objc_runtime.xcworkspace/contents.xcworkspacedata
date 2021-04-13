@@ -8,6 +8,15 @@
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
       <FileRef
+         location = "group:AutoreleasePool.md">
+      </FileRef>
+      <FileRef
+         location = "group:atomic &#x5c5e;&#x6027;&#x7ebf;&#x7a0b;&#x5b89;&#x5168;&#x95ee;&#x9898;.md">
+      </FileRef>
+      <FileRef
+         location = "group:AutoreleasePool.cpp">
+      </FileRef>
+      <FileRef
          location = "group:@synchronized.cpp">
       </FileRef>
       <FileRef

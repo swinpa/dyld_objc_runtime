@@ -487,7 +487,9 @@ weak_clear_no_lock(weak_table_t *weak_table, id referent_id)
         referrers = entry->inline_referrers;
         count = WEAK_INLINE_COUNT;
     }
-    
+    /*
+     遍历保存弱指针变量的
+     */
     for (size_t i = 0; i < count; ++i) {
         objc_object **referrer = referrers[i];
         if (referrer) {

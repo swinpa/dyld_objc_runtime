@@ -82,9 +82,10 @@ struct weak_entry_t {
      被引用的对象，比如
      NSObject *obj = [[NSObject alloc] init];
      id __weak obj1 = obj;
-     那么 referent 就等于obj,然后obj1这个弱引用对象的地址 就会被存在referrers 中
+     那么 referent 就等于obj,然后obj1这个弱引用指针变量的地址 就会被存在referrers 中
+     弱引用指针变量的内存空间中保存的是对象的地址
      */
-    DisguisedPtr<objc_object> referent;
+    DisguisedPtr<objc_object> referent;//被弱指针指向的对象，比如上面的obj
     union {
         struct {
             weak_referrer_t *referrers;

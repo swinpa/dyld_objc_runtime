@@ -420,13 +420,14 @@ objc_object::rootDealloc()
 {
     if (isTaggedPointer()) return;  // fixme necessary?
 
-    if (fastpath(isa.nonpointer  &&  
+    if (fastpath(isa.nonpointer  &&  //不仅仅是指针-(Non-pointer isa)//不单纯的是指针，还包含了别的信息，如弱引用，引用计数等等
                  !isa.weakly_referenced  &&  
                  !isa.has_assoc  &&  
                  !isa.has_cxx_dtor  &&  
                  !isa.has_sidetable_rc))
     {
         assert(!sidetable_present());
+        //没有需要进行特殊处理的，则直接释放即可（没有弱引用指针置nil，没有关联对象需要销毁等等）
         free(this);
     } 
     else {

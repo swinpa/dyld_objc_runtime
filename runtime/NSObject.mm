@@ -74,8 +74,22 @@ namespace {
 
 // The order of these bits is important.
 #define SIDE_TABLE_WEAKLY_REFERENCED (1UL<<0)
+/*
+ 1UL 表示 无符号长整型 1
+ 左移运算符 <<
+ 1UL<<1  实际就是  0001 << 1  = 0010   转成十进制后就是  2
+ 1UL<<2  实际就是  0001 << 2  = 0100   转成十进制后就是  4
+ */
 #define SIDE_TABLE_DEALLOCATING      (1UL<<1)  // MSB-ward of weak bit
 #define SIDE_TABLE_RC_ONE            (1UL<<2)  // MSB-ward of deallocating bit
+/*
+ #ifdef __LP64__
+ #   define WORD_BITS 64
+ #else
+ #   define WORD_BITS 32
+ #endif
+ 1UL<<(WORD_BITS-1) == 1UL<<63 或者 1UL<<31
+ */
 #define SIDE_TABLE_RC_PINNED         (1UL<<(WORD_BITS-1))
 
 #define SIDE_TABLE_RC_SHIFT 2
@@ -1425,9 +1439,11 @@ objc_object::clearDeallocating_slow()
 {
     assert(isa.nonpointer  &&  (isa.weakly_referenced || isa.has_sidetable_rc));
 
+    //根据对象，获取对象所对应的SideTable表
     SideTable& table = SideTables()[this];
     table.lock();
     if (isa.weakly_referenced) {
+        //如果有弱引用，则根据SideTable 中的弱引用表，遍历其,并设置指向当前对象的弱指针为nil
         weak_clear_no_lock(&table.weak_table, (id)this);
     }
     if (isa.has_sidetable_rc) {
@@ -1745,8 +1761,17 @@ objc_object::sidetable_release(bool performDealloc)
         do_dealloc = true;
         table.refcnts[this] = SIDE_TABLE_DEALLOCATING;
     } else if (it->second < SIDE_TABLE_DEALLOCATING) {
+        /*
+         这里相当于如果 it->second < 2 (SIDE_TABLE_DEALLOCATING == 2)
+         那么 it->second == 0 或者 it->second == 1
+         */
         // SIDE_TABLE_WEAKLY_REFERENCED may be set. Don't change it.
         do_dealloc = true;
+        /*
+         或运算符 |
+         只要对应的二个二进位有一个为1时，结果位就为1
+         00010 | 10000  = 10010
+         */
         it->second |= SIDE_TABLE_DEALLOCATING;
     } else if (! (it->second & SIDE_TABLE_RC_PINNED)) {
         it->second -= SIDE_TABLE_RC_ONE;
@@ -2524,6 +2549,18 @@ void arr_init(void)
 
 
 // Replaced by NSZombies
+/*
+ NSObject 的成员函数，内部调用了_objc_rootDealloc()方法
+ _objc_rootDealloc 中又调用了对象的rootDealloc()方法
+ rootDealloc()方法中会做一些判断，判断有没有弱引用，有没有关联对象，有没有C++相关的等等（通过isa中的相关字段判断）
+ 如果都没有，直接调用系统的free()方法释放内存，
+ 
+ 如果有，则调用object_dispose()方法，而object_dispose()中则调用objc_destructInstance对弱引用，关联对象等等做处理（删除关联对象，弱引用指向nil），
+ 然后才调用系统的free()方法释放内存
+ 
+ dispose ： vi. 处理；安排；（能够）决定；击败；杀死
+ 
+ */
 - (void)dealloc {
     _objc_rootDealloc(self);
 }
