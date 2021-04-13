@@ -108,7 +108,7 @@ void _destroySyncCache(struct SyncCache *cache)
     if (cache) free(cache);
 }
 
-
+//别人的解释 https://www.jianshu.com/p/5e1ebfed266a
 static SyncData* id2data(id object, enum usage why)
 {
     spinlock_t *lockp = &LOCK_FOR_OBJ(object);
@@ -120,6 +120,13 @@ static SyncData* id2data(id object, enum usage why)
     bool fastCacheOccupied = NO;
     /*
      既然是多线程访问才需要加锁，这里为什么将锁相关的数据存放在tls 中呢？
+     */
+    /*
+     从线程私有的全局数据中查找存放对象锁相关的数据，该数据是一个链表，保存了所有对象的锁信息
+     如@synchronized (obj1) {},@synchronized (obj2) {},那么就有一个obj1 与之对应的锁
+         obj1      obj2       obj3      obj4
+     SyncData1->SyncData2->SyncData3->SyncData4
+     从链表中找到当前对象object所对应的锁
      */
     SyncData *data = (SyncData *)tls_get_direct(SYNC_DATA_DIRECT_KEY);
     if (data) {
@@ -206,6 +213,17 @@ static SyncData* id2data(id object, enum usage why)
     
     lockp->lock();
 
+    /*
+     因为sDataLists 是一个全局的，当线程A以对象obj1 加锁时，会把obj1 关联的锁保存在这个链表中，
+     所以，即使线程B刚进来，在线程全局缓存中还没对应的锁，那从sDataLists也能获取到与obj1 对应的同一个锁
+     相当于
+     线程A： @synchronized (obj1) {}
+     线程B： @synchronized (obj1) {}
+     线程C： @synchronized (obj1) {}
+     
+     这三个线程都能拿到与obj1 相关联的同一个锁
+     
+     */
     {
         SyncData* p;
         SyncData* firstUnused = NULL;
@@ -220,7 +238,10 @@ static SyncData* id2data(id object, enum usage why)
                 firstUnused = p;
         }
     
-        // no SyncData currently associated with object
+        /*
+         no SyncData currently associated with object
+         当前还没有与对象object相关联的锁
+         */
         if ( (why == RELEASE) || (why == CHECK) )
             goto done;
     
@@ -237,10 +258,12 @@ static SyncData* id2data(id object, enum usage why)
     // XXX allocating memory with a global lock held is bad practice,
     // might be worth releasing the lock, allocating, and searching again.
     // But since we never free these guys we won't be stuck in allocation very often.
+    // 申请内存空间，result 指向这块内存地址
     posix_memalign((void **)&result, alignof(SyncData), sizeof(SyncData));
     result->object = (objc_object *)object;
     result->threadCount = 1;
     new (&result->mutex) recursive_mutex_t(fork_unsafe_lock);
+    //在列表前添加节点
     result->nextData = *listp;
     *listp = result;
     
@@ -285,11 +308,15 @@ BREAKPOINT_FUNCTION(
 
 // Begin synchronizing on 'obj'. 
 // Allocates recursive mutex associated with 'obj' if needed.
-// Returns OBJC_SYNC_SUCCESS once lock is acquired.  
+// Returns OBJC_SYNC_SUCCESS once lock is acquired.
+//sync  英  [sɪŋk]   美  [sɪŋk]  同步，同时
 int objc_sync_enter(id obj)
 {
     int result = OBJC_SYNC_SUCCESS;
 
+    /*
+     这里可以说明，@synchronized(nil) 可以传空值，传空值时不会进行加锁操作
+     */
     if (obj) {
         //拿到与对象绑定的锁（recursive_mutex_t）
         SyncData* data = id2data(obj, ACQUIRE);

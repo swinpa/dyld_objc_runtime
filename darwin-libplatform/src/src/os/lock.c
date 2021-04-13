@@ -511,15 +511,17 @@ static void
 _os_unfair_lock_lock_slow(_os_unfair_lock_t l,
 		os_unfair_lock_options_t options, os_lock_owner_t self)
 {
-	os_unfair_lock_options_t allow_anonymous_owner =
-			options & OS_UNFAIR_LOCK_ALLOW_ANONYMOUS_OWNER;
+	os_unfair_lock_options_t allow_anonymous_owner = options & OS_UNFAIR_LOCK_ALLOW_ANONYMOUS_OWNER;
 	options &= ~OS_UNFAIR_LOCK_ALLOW_ANONYMOUS_OWNER;
-	if (unlikely(options & ~OS_UNFAIR_LOCK_OPTIONS_MASK)) {
+	
+    if (unlikely(options & ~OS_UNFAIR_LOCK_OPTIONS_MASK)) {
 		__LIBPLATFORM_CLIENT_CRASH__(options, "Invalid options");
 	}
 	os_ulock_value_t current, new, waiters_mask = 0;
-	while (unlikely((current = os_atomic_load(&l->oul_value, relaxed)) !=
-			OS_LOCK_NO_OWNER)) {
+	
+    while (unlikely((current = os_atomic_load(&l->oul_value, relaxed)) !=
+			OS_LOCK_NO_OWNER))
+    {
 _retry:
 		if (unlikely(OS_ULOCK_IS_OWNER(current, self, allow_anonymous_owner))) {
 			return _os_unfair_lock_recursive_abort(self);
