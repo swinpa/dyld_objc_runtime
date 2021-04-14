@@ -233,4 +233,12 @@ static void OBJC_CLASS_SETUP_$_Animal(void ) {
 * 分类设计的目的是把类的实现按不同的功能分散在不同的文件里面。从而可以减少单个文件的体积 ，也可以由多个开发者共同完成一个类 。
 * 如果分类可以添加属性，那跟类就一样了，这点可以通过继承的方式扩展已有类的成员。明显的，苹果是不想这样设计 
 
+// MRC
+xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc main.m
+
+// ARC
+xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc -fobjc-arc -fobjc-runtime=ios-8.0.0 main.m
+
+
+
 
