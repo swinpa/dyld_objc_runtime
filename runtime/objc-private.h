@@ -783,6 +783,7 @@ class StripedMap {
 
     PaddedT array[StripeCount];
 
+    //hash算法，根据对象地址，计算出对象在hash表中的坐标
     static unsigned int indexForPointer(const void *p) {
         uintptr_t addr = reinterpret_cast<uintptr_t>(p);
         return ((addr >> 4) ^ (addr >> 9)) % StripeCount;

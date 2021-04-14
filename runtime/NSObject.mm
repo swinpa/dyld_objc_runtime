@@ -94,7 +94,7 @@ namespace {
 
 #define SIDE_TABLE_RC_SHIFT 2
 #define SIDE_TABLE_FLAG_MASK (SIDE_TABLE_RC_ONE-1)
-
+//             英   美  [dɪsˈɡaɪzɪz]  伪装
 // RefcountMap disguises its pointers because we 
 // don't want the table to act as a root for `leaks`.
 typedef objc::DenseMap<DisguisedPtr<objc_object>,size_t,true> RefcountMap;
@@ -124,7 +124,12 @@ struct SideTable {
      }
      */
     spinlock_t slock;//自旋锁，
-    RefcountMap refcnts;//引用计数表
+    
+    /*
+     引用计数表,以对象地址作为key,引用计数器作为value进行存储
+     [obj : refcnt]
+     */
+    RefcountMap refcnts;
     weak_table_t weak_table;//弱引用表
 
     SideTable() {
@@ -1756,6 +1761,13 @@ objc_object::sidetable_release(bool performDealloc)
     bool do_dealloc = false;
 
     table.lock();
+    /*
+     在引用计数表refcnts中，根据当前对象this，查找对象对应的应用计数，
+     1. 如果没找到，则释放该对象
+     2. 如果找到
+        a. 如果引用计数《小于2》则释放
+        b. 如果引用计数大于2， 那么就-1
+     */
     RefcountMap::iterator it = table.refcnts.find(this);
     if (it == table.refcnts.end()) {
         do_dealloc = true;

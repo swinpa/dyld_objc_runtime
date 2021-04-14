@@ -474,7 +474,9 @@ objc_object::rootTryRetain()
 ALWAYS_INLINE id 
 objc_object::rootRetain(bool tryRetain, bool handleOverflow)
 {
-    if (isTaggedPointer()) return (id)this;
+    if (isTaggedPointer()) {
+        return (id)this;
+    }
 
     bool sideTableLocked = false;
     bool transcribeToSideTable = false;
@@ -488,9 +490,14 @@ objc_object::rootRetain(bool tryRetain, bool handleOverflow)
         newisa = oldisa;
         if (slowpath(!newisa.nonpointer)) {
             ClearExclusive(&isa.bits);
-            if (!tryRetain && sideTableLocked) sidetable_unlock();
-            if (tryRetain) return sidetable_tryRetain() ? (id)this : nil;
-            else return sidetable_retain();
+            if (!tryRetain && sideTableLocked) {
+                sidetable_unlock();
+            }
+            if (tryRetain) {
+                return sidetable_tryRetain() ? (id)this : nil;
+            }else {
+                return sidetable_retain();
+            }
         }
         // don't check newisa.fast_rr; we already called any RR overrides
         if (slowpath(tryRetain && newisa.deallocating)) {
