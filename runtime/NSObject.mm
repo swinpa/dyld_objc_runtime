@@ -269,6 +269,11 @@ static void SideTableInit() {
  reinterpret_cast类型转换方法
  reinterpret_cast<类型说明符>(表达式）
  */
+/*
+ StripedMap是存放SideTable类型的hash表，其实就是一个数组PaddedT array[StripeCount];
+ 重载了[]操作符
+ 当使用SideTables()[obj]时，会根据obj的指针进过hash计算得出obj 对应的SideTable在数组(array)中的下标
+ */
 static StripedMap<SideTable>& SideTables() {
     /*
      ----------------------- 转换成StripedMap<SideTable>*类型
@@ -413,7 +418,7 @@ storeWeak(id *location, objc_object *newObj)
  retry:
     if (haveOld) {
         /*
-         根据对象地址，从弱引用hash表中获取对象对应的弱引用变量列表(弱引用变量列表存储了所有指向该对象的弱引用变量)
+         根据对象地址，从全局hash表中获取对象对应的SideTable，SideTable里面包含了弱引用变量列表(弱引用变量列表存储了所有指向该对象的弱引用变量)
          location 为存储对象地址的指针变量
          *location 为取指针变量中存储的值
          例如：
