@@ -2481,8 +2481,11 @@ static bool isSimulatorBinary(const uint8_t* firstPage, const char* path)
 }
 #endif
 
-// map in file and instantiate an ImageLoader
-// 映射image并且实例imageloader
+/*
+ map in file and instantiate an ImageLoader
+ 映射image并且实例imageloader
+ fd 已经打开的文件句柄
+*/
 static ImageLoader* loadPhase6(int fd, const struct stat& stat_buf, const char* path, const LoadContext& context)
 {
 	//dyld::log("%s(%s)\n", __func__ , path);
@@ -2498,13 +2501,14 @@ static ImageLoader* loadPhase6(int fd, const struct stat& stat_buf, const char* 
 	
 	// min mach-o file is 4K
 	if ( fileLength < 4096 ) {
-		if ( pread(fd, firstPage, fileLength, 0) != (ssize_t)fileLength )
+		if ( pread(fd, firstPage, fileLength, 0) != (ssize_t)fileLength ) {
 			throwf("pread of short file failed: %d", errno);
+		}
 		shortPage = true;
-	} 
-	else {
-		if ( pread(fd, firstPage, 4096,0) != 4096 )
+	} else {
+		if ( pread(fd, firstPage, 4096,0) != 4096 ) {
 			throwf("pread of first 4K failed: %d", errno);
+		}
 	}
 	
 	// if fat wrapper, find usable sub-file
@@ -2513,12 +2517,14 @@ static ImageLoader* loadPhase6(int fd, const struct stat& stat_buf, const char* 
 	const fat_header* fileStartAsFat = (fat_header*)firstPage;
 	if ( fileStartAsFat->magic == OSSwapBigToHostInt32(FAT_MAGIC) ) {
 		if ( fatFindBest(fileStartAsFat, &fileOffset, &fileLength) ) {
-			if ( (fileOffset+fileLength) > (uint64_t)(stat_buf.st_size) )
-				throwf("truncated fat file.  file length=%llu, but needed slice goes to %llu", stat_buf.st_size, fileOffset+fileLength);
-			if (pread(fd, firstPage, 4096, fileOffset) != 4096)
+			if ( (fileOffset+fileLength) > (uint64_t)(stat_buf.st_size) ) {
+				throwf("truncated fat file.  file length=%llu, but needed slice goes to %llu",
+					   stat_buf.st_size, fileOffset+fileLength);
+			}
+			if (pread(fd, firstPage, 4096, fileOffset) != 4096) {
 				throwf("pread of fat file failed: %d", errno);
-		}
-		else {
+			}
+		}else {
 			throw "no matching architecture in universal wrapper";
 		}
 	}
@@ -2575,13 +2581,43 @@ static ImageLoader* loadPhase6(int fd, const struct stat& stat_buf, const char* 
 }
 
 
-//根据路径打开文件
-//调用loadPhase6
+/*
+ 根据路径打开文件
+ 调用loadPhase6
+ 文件信息结构体
+ struct stat {
+	 dev_t           st_dev;         //[XSI] ID of device containing file
+	 ino_t           st_ino;         //[XSI] File serial number
+	 mode_t          st_mode;        //[XSI] Mode of file (see below)
+	 nlink_t         st_nlink;       //[XSI] Number of hard links
+	 uid_t           st_uid;         //[XSI] User ID of the file
+	 gid_t           st_gid;         //[XSI] Group ID of the file
+	 dev_t           st_rdev;        //[XSI] Device ID
+	 time_t          st_atime;       //[XSI] Time of last access 最后一次访问时间
+	 long            st_atimensec;   //nsec of last access 最后一次访问时间
+	 time_t          st_mtime;       //[XSI] Last data modification time 上次修改时间
+	 long            st_mtimensec;   //last data modification nsec 上次修改时间
+	 time_t          st_ctime;       //[XSI] Time of last status change 上次文件状态修改时间
+	 long            st_ctimensec;   //nsec of last status change 上次文件状态修改时间
+	 off_t           st_size;        //[XSI] file size, in bytes 文件大小
+	 blkcnt_t        st_blocks;      //[XSI] blocks allocated for file
+	 blksize_t       st_blksize;     //[XSI] optimal blocksize for I/O
+	 __uint32_t      st_flags;       //user defined flags for file
+	 __uint32_t      st_gen;         //file generation number
+	 __int32_t       st_lspare;      //RESERVED: DO NOT USE!
+	 __int64_t       st_qspare[2];   //RESERVED: DO NOT USE!
+ };
+
+ stat& stat_buf 文件的属性： 是否可读写，大小
+ */
 static ImageLoader* loadPhase5open(const char* path, const LoadContext& context, const struct stat& stat_buf, std::vector<const char*>* exceptions)
 {
 	//dyld::log("%s(%s, %p)\n", __func__ , path, exceptions);
 
-	// open file (automagically closed when this function exits)
+	/*
+	 open file (automagically closed when this function exits)
+	 根据文件路径，打开文件
+	 */
 	FileOpener file(path);
 		
 	// just return NULL if file not found, but record any other errors
@@ -2612,9 +2648,12 @@ static ImageLoader* loadPhase5load(const char* path, const char* orgPath, const 
 	//dyld::log("%s(%s, %p)\n", __func__ , path, exceptions);
 	ImageLoader* image = NULL;
 
-	// just return NULL if file not found, but record any other errors
+	/*
+	 just return NULL if file not found, but record any other errors
+	 
+	 */
 	struct stat stat_buf;
-	if ( my_stat(path, &stat_buf) == -1 ) {
+	if ( my_stat(path, &stat_buf) == -1 ) {//读取文件属性
 		int err = errno;
 		if ( err != ENOENT ) {
 			exceptions->push_back(dyld::mkstringf("%s: stat() failed with errno=%d", path, err));
@@ -3089,7 +3128,21 @@ static ImageLoader* loadPhase0(const char* path, const char* orgPath, const Load
 // for other paths.
 //
 	
-// 根据所有的环境变量生成路径，去加载一个ImageLoader
+/*
+ 根据所有的环境变量生成路径，去加载一个ImageLoader
+ 如果缓存中没有，那么最终还是会使用如下接口加载
+ ImageLoader* ImageLoaderMachO::instantiateFromFile( const char* path,
+													 int fd,
+													 const uint8_t firstPage[4096],
+													 uint64_t offsetInFat,
+													 uint64_t lenInFat,
+													 const struct stat& info,
+													 const LinkContext& context)
+ 在ImageLoaderMachO::instantiateFromFile()方法中调用
+ sniffLoadCommands((const macho_header*)fileData, path, false, &compressed, &segCount, &libCount, context, &codeSigCmd, &encryptCmd);
+ 来读取mach-o 文件的load command 中的信息，然后使用这些信息实例化ImageLoader
+ 
+ */
 ImageLoader* load(const char* path, const LoadContext& context)
 {
 	CRSetCrashLogMessage2(path);
@@ -3097,8 +3150,12 @@ ImageLoader* load(const char* path, const LoadContext& context)
 	
 	//dyld::log("%s(%s)\n", __func__ , path);
 	char realPath[PATH_MAX];
-	// when DYLD_IMAGE_SUFFIX is in used, do a realpath(), otherwise a load of "Foo.framework/Foo" will not match
-	// 当设置了DYLD_IMAGE_SUFFIX字段，需要使用realpath来加载
+	/*
+	 when DYLD_IMAGE_SUFFIX is in used, do a realpath(), otherwise a load of "Foo.framework/Foo" will not match
+	 当设置了DYLD_IMAGE_SUFFIX字段，需要使用realpath来加载
+	 
+	 也就是在这一步尝试去修正库文件所在的路径
+	 */
 	if ( context.useSearchPaths && ( gLinkContext.imageSuffix != NULL) ) {
 		if ( realpath(path, realPath) != NULL )
 			path = realPath;
@@ -4315,7 +4372,14 @@ static void printAllImages()
 	}
 }
 #endif
-
+/*
+ /*
+ 调用image的link方法
+ image的link方法主要做的事情是：
+ this->recursiveRebase(context);
+ this->recursiveBind(context, forceLazysBound, neverUnload);
+ */
+ */
 void link(ImageLoader* image, bool forceLazysBound, bool neverUnload, const ImageLoader::RPathChain& loaderRPaths)
 {
 	// add to list of known images.  This did not happen at creation time for bundles
@@ -4486,7 +4550,7 @@ void preflight(ImageLoader* image, const ImageLoader::RPathChain& loaderRPaths)
 
 /*
  加载inserted dylib
- 也就是加载静态库
+ 也就是加载动态库
  */
 static void loadInsertedDylib(const char* path)
 {
@@ -5008,7 +5072,9 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		addDyldImageToUUIDList();
 		CRSetCrashLogMessage(sLoadingCrashMessage);
 		/* instantiate ImageLoader for main executable
-		 调用instantiateFromLoadedImage函数实例化主程序
+		 调用instantiateFromLoadedImage函数实例化主程序，其实就是调用sniffLoadCommands()解析出来的LoadCommand段信息
+		 然后使用ImageLoaderMachOCompressed::instantiateMainExecutable()方法将这些信息实例化ImageLoader对象
+		 并且把实例化的ImageLoader对象添加到sAllImages.push_back(image);中
 		 根据_objc_init() 的调用栈来看，instantiateFromLoadedImage过程中还没有给runtime注册回调
 		 */
 		sMainExecutable = instantiateFromLoadedImage(mainExecutableMH, mainExecutableSlide, sExecPath);//加载MACHO到image
@@ -5069,10 +5135,15 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		// 类似于linux里面的LD_PRELOAD
 		if	( sEnv.DYLD_INSERT_LIBRARIES != NULL ) {
 			/*
-			 加载动态库
+			 加载动态库,遍历所有依赖的动态库(mach-o文件)，使用他的load command信息实例化成ImageLoader对象，然后插入到sAllImages中
 			 越狱的插件一般是在这里发光发热的
 			 */
 			for (const char* const* lib = sEnv.DYLD_INSERT_LIBRARIES; *lib != NULL; ++lib) {
+				/*
+				 主要做的事情就是：读取mach-o 文件的load command 中的信息，然后使用这些信息实例化ImageLoader
+				 然后调用addImage(image);将image添加到sAllImages中
+				 sAllImages.push_back(image);
+				 */
 				loadInsertedDylib(*lib);
 			}
 		}
@@ -5103,10 +5174,19 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		// do this after linking main executable so that any dylibs pulled in by inserted 
 		// dylibs (e.g. libSystem) will not be in front of dylibs the program uses
 		
-		//连接主程序之后再连接insert的dylib
+		/*
+		 对依赖的动态库进行连接（也就是进行Rebase 跟Bind）
+		 
+		 静态链接：在一个文件中可能会到其他文件，因此，还需要将编译生成的目标文件和系统提供的文件组合到一起，这个过程就是链接。经过链接，最后生成可执行文件。
+		 */
 		if ( sInsertedDylibCount > 0 ) {
 			for(unsigned int i=0; i < sInsertedDylibCount; ++i) {
 				ImageLoader* image = sAllImages[i+1];
+				/*
+				 主要是对动态链接库进行：
+				 image->recursiveRebase(context);
+				 image->recursiveBind(context, forceLazysBound, neverUnload);
+				 */
 				link(image, sEnv.DYLD_BIND_AT_LAUNCH, true, ImageLoader::RPathChain(NULL, NULL));
 				image->setNeverUnloadRecursive();
 			}

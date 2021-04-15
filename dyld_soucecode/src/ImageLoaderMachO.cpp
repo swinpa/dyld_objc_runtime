@@ -128,7 +128,10 @@ fSegmentsCount(segCount), fIsSplitSeg(false), fInSharedCache(false),
 }
 
 
-// determine if this mach-o file has classic or compressed LINKEDIT and number of segments it has
+/*
+ determine if this mach-o file has classic or compressed LINKEDIT and number of segments it has
+ 查看一下mach-o 文件是否有传统的(classic)或者(or)压缩的(compressed)LINKEDIT段，LINKEDIT段又有多少segments
+ */
 void ImageLoaderMachO::sniffLoadCommands(const macho_header* mh, const char* path, bool inCache, bool* compressed,
 											unsigned int* segCount, unsigned int* libCount, const LinkContext& context,
 											const linkedit_data_command** codeSigCmd,
@@ -340,6 +343,7 @@ ImageLoader* ImageLoaderMachO::instantiateMainExecutable(const macho_header* mh,
 	/*
 	    实例化       具体    类
 	 instantiate concrete class based on content of load commands
+	 根据sniffLoadCommands()解析出来的LoadCommand段信息实例化ImageLoader对象
 	 */
 	if ( compressed ) 
 		return ImageLoaderMachOCompressed::instantiateMainExecutable(mh, slide, path, segCount, libCount, context);
@@ -354,10 +358,12 @@ ImageLoader* ImageLoaderMachO::instantiateMainExecutable(const macho_header* mh,
 
 // create image by mapping in a mach-o file
 // 通过mach-o文件映实例化ImageLoader
-ImageLoader* ImageLoaderMachO::instantiateFromFile(const char* path, int fd, const uint8_t firstPage[4096], uint64_t offsetInFat, 
-									uint64_t lenInFat, const struct stat& info, const LinkContext& context)
+ImageLoader* ImageLoaderMachO::instantiateFromFile(const char* path, int fd, const uint8_t firstPage[4096], uint64_t offsetInFat, uint64_t lenInFat, const struct stat& info, const LinkContext& context)
 {
-	// get load commands
+	/*
+	 get load commands
+	 dataSize 为mach-o文件中load command段的数据大小
+	 */
 	const unsigned int dataSize = sizeof(macho_header) + ((macho_header*)firstPage)->sizeofcmds;
 	uint8_t buffer[dataSize];
 	const uint8_t* fileData = firstPage;
@@ -373,8 +379,12 @@ ImageLoader* ImageLoaderMachO::instantiateFromFile(const char* path, int fd, con
 	unsigned int libCount;
 	const linkedit_data_command* codeSigCmd;
 	const encryption_info_command* encryptCmd;
-	//遍历mach-o文件的loadcommds，获取一些关键的信息。
-	//是否是compressd，section个数，依赖lib个数，数字签名信息，encryptcmd信息
+
+	/*
+	 遍历mach-o文件的loadcommds，获取一些关键的信息。
+	 是否是compressd，section个数，依赖lib个数，数字签名信息，encryptcmd信息
+	 sniff 英  [snɪf]   美  [snɪf] vt. 嗅；闻；用力吸；发觉
+	 */
 	sniffLoadCommands((const macho_header*)fileData, path, false, &compressed, &segCount, &libCount, context, &codeSigCmd, &encryptCmd);
 	// instantiate concrete class based on content of load commands
 	if ( compressed ) 

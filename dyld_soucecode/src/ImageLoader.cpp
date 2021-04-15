@@ -387,7 +387,11 @@ void ImageLoader::addDynamicInterposingTuples(const struct dyld_interpose_tuple 
 	}
 }
 
-
+/*
+ 主要做的事情，应该是：
+ this->recursiveRebase(context);
+ this->recursiveBind(context, forceLazysBound, neverUnload);
+ */
 void ImageLoader::link(const LinkContext& context, bool forceLazysBound, bool preflightOnly, bool neverUnload, const RPathChain& loaderRPaths)
 {
 	//dyld::log("ImageLoader::link(%s) refCount=%d, neverUnload=%d\n", this->getPath(), fDlopenReferenceCount, fNeverUnload);
@@ -411,6 +415,7 @@ void ImageLoader::link(const LinkContext& context, bool forceLazysBound, bool pr
 	this->recursiveUpdateDepth(context.imageCount());
 
 	uint64_t t2 = mach_absolute_time();
+	
  	this->recursiveRebase(context);
 	context.notifyBatch(dyld_image_state_rebased);
 	//重新计算所有的依赖关系
