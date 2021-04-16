@@ -1120,6 +1120,7 @@ void initializeMainExecutable()
 	ImageLoader::InitializerTimingList initializerTimes[sAllImages.size()];
 	initializerTimes[0].count = 0;
 	const size_t rootCount = sImageRoots.size();
+	//先初始化所有依赖的库
 	if ( rootCount > 1 ) {
 		for(size_t i=1; i < rootCount; ++i) {
 			sImageRoots[i]->runInitializers(gLinkContext, initializerTimes[0]);
