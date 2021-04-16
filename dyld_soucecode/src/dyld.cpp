@@ -1097,6 +1097,20 @@ static void runAllStaticTerminators(void* extra)
 	}
 }
 
+/**
+ 
+
+ 动态库的mach-o文件中的load command中会有个LC_SEGMENT,在该segment下如果有_mode_init_func 则这个就是动态库初始化函数的地址，
+ 拿到这个函数地址进行调用，则就可以执行动态库的初始化方法
+ libSystem.B.dylib中就存在这个段，故能在调用起libSystem.B.dylib的初始化函数，从而调用objc 的_objc_init()方法进行回调注册
+ 
+ 所以在image调用初始化方法时，回去查看load command中有没有_mode_init_func，有则执行
+ 
+ this->doInitialization(context);中调用doModInitFunctions()
+ doModInitFunctions() 会完成libSystem_initializer()->libdispatch_init()->_os_object_init()->_objc_init()
+ 也就是完成运行时的回调注册_dyld_objc_notify_register(&map_images, load_images, unmap_image);
+ 
+ */
 void initializeMainExecutable()
 {
 	// record that we've reached this step
@@ -1112,7 +1126,8 @@ void initializeMainExecutable()
 		}
 	}
 	
-	// run initializers for main executable and everything it brings up 
+	// run initializers for main executable and everything it brings up
+	
 	sMainExecutable->runInitializers(gLinkContext, initializerTimes[0]);
 	
 	// register cxa_atexit() handler to run static terminators in all loaded images when this process exits
@@ -1615,6 +1630,34 @@ void processDyldEnvironmentVariable(const char* key, const char* value, const ch
 	}
 }
 
+/*
+ * A variable length string in a load command is represented by an lc_str
+ * union.  The strings are stored just after the load command structure and
+ * the offset is from the start of the load command structure.  The size
+ * of the string is reflected in the cmdsize field of the load command.
+ * Once again any padded bytes to bring the cmdsize field to a multiple
+ * of 4 bytes must be zero.
+ */
+/*
+union lc_str {
+	uint32_t	offset;	//offset to the string
+#ifndef __LP64__
+	char		*ptr;	//pointer to the string
+#endif
+};
+*/
+
+/*
+ struct load_command {
+	 uint32_t cmd;		//type of load command
+	 uint32_t cmdsize;	//total size of command in bytes
+ };
+ struct dylinker_command {
+	 uint32_t	cmd;		//LC_ID_DYLINKER, LC_LOAD_DYLINKER or LC_DYLD_ENVIRONMENT
+	 uint32_t	cmdsize;	//includes pathname string
+	 union lc_str    name;	//dynamic linker's path name
+ };
+ */
 
 #if SUPPORT_LC_DYLD_ENVIRONMENT
 static void checkLoadCommandEnvironmentVariables()
@@ -4372,13 +4415,17 @@ static void printAllImages()
 	}
 }
 #endif
-/*
- /*
+/**
+
  调用image的link方法
  image的link方法主要做的事情是：
+ 旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个随机地址偏移量？？？》
  this->recursiveRebase(context);
+ 
+ 《占位地址》转成《实际地址》，
+ （编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，在加载的时候才能确定地址）
  this->recursiveBind(context, forceLazysBound, neverUnload);
- */
+
  */
 void link(ImageLoader* image, bool forceLazysBound, bool neverUnload, const ImageLoader::RPathChain& loaderRPaths)
 {
@@ -5017,21 +5064,33 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
     sProcessIsRestricted = processRestricted(mainExecutableMH,
 											 &ignoreEnvironmentVariables,
 											 &sProcessRequiresLibraryValidation);
-    if ( sProcessIsRestricted ) {
-#if SUPPORT_LC_DYLD_ENVIRONMENT
-		checkLoadCommandEnvironmentVariables();
-#endif 	
-		pruneEnvironmentVariables(envp, &apple);
-		// set again because envp and apple may have changed or moved
-		setContext(mainExecutableMH, argc, argv, envp, apple);
-	}
-	else {
-		if ( !ignoreEnvironmentVariables ){
-			//这里会对sEnv 做初始化
-			checkEnvironmentVariables(envp);
+    
+	/*
+	 检测运行的环境变量，包括获取依赖的《动态库的数量》
+	 */
+	//++++++++++++++++++++++获取《动态库数量》+++++++++++++++++++++++++++++++
+	{
+		if ( sProcessIsRestricted ) {
+	#if SUPPORT_LC_DYLD_ENVIRONMENT
+			checkLoadCommandEnvironmentVariables();
+	#endif
+			pruneEnvironmentVariables(envp, &apple);
+			// set again because envp and apple may have changed or moved
+			setContext(mainExecutableMH, argc, argv, envp, apple);
 		}
-		defaultUninitializedFallbackPaths(envp);
-	}//根据给出的受限情况，重新设置LINK的上下文。
+		else {
+			if ( !ignoreEnvironmentVariables ){
+				/*
+				 《这里会对sEnv 做初始化》也就是在这个阶段就可以知道了依赖的动态库的个数
+				 最终调用processDyldEnvironmentVariable这个方法解析出依赖的动态库的个数
+				 */
+				checkEnvironmentVariables(envp);
+			}
+			defaultUninitializedFallbackPaths(envp);
+		}//根据给出的受限情况，重新设置LINK的上下文。
+	}
+	//+++++++++++++++++++++++获取《动态库数量》结束++++++++++++++++++++++++++++++
+	
 	if ( sEnv.DYLD_PRINT_OPTS ){
 		printOptions(argv);
 	}
@@ -5074,7 +5133,8 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		/* instantiate ImageLoader for main executable
 		 调用instantiateFromLoadedImage函数实例化主程序，其实就是调用sniffLoadCommands()解析出来的LoadCommand段信息
 		 然后使用ImageLoaderMachOCompressed::instantiateMainExecutable()方法将这些信息实例化ImageLoader对象
-		 并且把实例化的ImageLoader对象添加到sAllImages.push_back(image);中
+		 并且把实例化的ImageLoader对象添加到sAllImages.push_back(image);中，也就是可执行文件的ImageLoader实例对象会被放在sAllImages的第一个位置
+		 
 		 根据_objc_init() 的调用栈来看，instantiateFromLoadedImage过程中还没有给runtime注册回调
 		 */
 		sMainExecutable = instantiateFromLoadedImage(mainExecutableMH, mainExecutableSlide, sExecPath);//加载MACHO到image
@@ -5157,8 +5217,9 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		//+++++++++++++++++
 		//
 		//
-		
+//++++++++++++++++++++++++《主程序链接》开始++++++++++++++++++++++++++++++++++
 		link(sMainExecutable, sEnv.DYLD_BIND_AT_LAUNCH, true, ImageLoader::RPathChain(NULL, NULL));
+//++++++++++++++++++++++++《主程序链接》开始++++++++++++++++++++++++++++++++++
 		//
 		//
 		//
@@ -5176,9 +5237,19 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		
 		/*
 		 对依赖的动态库进行连接（也就是进行Rebase 跟Bind）
+			  具体是调用image的link方法
+			  image的link方法主要做的事情是：
+			  旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个随机地址偏移量？？？》
+			  this->recursiveRebase(context);
+			  
+			  《占位地址》转成《实际地址》，
+			  （编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，在加载的时候才能确定地址）
+			  this->recursiveBind(context, forceLazysBound, neverUnload);
+
 		 
 		 静态链接：在一个文件中可能会到其他文件，因此，还需要将编译生成的目标文件和系统提供的文件组合到一起，这个过程就是链接。经过链接，最后生成可执行文件。
 		 */
+//++++++++++++++++++++++++《动态库链接》开始++++++++++++++++++++++++++++++++++
 		if ( sInsertedDylibCount > 0 ) {
 			for(unsigned int i=0; i < sInsertedDylibCount; ++i) {
 				ImageLoader* image = sAllImages[i+1];
@@ -5197,6 +5268,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 				image->registerInterposing();
 			}
 		}
+//+++++++++++++++++++++++++《动态库链接》结束+++++++++++++++++++++++++++++++++
 
 		// <rdar://problem/19315404> dyld should support interposition even without DYLD_INSERT_LIBRARIES
 		for (int i=sInsertedDylibCount+1; i < sAllImages.size(); ++i) {
@@ -5223,10 +5295,21 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 			initializeMainExecutable();
 		}
 	#else
+//++++++++++++++++++++++++该过程用有机会调用libSystem.B.dylib的初始化方法+++++++++++++++++++++++++++++++++++++++++++
 		// run all initializers
 		/*
 		 执行所有image的初始化函数
 		 这个过程中runtime才有机会注册回调
+		 
+		  动态库的mach-o文件中的load command中会有个LC_SEGMENT,在该segment下如果有_mode_init_func 则这个就是动态库初始化函数的地址，
+		  拿到这个函数地址进行调用，则就可以执行动态库的初始化方法
+		  libSystem.B.dylib中就存在这个段，故能在调用起libSystem.B.dylib的初始化函数，从而调用objc 的_objc_init()方法进行回调注册
+		  
+		  所以在image调用初始化方法时，回去查看load command中有没有_mode_init_func，有则执行
+		  
+		  this->doInitialization(context);中调用doModInitFunctions()
+		  doModInitFunctions() 会完成libSystem_initializer()->libdispatch_init()->_os_object_init()->_objc_init()
+		  也就是完成运行时的回调注册_dyld_objc_notify_register(&map_images, load_images, unmap_image);
 		 */
 		initializeMainExecutable(); 
 	#endif

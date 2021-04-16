@@ -768,7 +768,9 @@ void ImageLoaderMachOClassic::resetPreboundLazyPointers(const LinkContext& conte
 
 
 
-
+/**
+ 对需要修正地址进行 《地址+偏移量》
+ */
 void ImageLoaderMachOClassic::rebase(const LinkContext& context)
 {
 	CRSetCrashLogMessage2(this->getPath());
@@ -799,9 +801,15 @@ void ImageLoaderMachOClassic::rebase(const LinkContext& context)
 				throw "bad local relocation pc_rel";
 			if ( reloc->r_extern != 0 ) 
 				throw "extern relocation found with local relocations";
+			/*
+			 拿到需要rebase的地址
+			 */
 			rebaseAddr = reloc->r_address + relocBase;
 			if ( ! this->containsAddress((void*)rebaseAddr) )
 				dyld::throwf("local reloc %p not in mapped image\n", (void*)rebaseAddr);
+			/*
+			 对需要rebase的地址进行rebase(添加slide)
+			 */
 			*((uintptr_t*)rebaseAddr) += slide;
 			if ( context.verboseRebase )
 				dyld::log("dyld: rebase: %s:*0x%08lX += 0x%08lX\n", this->getShortName(), rebaseAddr, slide);
@@ -1220,7 +1228,10 @@ void ImageLoaderMachOClassic::doBindExternalRelocations(const LinkContext& conte
 	uintptr_t					symbolAddr = 0;
 	const ImageLoader*			image = NULL;
 	
-	// loop through all external relocation records and bind each
+	/*
+	 loop through all external relocation records and bind each
+	 遍历所有的外部地址记录，然后绑定
+	 */
 	const relocation_info* const relocsStart = (struct relocation_info*)(&fLinkEditBase[fDynamicInfo->extreloff]);
 	const relocation_info* const relocsEnd = &relocsStart[fDynamicInfo->nextrel];
 	for (const relocation_info* reloc=relocsStart; reloc < relocsEnd; ++reloc) {
@@ -1228,10 +1239,22 @@ void ImageLoaderMachOClassic::doBindExternalRelocations(const LinkContext& conte
 			switch(reloc->r_type) {
 				case POINTER_RELOC:
 					{
+						/*
+						 fSymbolTable 符号表，从符号表中获取符号
+						 在bind之前，是《符号 + 临时占位地址》
+						 bind之后，变成了《符号 + 真实地址》这样吗？
+						 */
 						const struct macho_nlist* undefinedSymbol = &fSymbolTable[reloc->r_symbolnum];
+						
+						/*
+						 需要绑定的地址，这是一个《临时占位地址》？？
+						 */
 						uintptr_t* location = ((uintptr_t*)(reloc->r_address + relocBase));
-						if ( ! this->containsAddress((void*)location) )
+						
+						if ( ! this->containsAddress((void*)location) ){
 							dyld::throwf("external reloc %p not in mapped image %s\n", (void*)location, this->getPath());
+						}
+						
 						uintptr_t value = *location;
 						bool symbolAddrCached = true;
 					#if __i386__
@@ -1305,6 +1328,7 @@ void ImageLoaderMachOClassic::doBindExternalRelocations(const LinkContext& conte
 										path, &fStrings[undefinedSymbol->n_un.n_strx], (uintptr_t)location, symbolAddr, cachedString, value);
 							}
 						}
+//++++++++++++++++++++++++++++++++修正符号地址（临时的占位地址换算成真实的地址？是这样吗？？？？）+++++++++++++++++++++++++++++++++++++++
 						value += symbolAddr;
 					#if __i386__
 						if ( reloc->r_pcrel ) {
@@ -1902,7 +1926,9 @@ void ImageLoaderMachOClassic::initializeLazyStubs(const LinkContext& context)
 }
 #endif // __i386__
 
-
+/**
+  将符号表中的《临时占位地址》变成《 真实地址》的过程吗？
+ */
 void ImageLoaderMachOClassic::doBind(const LinkContext& context, bool forceLazysBound)
 {
 	CRSetCrashLogMessage2(this->getPath());

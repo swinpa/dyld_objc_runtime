@@ -1335,7 +1335,9 @@ bool ImageLoaderMachO::getUUID(uuid_t uuid) const
 	bzero(uuid, 16);
 	return false;
 }
-
+/**
+ 对需要修正地址进行 《地址+偏移量》
+ */
 void ImageLoaderMachO::doRebase(const LinkContext& context)
 {
 	// if prebound and loaded at prebound address, then no need to rebase
@@ -1881,6 +1883,9 @@ void ImageLoaderMachO::doImageInit(const LinkContext& context)
  上述 0x09 对应的值即S_MOD_INIT_FUNC_POINTERS，顾名思义，它表示该字段存储的是函数指针，这些函数指针在模块（镜像）被加载时调用。
 
  对于 libSystem.dylib 而言，该 section 名为__mod_init_func（一般都是这个名字），存储了一个函数指针，该函数指针恰好对应_libSystem_initializer符号。当libSystem_initializer被调用时，dyld 会对gProcessInfo->libSystemInitialized进行标记，表示 libSystem 已经被初始化。
+ 
+ 动态库的mach-o文件中的load command中会有个LC_SEGMENT,在该segment下如果有_mode_init_func 则这个就是动态库初始化函数的地址，
+ 拿到这个函数地址进行调用，则就可以执行动态库的初始化方法
  
  */
 void ImageLoaderMachO::doModInitFunctions(const LinkContext& context)

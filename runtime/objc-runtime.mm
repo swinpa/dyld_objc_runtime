@@ -136,6 +136,17 @@ id objc_noop_imp(id self, SEL _cmd __unused) {
 * not exist, call _objc_classLoader and then objc_classHandler, either of 
 * which may create a new class.
 * Warning: doesn't work if aClassName is the name of a posed-for class's isa!
+ 
+* 在map_images
+    ->_read_images
+        ->readClass
+            ->addNamedClass(cls, mangledName, replacing)
+                ->NXMapInsert(gdb_objc_realized_classes, name, cls);
+ 
+* 也就是在map_images 完成后，会将class以键值的方式添加到gdb_objc_realized_classes这个map中
+ 
+* objc_getClass最终会通过NXMapGet(gdb_objc_realized_classes, name);从gdb_objc_realized_classes这个map中获取
+ 
 **********************************************************************/
 Class objc_getClass(const char *aClassName)
 {
@@ -166,6 +177,10 @@ Class objc_getRequiredClass(const char *aClassName)
 * a new class.
 *
 * Formerly objc_getClassWithoutWarning ()
+*
+* 在map_images 完成后，会将class以键值的方式添加到gdb_objc_realized_classes这个map中
+* objc_lookUpClass最终会通过NXMapGet(gdb_objc_realized_classes, name);从gdb_objc_realized_classes这个map中获取
+
 **********************************************************************/
 Class objc_lookUpClass(const char *aClassName)
 {

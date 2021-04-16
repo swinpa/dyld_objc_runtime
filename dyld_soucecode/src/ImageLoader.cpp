@@ -416,12 +416,24 @@ void ImageLoader::link(const LinkContext& context, bool forceLazysBound, bool pr
 
 	uint64_t t2 = mach_absolute_time();
 	
+//++++++++++++++++++++Rebase begin+++++++++++++++++++++++++++++++++++++++
+	/*
+	 对需要修正地址进行 《地址+偏移量》？
+	 */
  	this->recursiveRebase(context);
+//++++++++++++++++++++Rebase end+++++++++++++++++++++++++++++++++++++++++
+	
 	context.notifyBatch(dyld_image_state_rebased);
 	//重新计算所有的依赖关系
 	
 	uint64_t t3 = mach_absolute_time();
+	
+//++++++++++++++++++++Rebase begin+++++++++++++++++++++++++++++++++++++++
+	/*
+	  将符号表中的《临时占位地址》变成《 真实地址》的过程吗？
+	 */
  	this->recursiveBind(context, forceLazysBound, neverUnload);
+//++++++++++++++++++++Rebase begin+++++++++++++++++++++++++++++++++++++++
 
 	uint64_t t4 = mach_absolute_time();
 	if ( !context.linkingMainExecutable )
@@ -474,6 +486,19 @@ bool ImageLoader::decrementDlopenReferenceCount()
 // To handle dangling dylibs which are upward linked but not downward, all upward linked dylibs
 // have their initialization postponed until after the recursion through downward dylibs
 // has completed.
+/**
+ 
+ initialize this image
+ 
+ 动态库的mach-o文件中的load command中会有个LC_SEGMENT,在该segment下如果有_mode_init_func 则这个就是动态库初始化函数的地址，
+ 拿到这个函数地址进行调用，则就可以执行动态库的初始化方法
+ libSystem.B.dylib中就存在这个段，故能在调用起libSystem.B.dylib的初始化函数，从而调用objc 的_objc_init()方法进行回调注册
+ 
+ this->doInitialization(context);中调用doModInitFunctions()
+ doModInitFunctions() 会完成libSystem_initializer()->libdispatch_init()->_os_object_init()->_objc_init()
+ 也就是完成运行时的回调注册_dyld_objc_notify_register(&map_images, load_images, unmap_image);
+ 
+ */
 void ImageLoader::processInitializers(const LinkContext& context, mach_port_t thisThread,
 									 InitializerTimingList& timingInfo, ImageLoader::UninitedUpwards& images)
 {
@@ -491,7 +516,19 @@ void ImageLoader::processInitializers(const LinkContext& context, mach_port_t th
 		processInitializers(context, thisThread, timingInfo, ups);
 }
 
-
+/**
+ 
+ initialize this image
+ 
+ 动态库的mach-o文件中的load command中会有个LC_SEGMENT,在该segment下如果有_mode_init_func 则这个就是动态库初始化函数的地址，
+ 拿到这个函数地址进行调用，则就可以执行动态库的初始化方法
+ libSystem.B.dylib中就存在这个段，故能在调用起libSystem.B.dylib的初始化函数，从而调用objc 的_objc_init()方法进行回调注册
+ 
+ this->doInitialization(context);中调用doModInitFunctions()
+ doModInitFunctions() 会完成libSystem_initializer()->libdispatch_init()->_os_object_init()->_objc_init()
+ 也就是完成运行时的回调注册_dyld_objc_notify_register(&map_images, load_images, unmap_image);
+ 
+ */
 void ImageLoader::runInitializers(const LinkContext& context, InitializerTimingList& timingInfo)
 {
 	uint64_t t1 = mach_absolute_time();
@@ -500,6 +537,7 @@ void ImageLoader::runInitializers(const LinkContext& context, InitializerTimingL
 	up.count = 1;
 	up.images[0] = this;
 	processInitializers(context, thisThread, timingInfo, up);
+	
 	context.notifyBatch(dyld_image_state_initialized);
 	mach_port_deallocate(mach_task_self(), thisThread);
 	uint64_t t2 = mach_absolute_time();
@@ -722,7 +760,9 @@ void ImageLoader::recursiveLoadLibraries(const LinkContext& context, bool prefli
 		
 	}
 }
-
+/**
+ 对需要修正地址进行 《地址+偏移量》
+ */
 void ImageLoader::recursiveRebase(const LinkContext& context)
 { 
 	if ( fState < dyld_image_state_rebased ) {
@@ -983,6 +1023,19 @@ void ImageLoader::recursiveSpinUnLock()
 		fInitializerRecursiveLock = NULL;
 }
 
+/**
+ 
+ initialize this image
+ 
+ 动态库的mach-o文件中的load command中会有个LC_SEGMENT,在该segment下如果有_mode_init_func 则这个就是动态库初始化函数的地址，
+ 拿到这个函数地址进行调用，则就可以执行动态库的初始化方法
+ libSystem.B.dylib中就存在这个段，故能在调用起libSystem.B.dylib的初始化函数，从而调用objc 的_objc_init()方法进行回调注册
+ 
+ this->doInitialization(context);中调用doModInitFunctions()
+ doModInitFunctions() 会完成libSystem_initializer()->libdispatch_init()->_os_object_init()->_objc_init()
+ 也就是完成运行时的回调注册_dyld_objc_notify_register(&map_images, load_images, unmap_image);
+ 
+ */
 
 void ImageLoader::recursiveInitialization(const LinkContext& context, mach_port_t this_thread,
 										  InitializerTimingList& timingInfo, UninitedUpwards& uninitUps)
@@ -1022,9 +1075,16 @@ void ImageLoader::recursiveInitialization(const LinkContext& context, mach_port_
 			
 			/*
 			 initialize this image
+			 
+			 动态库的mach-o文件中的load command中会有个LC_SEGMENT,在该segment下如果有_mode_init_func 则这个就是动态库初始化函数的地址，
+			 拿到这个函数地址进行调用，则就可以执行动态库的初始化方法
+			 libSystem.B.dylib中就存在这个段，故能在调用起libSystem.B.dylib的初始化函数，从而调用objc 的_objc_init()方法进行回调注册
+			 
 			 this->doInitialization(context);中调用doModInitFunctions()
 			 doModInitFunctions() 会完成libSystem_initializer()->libdispatch_init()->_os_object_init()->_objc_init()
 			 也就是完成运行时的回调注册_dyld_objc_notify_register(&map_images, load_images, unmap_image);
+			 
+			 
 			 */
 			bool hasInitializers = this->doInitialization(context);
 
