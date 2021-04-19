@@ -816,6 +816,7 @@ attachCategories(Class cls, category_list *cats, bool flush_caches)
     while (i--) {//因为这里是倒序遍历，所以后编译的分类会放在前面
         auto& entry = cats->list[i];
 
+        //这里获取的是分类里面的类方法
         method_list_t *mlist = entry.cat->methodsForMeta(isMeta);
         if (mlist) {
             mlists[mcount++] = mlist;
@@ -1879,7 +1880,7 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
 
     /*
      这里是否是父类没成员变量？？，也就是父类不需要分配成员变量的内存空间？？
-     或者当前类的收个成员变量的前面的内存空间已经足够父类使用？？
+     或者当前类的首个成员变量的前面的内存空间已经足够父类使用？？
      */
     if (ro->instanceStart >= super_ro->instanceSize) {
         // Superclass has not overgrown its space. We're done here.
@@ -1927,7 +1928,7 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
  
 * 2，设置类的父类(superclass)，以及设置类的isa (指向元类)
 * 3，将ro中的一些标志(flag) 设置到类的rw 中的标志中（可能是为了后续方便访问）
-* 4，将ro中的方法，协议，属性拷贝到rw中，并且把分类的方法，协议，属性也拷贝到rw中，后续通过class 的rw中的methods 就能访问到该了的
+* 4，将ro中的方法，协议，属性拷贝到rw中，并且把分类的方法，协议，属性也拷贝到rw中，后续通过class 的rw中的methods 就能访问到该类的
  所有的方法，协议，与属性
 */
 
@@ -1981,12 +1982,23 @@ static Class realizeClass(Class cls)
                      (void*)cls, ro, cls->classArrayIndex());
     }
 
-    // Realize superclass and metaclass, if they aren't already.
-    // This needs to be done after RW_REALIZED is set above, for root classes.
-    // This needs to be done after class index is chosen, for root metaclasses.
-    supercls = realizeClass(remapClass(cls->superclass));
-    metacls = realizeClass(remapClass(cls->ISA()));
-
+    /*
+     这里递归
+     realizeClass(remapClass(cls->superclass))
+     以及
+     metacls = realizeClass(remapClass(cls->ISA()));
+     就能确保
+     reconcileInstanceVariables(cls, supercls, ro);
+     时能确定父类的InstanceSize
+     */
+    {
+        // Realize superclass and metaclass, if they aren't already.
+        // This needs to be done after RW_REALIZED is set above, for root classes.
+        // This needs to be done after class index is chosen, for root metaclasses.
+        supercls = realizeClass(remapClass(cls->superclass));
+        metacls = realizeClass(remapClass(cls->ISA()));
+    }
+    
 #if SUPPORT_NONPOINTER_ISA
     // Disable non-pointer isa for some classes and/or platforms.
     // Set instancesRequireRawIsa.
@@ -2557,7 +2569,9 @@ readProtocol(protocol_t *newproto, Class protocol_class,
 * Locking: runtimeLock acquired by map_images
 **********************************************************************/
 /*
- 将分类的方法添加到类的rw中的methods 列表中
+ 
+ 将分类的实例方法添加到类的rw中的methods 列表中
+ 将分类的类方法添加到类的isa（元类）的rw中的methods列表中
  */
 void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int unoptimizedTotalClasses)
 {
