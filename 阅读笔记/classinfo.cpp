@@ -2096,8 +2096,10 @@ struct _ivar_t {
 
 struct _class_ro_t {
 	unsigned int flags;
+    //-----------确定了成员变量的地址空间----------------
 	unsigned int instanceStart;
 	unsigned int instanceSize;
+    //---------------------------
 	const unsigned char *ivarLayout;
 	const char *name;
 	const struct _method_list_t *baseMethods;
