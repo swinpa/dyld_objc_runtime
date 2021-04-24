@@ -2298,7 +2298,8 @@ static struct _class_ro_t _OBJC_METACLASS_RO_$_Man __attribute__ ((used, section
 };
 
 static struct _class_ro_t _OBJC_CLASS_RO_$_Man __attribute__ ((used, section ("__DATA,__objc_const"))) = {
-	0, __OFFSETOFIVAR__(struct Man, private_Money), sizeof(struct Man_IMPL), 
+	0, __OFFSETOFIVAR__(struct Man, private_Money),
+    sizeof(struct Man_IMPL), 
 	0, 
 	"Man",
 	(const struct _method_list_t *)&_OBJC_$_INSTANCE_METHODS_Man,

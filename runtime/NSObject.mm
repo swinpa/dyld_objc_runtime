@@ -1839,8 +1839,7 @@ objc_retain(id obj)
 
 
 __attribute__((aligned(16)))
-void 
-  (id obj)
+void objc_release(id obj)
 {
     if (!obj) return;
     if (obj->isTaggedPointer()) return;

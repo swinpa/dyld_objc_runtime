@@ -20,5 +20,9 @@
 
 @end
 
+@interface Person : NSObject
+
+
+@end
 
 

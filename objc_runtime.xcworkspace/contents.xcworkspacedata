@@ -8,6 +8,9 @@
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
       <FileRef
+         location = "group:objc-classinfo.md">
+      </FileRef>
+      <FileRef
          location = "group:classinfo.cpp">
       </FileRef>
       <FileRef

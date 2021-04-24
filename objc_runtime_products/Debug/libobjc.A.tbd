@@ -1,14 +1,12 @@
---- !tapi-tbd
-tbd-version:     4
-targets:         [ x86_64-macos ]
-uuids:
-  - target:          x86_64-macos
-    value:           18399A5E-42EE-3F10-BB17-25E3FD722072
+--- !tapi-tbd-v3
+archs:           [ x86_64 ]
+uuids:           [ 'x86_64: F0507FEF-5902-345C-BCF1-3D17471367D2' ]
+platform:        macosx
 flags:           [ not_app_extension_safe ]
 install-name:    '/usr/lib/libobjc.A.dylib'
 current-version: 228
-exports:
-  - targets:         [ x86_64-macos ]
+exports:         
+  - archs:           [ x86_64 ]
     symbols:         [ '$ld$hide$os10.5$_OBJC_CLASS_$_NSObject', '$ld$hide$os10.5$_OBJC_IVAR_$_NSObject.isa', 
                        '$ld$hide$os10.5$_OBJC_METACLASS_$_NSObject', '$ld$hide$os10.6$_OBJC_CLASS_$_NSObject', 
                        '$ld$hide$os10.6$_OBJC_IVAR_$_NSObject.isa', '$ld$hide$os10.6$_OBJC_METACLASS_$_NSObject', 

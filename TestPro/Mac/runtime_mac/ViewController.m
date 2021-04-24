@@ -9,6 +9,14 @@
 #import "ViewController.h"
 #import <objc/runtime.h>
 
+
+
+
+@implementation Person
+
+@end
+
+
 @implementation TView
 
 - (void)dealloc {
@@ -35,6 +43,9 @@
     btn.frame = NSMakeRect(30, 40, 450, 50);
     [self.view addSubview:btn];
 //    btn.backgroundColor = [NSColor yellowColor];
+    
+    
+    
 }
 
 
@@ -57,6 +68,9 @@
     NSString *addr1 = [NSString stringWithFormat:@"wvar1地址=%p",&wvar1];
     NSString *addr2 = [NSString stringWithFormat:@"wvar2地址=%p",&wvar2];
     NSString *addr3 = [NSString stringWithFormat:@"wvar3地址=%p",&wvar3];
+    
+    
+    Person *p = [[Person alloc] init];
     
     NSLog(@"");
     {
