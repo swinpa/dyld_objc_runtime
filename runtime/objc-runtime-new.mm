@@ -6708,6 +6708,9 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
         *outAllocatedSize = size;
     }
 
+    /*
+     typedef struct objc_object *id;
+     */
     id obj;
     if (!zone  &&  fast) {
         obj = (id)calloc(1, size);
