@@ -1594,13 +1594,18 @@ size_t
 objc_object::sidetable_subExtraRC_nolock(size_t delta_rc)
 {
     assert(isa.nonpointer);
-    //从全局的散列表中获取当前对象对应的表（SideTable，该SideTable 中存储了对象对应的很多信息，比如弱引用，引用计数）
+    //从全局的hash表中获取当前对象对应的SideTable表(以当前对象的指针通过hash计算，得出在hash表中的下标)（SideTable，该SideTable 中存储了对象对应的很多信息，比如弱引用，引用计数）
     SideTable& table = SideTables()[this];
 
-    //获取当前对象的引用计数
+    /*
+     遍历refcnts列表 获取当前对象的引用计数,
+     */
     RefcountMap::iterator it = table.refcnts.find(this);
     if (it == table.refcnts.end()  ||  it->second == 0) {
-        // Side table retain count is zero. Can't borrow.
+        /*
+         Side table retain count is zero. Can't borrow.
+         对象在Side table中保存的引用计数为0
+        */
         return 0;
     }
     size_t oldRefcnt = it->second;

@@ -628,7 +628,7 @@ objc_object::rootRelease(bool performDealloc, bool handleUnderflow)
 
         // Try to remove some retain counts from the side table.
         /*
-         更新存放在sidetable 中的引用计数器的值
+         更新存放在sidetable 中的引用计数器的值，当sidetable 中的引用计数器的值为0时，返回0，否则返回RC_HALF
          */
         size_t borrowed = sidetable_subExtraRC_nolock(RC_HALF);
 
