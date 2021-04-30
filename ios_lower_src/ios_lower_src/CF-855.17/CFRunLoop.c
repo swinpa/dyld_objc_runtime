@@ -545,6 +545,7 @@ struct __CFRunLoopMode {
     CFStringRef _name;
     Boolean _stopped;
     char _padding[3];
+    
     CFMutableSetRef _sources0;
     CFMutableSetRef _sources1;
     /*
@@ -2398,6 +2399,7 @@ static Boolean __CFRunLoopServiceMachPort(mach_port_name_t port, mach_msg_header
         }
         //接收消息，如果没有别人发送 port 消息过来，内核会将线程置于等待状态
         ret = mach_msg(msg, MACH_RCV_MSG|MACH_RCV_LARGE|((TIMEOUT_INFINITY != timeout) ? MACH_RCV_TIMEOUT : 0)|MACH_RCV_TRAILER_TYPE(MACH_MSG_TRAILER_FORMAT_0)|MACH_RCV_TRAILER_ELEMENTS(MACH_RCV_TRAILER_AV), 0, msg->msgh_size, port, timeout, MACH_PORT_NULL);
+        
         CFRUNLOOP_WAKEUP(ret);
         if (MACH_MSG_SUCCESS == ret) {
             *livePort = msg ? msg->msgh_local_port : MACH_PORT_NULL;
@@ -2782,7 +2784,10 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             }
         }
 #endif
-        // 如果是 dispatch 到 main queue 的 block
+        /*
+         如果是 dispatch 到 main queue 的 block
+         子线程切换到主线程
+        */
         else if (livePort == dispatchPort) {
             CFRUNLOOP_WAKEUP_FOR_DISPATCH();
             __CFRunLoopModeUnlock(rlm);
