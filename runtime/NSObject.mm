@@ -831,7 +831,7 @@ class AutoreleasePoolPage
     static uint8_t const SCRIBBLE = 0xA3;  // 0xA3A3A3A3 after releasing
     static size_t const SIZE = 
 #if PROTECT_AUTORELEASEPOOL
-        PAGE_MAX_SIZE;  // must be multiple of vm page size
+        PAGE_MAX_SIZE;  // must be multiple of vm page size，大概是4096
 #else
         PAGE_MAX_SIZE;  // size and alignment, power of 2
 #endif

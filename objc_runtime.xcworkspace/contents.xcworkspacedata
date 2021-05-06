@@ -2,6 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:libs-base/base.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "group:ios_lower_src/ios_lower_src.xcodeproj">
    </FileRef>
    <Group

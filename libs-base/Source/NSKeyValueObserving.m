@@ -1120,81 +1120,69 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
 	     options: (NSKeyValueObservingOptions)options
 	     context: (void*)aContext
 {
-  GSKVOPathInfo         *pathInfo;
-  GSKVOObservation      *observation;
-  unsigned              count;
+  
+    GSKVOPathInfo         *pathInfo;
+    GSKVOObservation      *observation;
+    unsigned              count;
 
-  if ([anObserver respondsToSelector:
-    @selector(observeValueForKeyPath:ofObject:change:context:)] == NO)
-    {
-      return;
+    if ([anObserver respondsToSelector:@selector(observeValueForKeyPath:ofObject:change:context:)] == NO) {
+        return;
     }
-  [iLock lock];
-  pathInfo = (GSKVOPathInfo*)NSMapGet(paths, (void*)aPath);
-  if (pathInfo == nil)
-    {
-      pathInfo = [GSKVOPathInfo new];
-      // use immutable object for map key
-      aPath = [aPath copy];
-      NSMapInsert(paths, (void*)aPath, (void*)pathInfo);
-      [pathInfo release];
-      [aPath release];
+    [iLock lock];
+    pathInfo = (GSKVOPathInfo*)NSMapGet(paths, (void*)aPath);
+    if (pathInfo == nil) {
+        pathInfo = [GSKVOPathInfo new];
+        // use immutable object for map key
+        aPath = [aPath copy];
+        NSMapInsert(paths, (void*)aPath, (void*)pathInfo);
+        [pathInfo release];
+        [aPath release];
     }
 
-  observation = nil;
-  pathInfo->allOptions = 0;
-  count = [pathInfo->observations count];
-  while (count-- > 0)
-    {
-      GSKVOObservation      *o;
-
-      o = [pathInfo->observations objectAtIndex: count];
-      if (o->observer == anObserver)
-        {
-          o->context = aContext;
-          o->options = options;
-          observation = o;
+    observation = nil;
+    pathInfo->allOptions = 0;
+    count = [pathInfo->observations count];
+    while (count-- > 0) {
+        GSKVOObservation      *o;
+        o = [pathInfo->observations objectAtIndex: count];
+        if (o->observer == anObserver) {
+            o->context = aContext;
+            o->options = options;
+            observation = o;
         }
-      pathInfo->allOptions |= o->options;
+        pathInfo->allOptions |= o->options;
     }
-  if (observation == nil)
-    {
-      observation = [GSKVOObservation new];
-      GSAssignZeroingWeakPointer((void**)&observation->observer,
-	(void*)anObserver);
-      observation->context = aContext;
-      observation->options = options;
-      [pathInfo->observations addObject: observation];
-      [observation release];
-      pathInfo->allOptions |= options;
+    if (observation == nil) {
+        observation = [GSKVOObservation new];
+        GSAssignZeroingWeakPointer((void**)&observation->observer,(void*)anObserver);
+        observation->context = aContext;
+        observation->options = options;
+        [pathInfo->observations addObject: observation];
+        [observation release];
+        pathInfo->allOptions |= options;
     }
 
-  if (options & NSKeyValueObservingOptionInitial)
-    {
-      /* If the NSKeyValueObservingOptionInitial option is set,
-       * we must send an immediate notification containing the
-       * existing value in the NSKeyValueChangeNewKey
-       */
-      [pathInfo->change setObject: [NSNumber numberWithInt: 1]
-                           forKey:  NSKeyValueChangeKindKey];
-      if (options & NSKeyValueObservingOptionNew)
-        {
-          id    value;
+    if (options & NSKeyValueObservingOptionInitial) {
+        /* If the NSKeyValueObservingOptionInitial option is set,
+         * we must send an immediate notification containing the
+         * existing value in the NSKeyValueChangeNewKey
+         */
+        [pathInfo->change setObject: [NSNumber numberWithInt: 1] forKey:  NSKeyValueChangeKindKey];
+        if (options & NSKeyValueObservingOptionNew) {
+            id    value;
 
-          value = [instance valueForKeyPath: aPath];
-          if (value == nil)
-            {
-              value = null;
+            value = [instance valueForKeyPath: aPath];
+            if (value == nil) {
+                value = null;
             }
-          [pathInfo->change setObject: value
-                               forKey: NSKeyValueChangeNewKey];
+            [pathInfo->change setObject: value forKey: NSKeyValueChangeNewKey];
         }
-      [anObserver observeValueForKeyPath: aPath
+        [anObserver observeValueForKeyPath: aPath
                                 ofObject: instance
                                   change: pathInfo->change
                                  context: aContext];
     }
-  [iLock unlock];
+    [iLock unlock];
 }
 
 - (void) dealloc

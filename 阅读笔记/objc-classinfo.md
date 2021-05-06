@@ -124,8 +124,14 @@ struct objc_class : objc_object {
     // Class ISA;
     Class superclass; // 相当于 objc_class * superclass;
     cache_t cache;             // formerly cache pointer and vtable
-    /**
-     * 存放对象相关数据的地方，比如成员变量
+    /*
+     存放对象相关数据的地方，比如成员变量
+     	   struct class_data_bits_t {
+		    uintptr_t bits;
+		    class_rw_t* data() {
+		        return (class_rw_t *)(bits & FAST_DATA_MASK);
+		    }
+	   }
      */
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
 };
