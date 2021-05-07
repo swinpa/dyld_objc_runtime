@@ -1154,7 +1154,7 @@ class AutoreleasePoolPage
             }else {
                 page = new AutoreleasePoolPage(page);
             }
-        } while (page->full());
+        } while (page->full());//如果当前page有child，那child应该必然是empty的，因为page满了的情况下才去添加child
 
         setHotPage(page);
         return page->add(obj);
@@ -1240,6 +1240,14 @@ public:
             // Each autorelease pool starts on a new pool page.
             dest = autoreleaseNewPage(POOL_BOUNDARY);//传进来一个哨兵
         } else {
+            /*
+             获取当前的page，AutoreleasePoolPage *page = hotPage();
+             或者new 一个新的page， page = new AutoreleasePoolPage(page);
+             然后给这个page添加一个哨兵对象POOL_BOUNDARY（nil）
+             接下来的autorelease 对象均添加到这个page 的 哨兵后面，直到添加满了，重新new一个page，继续添加
+             
+             所以不是所有的page的第一个对象都是哨兵，只有第一个page，他的第一个对象才肯定是哨兵
+             */
             dest = autoreleaseFast(POOL_BOUNDARY);//传进来一个哨兵
         }
         assert(dest == EMPTY_POOL_PLACEHOLDER || *dest == POOL_BOUNDARY);

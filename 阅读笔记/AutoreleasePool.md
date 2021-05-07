@@ -53,7 +53,19 @@ int main(int argc, char * argv[]) {
 }
 ```
 
-* 可以看出，在代码块前面，在栈中创建了一个pool结构体对象，因为是结构体对象，所以该变量在栈上，在代码块结束后会被释放，而该结构体对象在构造函数中会调用objc_autoreleasePoolPush()创建AutoreleasePoolPage对象，那么代码块中的autorelease对象会被加入到该PoolPage中
+* 可以看出，在代码块前面，在栈中创建了一个pool结构体对象，因为是结构体对象，所以该变量在栈上，在代码块结束后会被释放，而该结构体对象在构造函数中会调用objc_autoreleasePoolPush()创建或获取AutoreleasePoolPage对象，那么代码块中的autorelease对象会被加入到该PoolPage中
+	
+	#####经过如下调用栈
+	
+	```
+	|->objc_autoreleasePoolPush()
+		|->AutoreleasePoolPage::push()
+			|->autoreleaseFast(POOL_BOUNDARY)
+	```
+	#####objc_autoreleasePoolPush() 最终会通过autoreleaseFast(POOL_BOUNDARY)方法获取到当前的poolPage（AutoreleasePoolPage *page = hotPage();）或者新new 一个poolpage，并在poolpage 中添加一个哨兵（nil）,后续添加的autorelease对象会在这个page的哨兵的后面
+		* 哨兵应该是用来分隔每个@autoreleasepool{}代码块内的autorelease 对象的，这样当进行objc_autoreleasePoolPop(atautoreleasepoolobj)时，知道遍历到哪里结束，也就是一个poolpage 可以存放多个@autoreleasepool{}代码块内的autorelease 对象，他们是通过哨兵(nil)进行分隔的
+
+
 * 当代码块结束时，栈中的pool会被释放，那么在pool的析构方法中又会调用objc_autoreleasePoolPop()接口释放PoolPage中的对象
 
 * 当对象发送autorelease消息后（[obj autorelease]），最终经过一些列的调用栈转换，最终会执行AutoreleasePoolPage::autoreleaseFast(id obj); 方法将obj添加到AutoreleasePoolPage的next（id *next） 指针数组中
@@ -76,6 +88,11 @@ int main(int argc, char * argv[]) {
 	```
 * 在releaseUntil(atautoreleasepoolobj)中会遍历*next 中所保存的所以对象，然后给这些对象发送一条release消息id obj = *--page->next; objc_release(obj);以达到释放对象的目的
 
-### 上面是手动@autoreleasepool {} 将对象添加到释放池时，对象释放的时机，而如果使用默认的autoreleasepool（也就是主线程中的pool）时，则该pool中对象释放时机则是：
-* 是
+### 上面是手动@autoreleasepool {} 将对象添加到释放池时，对象释放的时机（@autoreleasepool {}代码块结束），而如果使用默认的autoreleasepool（也就是主线程中的pool）时，则该pool中对象释放时机则是：
+* RunLoop退出时
+
+####autoreleasepool 跟RunLoop有关系，从GNUstep 源码中看，RunLoop在- (BOOL) runMode: (NSString*)mode beforeDate: (NSDate*)date{} 的最前面代码会创建一个NSAutoreleasePool	*arp = [NSAutoreleasePool new];并且在最后面进行[arp drain];(也就是dealloc 掉)
+
+
+###那线程跟autoreleasepool 有关系吗？如果没开启RunLoop，那线程中的autorelease对象是添加到那个autoreleasepool中的呢？（目前没在GNUstep源码中的NSThread 看到相关的创建autoreleasepool 的代码）
 
