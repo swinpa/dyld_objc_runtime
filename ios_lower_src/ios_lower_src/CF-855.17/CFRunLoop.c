@@ -2639,7 +2639,10 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
         // 如果有 Sources0 事件处理 或者 超时，poll 都为 true
         Boolean poll = sourceHandledThisLoop || (0ULL == timeout_context->termTSR);
 
-        // 第一次do..whil循环不会走该分支，因为 didDispatchPortLastTime 初始化是 true
+        /*
+         第一次do..whil循环不会走该分支，因为 didDispatchPortLastTime 初始化是 true
+         如果有source1 事件，获取消息并跳转到goto handle_msg;
+         */
         if (MACH_PORT_NULL != dispatchPort && !didDispatchPortLastTime) {
 #if DEPLOYMENT_TARGET_MACOSX || DEPLOYMENT_TARGET_EMBEDDED || DEPLOYMENT_TARGET_EMBEDDED_MINI
             // 从缓冲区读取消息
@@ -2657,7 +2660,10 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 
         didDispatchPortLastTime = false;
 
-        // 6. 通知观察者RunLoop即将进入休眠
+        /*
+         没source1 事件，则
+         6. 通知观察者RunLoop即将进入休眠
+         */
         if (!poll && (rlm->_observerMask & kCFRunLoopBeforeWaiting)) {
             /// 此处有Observer释放并新建AutoreleasePool: _objc_autoreleasePoolPop(); _objc_autoreleasePoolPush();
             __CFRunLoopDoObservers(rl, rlm, kCFRunLoopBeforeWaiting);
