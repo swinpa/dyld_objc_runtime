@@ -1130,7 +1130,7 @@ class AutoreleasePoolPage
          3，如果当前还没创建过autoreleasepool，则创建autoreleasepool，并添加autorelease对象到autoreleasepool 中
          */
         if (page && !page->full()) {
-            //将autorelease 对象添加到当前autoreleasepool 中
+            //将autorelease 对象或者哨兵对象添加到当前autoreleasepool 中
             return page->add(obj);
         } else if (page) {
             return autoreleaseFullPage(obj, page);
@@ -1247,6 +1247,9 @@ public:
              接下来的autorelease 对象均添加到这个page 的 哨兵后面，直到添加满了，重新new一个page，继续添加
              
              所以不是所有的page的第一个对象都是哨兵，只有第一个page，他的第一个对象才肯定是哨兵
+             
+             这里的返回值是哨兵的前一个对象所存储的位置
+             
              */
             dest = autoreleaseFast(POOL_BOUNDARY);//传进来一个哨兵
         }
@@ -1317,7 +1320,11 @@ public:
 
         if (PrintPoolHiwat) printHiwat();
 
-        //释放对象，直到遇到哨兵
+        /*
+         释放对象，直到遇到指定的对象
+         在push 时会返回当时 的hotpage 中最后的一个对象的位置，也就是哨兵的前一个对象，
+         所以在pop的时候pop到这个位置即可
+         */
         page->releaseUntil(stop);
 
         // memory: delete empty children
