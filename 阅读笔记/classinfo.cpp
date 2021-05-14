@@ -1208,6 +1208,10 @@ static struct _class_ro_t _OBJC_METACLASS_RO_$_Person __attribute__ ((used, sect
 static struct _class_ro_t _OBJC_CLASS_RO_$_Person __attribute__ ((used, section ("__DATA,__objc_const"))) = {
 	0,
     __OFFSETOFIVAR__(struct Person, father_var_loves),
+    /*
+     sizeof() 是一个运算符，并不是一个函数。sizeof() 传进来的是类型，用来计算这个类型占多大内存，
+     这个在 编译器编译阶段 就会确定大小并直接转化成 8 、16 、24 这样的常数，而不是在运行时计算。参数可以是数组、指针、类型、对象、结构体、函数等。
+     */
     sizeof(struct Person_IMPL),
 	0, 
 	"Person",
