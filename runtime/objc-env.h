@@ -38,7 +38,10 @@ OPTION( DebugDontCrash,           OBJC_DEBUG_DONT_CRASH,           "halt the pro
 
 OPTION( DisableVtables,           OBJC_DISABLE_VTABLES,            "disable vtable dispatch")
 OPTION( DisablePreopt,            OBJC_DISABLE_PREOPTIMIZATION,    "disable preoptimization courtesy of dyld shared cache")
-OPTION( DisableTaggedPointers,    OBJC_DISABLE_TAGGED_POINTERS,    "disable tagged pointer optimization of NSNumber et al.") 
+/*
+ 判断Tagged Pointer时，使用的是预定义的宏 OPTION！本质是获取环境变量 OBJC_DISABLE_TAGGED_POINTERS的值，设置该变量为 YES，则Tagged Pointer被禁用。
+ */
+OPTION( DisableTaggedPointers,    OBJC_DISABLE_TAGGED_POINTERS,    "disable tagged pointer optimization of NSNumber et al.")
 OPTION( DisableTaggedPointerObfuscation, OBJC_DISABLE_TAG_OBFUSCATION,    "disable obfuscation of tagged pointers")
 OPTION( DisableNonpointerIsa,     OBJC_DISABLE_NONPOINTER_ISA,     "disable non-pointer isa fields")
 OPTION( DisableInitializeForkSafety, OBJC_DISABLE_INITIALIZE_FORK_SAFETY, "disable safety checks for +initialize after fork")

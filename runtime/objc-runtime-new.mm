@@ -2645,6 +2645,16 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 #endif
 
         if (DisableTaggedPointers) {
+            /*
+             参考文章：https://www.jianshu.com/p/3176e30c040b
+             如果环境变量设置了禁止Tagged Pointer，则调用Tagged Pointer禁用函数
+             禁用NSNumber等的 Tagged Pointer 指针优化
+             
+             
+             苹果预留了环境变量 OBJC_DISABLE_TAGGED_POINTERS，通过设置该变量的布尔值，可以将Tagged Pointer技术的启用与关闭的决定权交给开发者！
+             如果禁用Tagged Pointer，只需设置环境变量 OBJC_DISABLE_TAGGED_POINTERS为YES 即可！
+             
+             */
             disableTaggedPointers();
         }
         
