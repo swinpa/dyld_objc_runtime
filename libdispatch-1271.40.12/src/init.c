@@ -304,6 +304,7 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 		((flags & DISPATCH_PRIORITY_FLAG_OVERCOMMIT) ? \
 		DISPATCH_ROOT_QUEUE_IDX_##n##_QOS_OVERCOMMIT : \
 		DISPATCH_ROOT_QUEUE_IDX_##n##_QOS)
+	
 #define _DISPATCH_ROOT_QUEUE_ENTRY(n, flags, ...) \
 	[_DISPATCH_ROOT_QUEUE_IDX(n, flags)] = { \
 		DISPATCH_GLOBAL_OBJECT_HEADER(queue_global), \
@@ -315,51 +316,67 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 				_dispatch_priority_make(DISPATCH_QOS_##n, 0)), \
 		__VA_ARGS__ \
 	}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++
+	/*
+	 从这里才是数组的开始，前面是数组元素构造时用到的的宏定义
+	 */
+	//_dispatch_root_queues[0]
 	_DISPATCH_ROOT_QUEUE_ENTRY(MAINTENANCE, 0,
 		.dq_label = "com.apple.root.maintenance-qos",
 		.dq_serialnum = 4,
 	),
+	//_dispatch_root_queues[1]
 	_DISPATCH_ROOT_QUEUE_ENTRY(MAINTENANCE, DISPATCH_PRIORITY_FLAG_OVERCOMMIT,
 		.dq_label = "com.apple.root.maintenance-qos.overcommit",
 		.dq_serialnum = 5,
 	),
+	//_dispatch_root_queues[2]
 	_DISPATCH_ROOT_QUEUE_ENTRY(BACKGROUND, 0,
 		.dq_label = "com.apple.root.background-qos",
 		.dq_serialnum = 6,
 	),
+	//_dispatch_root_queues[3]
 	_DISPATCH_ROOT_QUEUE_ENTRY(BACKGROUND, DISPATCH_PRIORITY_FLAG_OVERCOMMIT,
 		.dq_label = "com.apple.root.background-qos.overcommit",
 		.dq_serialnum = 7,
 	),
+	//_dispatch_root_queues[4]
 	_DISPATCH_ROOT_QUEUE_ENTRY(UTILITY, 0,
 		.dq_label = "com.apple.root.utility-qos",
 		.dq_serialnum = 8,
 	),
+	//_dispatch_root_queues[5]
 	_DISPATCH_ROOT_QUEUE_ENTRY(UTILITY, DISPATCH_PRIORITY_FLAG_OVERCOMMIT,
 		.dq_label = "com.apple.root.utility-qos.overcommit",
 		.dq_serialnum = 9,
 	),
+	//_dispatch_root_queues[6]
 	_DISPATCH_ROOT_QUEUE_ENTRY(DEFAULT, DISPATCH_PRIORITY_FLAG_FALLBACK,
 		.dq_label = "com.apple.root.default-qos",
 		.dq_serialnum = 10,
 	),
+	//_dispatch_root_queues[7]
 	_DISPATCH_ROOT_QUEUE_ENTRY(DEFAULT,
 			DISPATCH_PRIORITY_FLAG_FALLBACK | DISPATCH_PRIORITY_FLAG_OVERCOMMIT,
 		.dq_label = "com.apple.root.default-qos.overcommit",
 		.dq_serialnum = 11,
 	),
+	//_dispatch_root_queues[8]
 	_DISPATCH_ROOT_QUEUE_ENTRY(USER_INITIATED, 0,
 		.dq_label = "com.apple.root.user-initiated-qos",
 		.dq_serialnum = 12,
 	),
+	//_dispatch_root_queues[9]
 	_DISPATCH_ROOT_QUEUE_ENTRY(USER_INITIATED, DISPATCH_PRIORITY_FLAG_OVERCOMMIT,
 		.dq_label = "com.apple.root.user-initiated-qos.overcommit",
 		.dq_serialnum = 13,
 	),
+	//_dispatch_root_queues[10]
 	_DISPATCH_ROOT_QUEUE_ENTRY(USER_INTERACTIVE, 0,
 		.dq_label = "com.apple.root.user-interactive-qos",
 		.dq_serialnum = 14,
 	),
+	//_dispatch_root_queues[11]
 	_DISPATCH_ROOT_QUEUE_ENTRY(USER_INTERACTIVE, DISPATCH_PRIORITY_FLAG_OVERCOMMIT,
 		.dq_label = "com.apple.root.user-interactive-qos.overcommit",
 		.dq_serialnum = 15,
@@ -379,6 +396,21 @@ dispatch_get_global_queue(intptr_t priority, uintptr_t flags)
 	if (flags & ~(unsigned long)DISPATCH_QUEUE_OVERCOMMIT) {
 		return DISPATCH_BAD_INPUT;
 	}
+	/*
+	 这里仅仅是优先级参数转换，从外部定义的级别转换成内部定义的级别而已
+	 
+	 _dispatch_qos_from_queue_priority(intptr_t priority)
+	 {
+		 switch (priority) {
+		 case DISPATCH_QUEUE_PRIORITY_BACKGROUND:      return 2
+		 case DISPATCH_QUEUE_PRIORITY_NON_INTERACTIVE: return 3
+		 case DISPATCH_QUEUE_PRIORITY_LOW:             return 3
+		 case DISPATCH_QUEUE_PRIORITY_DEFAULT:         return 4
+		 case DISPATCH_QUEUE_PRIORITY_HIGH:            return 5
+		 }
+	 }
+	 
+	 */
 	dispatch_qos_t qos = _dispatch_qos_from_queue_priority(priority);
 #if !HAVE_PTHREAD_WORKQUEUE_QOS
 	if (qos == QOS_CLASS_MAINTENANCE) {
@@ -390,6 +422,27 @@ dispatch_get_global_queue(intptr_t priority, uintptr_t flags)
 	if (qos == DISPATCH_QOS_UNSPECIFIED) {
 		return DISPATCH_BAD_INPUT;
 	}
+	
+	/*
+	 *
+	 * DISPATCH_QUEUE_OVERCOMMIT
+	 * The queue will create a new thread for invoking blocks, regardless of how
+	 * busy the computer is.
+	 *
+	 *
+	 enum {
+			DISPATCH_QUEUE_OVERCOMMIT = 0x2ull,
+	   };
+	 *
+	 * 也就是说DISPATCH_QUEUE_OVERCOMMIT该参数是一个保留位，外部开发者调用一般指定0，通过该参数来确定是否create a new thread for invoking blocks
+	 * 因为外部都是传0 所以相当于调用了 _dispatch_get_root_queue(qos, 0);
+	 * 这里的qos 一般为[2,3,4,5]这几个值
+	 * _dispatch_root_queues[2 * (qos - 1)];
+	 * 相当于 _dispatch_root_queues[2]或者_dispatch_root_queues[4]或者_dispatch_root_queues[6]或者_dispatch_root_queues[8];
+	 */
+	
+
+	
 	return _dispatch_get_root_queue(qos, flags & DISPATCH_QUEUE_OVERCOMMIT);
 }
 
