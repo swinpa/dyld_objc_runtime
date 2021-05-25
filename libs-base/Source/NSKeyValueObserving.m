@@ -1480,7 +1480,10 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
 
   [kvoLock lock];
 
-  // Use the original class
+  /*
+   Use the original class
+   获取KVO 的类
+   */
   r = replacementForClass([self class]);
 
   /*
@@ -1493,6 +1496,8 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
     {
       info = [[GSKVOInfo alloc] initWithInstance: self];
       [self setObservationInfo: info];
+    
+      // 将当前类的isa 指向新建的类KVOxxx
       object_setClass(self, [r replacement]);
     }
 

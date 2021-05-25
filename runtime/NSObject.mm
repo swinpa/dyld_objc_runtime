@@ -431,6 +431,10 @@ storeWeak(id *location, objc_object *newObj)
          根据对象指针，从弱引用hash表中获取对象对应的弱引用变量列表
          */
         oldObj = *location;
+        /*
+         SideTables() 为 StripedMap类型，在StripedMap重载了[]操作符
+         []操作符会会转成array[indexForPointer(p)].value;也就是根据对象地址c转成数组的下标
+         */
         oldTable = &SideTables()[oldObj];
     } else {
         oldTable = nil;

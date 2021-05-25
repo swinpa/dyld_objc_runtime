@@ -3359,6 +3359,10 @@ int main(int argc, char * argv[]) {
 	
                 id sync_exit;
 	
+                /*
+                 这在代码块结束时_sync_exit 变量会被释放，在_SYNC_EXIT结构体析构中执行了objc_sync_exit(sync_exit);
+                 进行解锁
+                 */
             } _sync_exit(_sync_obj);
 
 

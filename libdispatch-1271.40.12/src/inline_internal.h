@@ -2721,6 +2721,20 @@ _dispatch_continuation_async(dispatch_queue_class_t dqu,
 	(void)dc_flags;
 #endif
 	return dx_push(dqu._dq, dc, qos);
+	/*
+				x     y    z
+	 dx_push(dqu._dq, dc, qos);
+	 ||
+	 dx_vtable(x)->dq_push(x, y, z)
+	 ||
+	 (&(x)->do_vtable->_os_obj_vtable)->dq_push(x, y, z)
+	 
+	 dispatch_queue_class_t {
+	 
+	 }
+		
+	 
+	 */
 }
 
 #endif // DISPATCH_PURE_C
