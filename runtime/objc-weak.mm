@@ -201,7 +201,10 @@ static void remove_referrer(weak_entry_t *entry, objc_object **old_referrer)
             return;
         }
     }
-    //根据下标找到弱指针变量，将其赋值为nil
+    /*
+     根据下标找到弱指针变量，将其赋值为nil
+     这里是对某个弱引用变量做nil 赋值处理
+     */
     entry->referrers[index] = nil;
     entry->num_refs--;
 }
@@ -288,7 +291,15 @@ static void weak_compact_maybe(weak_table_t *weak_table)
 static void weak_entry_remove(weak_table_t *weak_table, weak_entry_t *entry)
 {
     // remove entry
-    if (entry->out_of_line()) free(entry->referrers);
+    if (entry->out_of_line()) {
+        free(entry->referrers);
+    }
+    /*
+     void bzero(void *s, size_t n);
+     
+     The bzero() function writes n zeroed bytes to the string s.  If n is
+     zero, bzero() does nothing.
+     */
     bzero(entry, sizeof(*entry));
 
     weak_table->num_entries--;
@@ -305,7 +316,8 @@ static void weak_entry_remove(weak_table_t *weak_table, weak_entry_t *entry)
  * @param weak_table 
  * @param referent The object. Must not be nil.（被引用的对象地址）
  * 
- * @return The table of weak referrers to this object. 
+ * @return The table of weak referrers to this object.
+ * 在weak_table中根据对象找到存储了所有指向该对象的弱引用变量的列表的节点（weak_entry_t）
  */
 static weak_entry_t *
 weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
@@ -345,15 +357,21 @@ weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
  * @param weak_table The global weak table.
  * @param referent The object.（弱引用变量指向的对象）
  * @param referrer The weak reference.（弱引用变量的地址）
+ * 将指定的弱引用变量设置为nil
  */
+/*
+对象
+NSObject *obj = [[NSObject alloc] init];
+__weak NSObject *weakPtr = obj;
+*/
 void
 weak_unregister_no_lock(weak_table_t *weak_table,
-                        id referent_id, //对象
-                        id *referrer_id)//弱指针变量
+                        id referent_id,//这是对象obj
+                        id *referrer_id)//弱指针变量weakPtr
 {
-    //对象
+    //对象obj
     objc_object *referent = (objc_object *)referent_id;
-    //弱指针变量
+    //弱指针变量weakPtr
     objc_object **referrer = (objc_object **)referrer_id;
 
     weak_entry_t *entry;
@@ -361,7 +379,7 @@ weak_unregister_no_lock(weak_table_t *weak_table,
     if (!referent) return;
 
     /*
-     在弱引用表中，根据对象找到，对象所对应的保存所有弱引用变量的节点（entry）
+     在弱引用表中，根据对象找到，对象所对应的保存了所有弱引用变量的节点（entry）
     */
     if ((entry = weak_entry_for_referent(weak_table, referent))) {
         
@@ -369,8 +387,11 @@ weak_unregister_no_lock(weak_table_t *weak_table,
         bool empty = true;
         if (entry->out_of_line()  &&  entry->num_refs != 0) {
             empty = false;
-        }
-        else {
+        }else {
+            /*
+             这里遍历弱引用变量列表中是否所有的弱引用变量都是nil,
+             如果所有的弱引用变量都是nil,则该节点（entry）可以从weak_table中删除了
+             */
             for (size_t i = 0; i < WEAK_INLINE_COUNT; i++) {
                 if (entry->inline_referrers[i]) {
                     empty = false; 
@@ -396,17 +417,24 @@ weak_unregister_no_lock(weak_table_t *weak_table,
  * @param referent The object pointed to by the weak reference.（被弱引用变量指向的对象）
  * @param referrer The weak pointer address.（弱引用变量的地址）
  */
+/*
+对象
+NSObject *obj = [[NSObject alloc] init];
+__weak NSObject *weakPtr = obj;
+*/
 id 
-weak_register_no_lock(weak_table_t *weak_table, id referent_id, 
-                      id *referrer_id, bool crashIfDeallocating)
+weak_register_no_lock(weak_table_t *weak_table,
+                      id referent_id,//这是对象obj
+                      id *referrer_id,//这是弱引用变量weakPtr
+                      bool crashIfDeallocating)
 {
     
     /*
      weak_register_no_lock(&newTable->weak_table, (id)newObj, location,crashIfDeallocating);
      */
-    //被weak 指针指向的对象
+    //被weak 指针指向的对象obj
     objc_object *referent = (objc_object *)referent_id;
-    //weak 指针
+    //weak 指针weakPtr
     objc_object **referrer = (objc_object **)referrer_id;
 
     if (!referent  ||  referent->isTaggedPointer()) return referent_id;
@@ -415,17 +443,12 @@ weak_register_no_lock(weak_table_t *weak_table, id referent_id,
     bool deallocating;
     if (!referent->ISA()->hasCustomRR()) {
         deallocating = referent->rootIsDeallocating();
-    }
-    else {
-        BOOL (*allowsWeakReference)(objc_object *, SEL) = 
-            (BOOL(*)(objc_object *, SEL))
-            object_getMethodImplementation((id)referent, 
-                                           SEL_allowsWeakReference);
+    }else {
+        BOOL (*allowsWeakReference)(objc_object *, SEL) = (BOOL(*)(objc_object *, SEL))object_getMethodImplementation((id)referent, SEL_allowsWeakReference);
         if ((IMP)allowsWeakReference == _objc_msgForward) {
             return nil;
         }
-        deallocating =
-            ! (*allowsWeakReference)(referent, SEL_allowsWeakReference);
+        deallocating = ! (*allowsWeakReference)(referent, SEL_allowsWeakReference);
     }
 
     if (deallocating) {

@@ -477,6 +477,26 @@ storeWeak(id *location, objc_object *newObj)
 
     // Clean up old value, if any.
     if (haveOld) {
+        /*
+         将指定的弱引用变量设置为nil
+         
+         NSObject *objA = [[NSObject alloc] init];
+         __weak NSObject *weak_ptr1 = objA;
+         
+         NSObject *objB = [[NSObject alloc] init];
+         weak_ptr1 = objB;
+         
+         应该是在weak_ptr1 = objB; 的时候需要将weak_ptr1的旧值变成nil先;
+         
+         1，在这里，在weak_table中根据对象ObjA 找到保存了对象ObjA的所有弱引用变量的节点
+         (通过遍历列表weak_table，查找节点中的对象成员变量跟ObjA相等的节点)
+         2，在节点中的弱引用变量列表中找到跟weak_ptr1一致的弱引用变量，然后将其置成nil
+         3，判断节点中的引用变量列表中是否所有的弱引用变量都是nil了，如果是，则删除节点
+         
+         问题又来了，为什么需要先置nil呢？不做这一步可以吗？？？？？？
+         
+         */
+        //                                              objA   weak_ptr1
         weak_unregister_no_lock(&oldTable->weak_table, oldObj, location);
     }
 
