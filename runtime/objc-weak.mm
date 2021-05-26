@@ -186,6 +186,7 @@ static void remove_referrer(weak_entry_t *entry, objc_object **old_referrer)
     size_t begin = w_hash_pointer(old_referrer) & (entry->mask);
     size_t index = begin;
     size_t hash_displacement = 0;
+    //找到弱引用变量所在的下标
     while (entry->referrers[index] != old_referrer) {
         index = (index+1) & entry->mask;
         if (index == begin) bad_weak_table(entry);
@@ -200,6 +201,7 @@ static void remove_referrer(weak_entry_t *entry, objc_object **old_referrer)
             return;
         }
     }
+    //根据下标找到弱指针变量，将其赋值为nil
     entry->referrers[index] = nil;
     entry->num_refs--;
 }
@@ -345,17 +347,24 @@ weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
  * @param referrer The weak reference.（弱引用变量的地址）
  */
 void
-weak_unregister_no_lock(weak_table_t *weak_table, id referent_id, 
-                        id *referrer_id)
+weak_unregister_no_lock(weak_table_t *weak_table,
+                        id referent_id, //对象
+                        id *referrer_id)//弱指针变量
 {
+    //对象
     objc_object *referent = (objc_object *)referent_id;
+    //弱指针变量
     objc_object **referrer = (objc_object **)referrer_id;
 
     weak_entry_t *entry;
 
     if (!referent) return;
 
+    /*
+     在弱引用表中，根据对象找到，对象所对应的保存所有弱引用变量的节点（entry）
+    */
     if ((entry = weak_entry_for_referent(weak_table, referent))) {
+        
         remove_referrer(entry, referrer);
         bool empty = true;
         if (entry->out_of_line()  &&  entry->num_refs != 0) {

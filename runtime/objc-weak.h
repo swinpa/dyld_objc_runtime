@@ -77,6 +77,7 @@ typedef DisguisedPtr<objc_object *> weak_referrer_t;
 // Therefore out_of_line_ness == 0b10 is used to mark the out-of-line state.
 #define REFERRERS_OUT_OF_LINE 2
 
+/// 保存指向对象的所有弱引用变量
 struct weak_entry_t {
     /*
      被引用的对象，比如
@@ -88,7 +89,7 @@ struct weak_entry_t {
     DisguisedPtr<objc_object> referent;//被弱指针指向的对象，比如上面的obj
     union {
         struct {
-            weak_referrer_t *referrers;
+            weak_referrer_t *referrers;//弱指针变量存储在这里，如上obj1
             uintptr_t        out_of_line_ness : 2;
             uintptr_t        num_refs : PTR_MINUS_2;
             uintptr_t        mask;

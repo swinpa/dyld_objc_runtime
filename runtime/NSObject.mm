@@ -2592,7 +2592,7 @@ void arr_init(void)
 /*
  NSObject 的成员函数，内部调用了_objc_rootDealloc()方法
  _objc_rootDealloc 中又调用了对象的rootDealloc()方法
- rootDealloc()方法中会做一些判断，判断有没有弱引用，有没有关联对象，有没有C++相关的等等（通过isa中的相关字段判断）
+ rootDealloc()方法中会做一些判断(根据isa 里面的一些标志位)，判断有没有弱引用，有没有关联对象，有没有C++相关的等等（通过isa中的相关字段判断）
  如果都没有，直接调用系统的free()方法释放内存，
  
  如果有，则调用object_dispose()方法，而object_dispose()中则调用objc_destructInstance对弱引用，关联对象等等做处理（删除关联对象，弱引用指向nil），
