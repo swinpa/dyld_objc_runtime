@@ -402,7 +402,8 @@ enum CrashIfDeallocating {
 template <HaveOld haveOld, HaveNew haveNew,
           CrashIfDeallocating crashIfDeallocating>
 static id 
-storeWeak(id *location, objc_object *newObj)
+storeWeak(id *location,//弱引用指针变量weakPtr
+          objc_object *newObj)//被弱引用指针指向的对象obj
 {
     assert(haveOld  ||  haveNew);//不能同时为false
     if (!haveNew) assert(newObj == nil);

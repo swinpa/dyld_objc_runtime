@@ -302,12 +302,19 @@ _objc_debug_taggedpointer_ext_classes:
 	ENTRY _objc_msgSend
 	UNWIND _objc_msgSend, NoFrame
 
+    //对比p0寄存器是否为空，其中x0-x7是参数，x0可能会是返回值
 	cmp	p0, #0			// nil check and tagged pointer check
 #if SUPPORT_TAGGED_POINTERS
 	b.le	LNilOrTagged		//  (MSB tagged pointer looks negative)
 #else
 	b.eq	LReturnZero
 #endif
+    /*
+     第一个参数self其实就等于isa,因为
+     struct _class_t {struct _class_t *isa;}
+     @interface NSObject <NSObject> {objc_class *isa;}
+     也就是类，对象的第一个成员都是isa,
+     */
 	ldr	p13, [x0]		// p13 = isa
 	GetClassFromIsa_p16 p13		// p16 = class
 LGetIsaDone:
@@ -456,6 +463,7 @@ LLookup_Nil:
 
 	// receiver and selector already in x0 and x1
 	mov	x2, x16
+    //源码在objc-runtime-new.mm 5024 行 IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)
 	bl	__class_lookupMethodAndLoadCache3
 
 	// IMP in x0

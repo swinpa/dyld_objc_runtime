@@ -125,7 +125,17 @@ struct weak_entry_t {
  * and weak_entry_t structs as their values.
  */
 struct weak_table_t {
-    weak_entry_t *weak_entries;//是一个结构体数组，这个结构体数组当中存储的每一个对象是弱引用指针，也就是代码中的__weak id obj，obj指针就存储于weak_entry_t中。
+    /*
+     是一个结构体数组，这个结构体数组的每个元素保存的是不同对象对应的他的所有弱引用变量
+     
+     [
+        [weak_ptr_1,weak_ptr_2,weak_ptr_3...],obj1 对应的弱引用变量列表
+        [weak_ptr_a,weak_ptr_b,weak_ptr_c...],obj2 对应的弱引用变量列表
+     ]
+     
+     
+     */
+    weak_entry_t *weak_entries;
     size_t    num_entries;
     uintptr_t mask;
     uintptr_t max_hash_displacement;
