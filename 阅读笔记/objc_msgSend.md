@@ -15,5 +15,19 @@ struct _class_t {
 }
 
 ```
+```
+[Person drive];
+Person *obj = [[Person alloc] init];
+[obj doJob];
+```
+```
+类方法调用
+objc_msgSend((id)objc_getClass("Person"), sel_registerName("drive"));
+Person *obj = (Person *)objc_msgSend((id)objc_getClass("Person"), sel_registerName("alloc")), sel_registerName("init"));
+
+成员方法调用
+objc_msgSend((id)obj, sel_registerName("doJob"));
+
+```
 
 

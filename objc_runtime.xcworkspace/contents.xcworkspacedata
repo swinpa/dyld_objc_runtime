@@ -11,6 +11,21 @@
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
       <FileRef
+         location = "group:&#x8bbe;&#x8ba1;&#x6a21;&#x5f0f;&#x4e0e;&#x67b6;&#x6784;.md">
+      </FileRef>
+      <FileRef
+         location = "group:Avatar_GIF.md">
+      </FileRef>
+      <FileRef
+         location = "group:NSClassFromString.md">
+      </FileRef>
+      <FileRef
+         location = "group:objc_msgSend.md">
+      </FileRef>
+      <FileRef
+         location = "group:SQLite&#x7b14;&#x8bb0;.md">
+      </FileRef>
+      <FileRef
          location = "group:weak.png">
       </FileRef>
       <FileRef
