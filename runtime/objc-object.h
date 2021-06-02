@@ -1064,6 +1064,7 @@ objc_object::rootRetainCount()
 static ALWAYS_INLINE bool 
 callerAcceptsOptimizedReturn(const void * const ra0)
 {
+    //可参考文章https://github.com/buptwsgprivate/iOSInterview/blob/master/iOS%E5%9F%BA%E7%A1%80.md
     const uint8_t *ra1 = (const uint8_t *)ra0;
     const unaligned_uint16_t *ra2;
     const unaligned_uint32_t *ra4 = (const unaligned_uint32_t *)ra1;

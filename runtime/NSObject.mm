@@ -2178,8 +2178,12 @@ objc_retainAutoreleaseAndReturn(id obj)
 id 
 objc_autoreleaseReturnValue(id obj)
 {
-    if (prepareOptimizedReturn(ReturnAtPlus1)) return obj;
-
+    /*
+     判断是否需要进行返回值优化
+     */
+    if (prepareOptimizedReturn(ReturnAtPlus1)) {
+        return obj;
+    }
     return objc_autorelease(obj);
 }
 
