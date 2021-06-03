@@ -1397,8 +1397,10 @@ static struct /*_prop_list_t*/ {
 extern "C" __declspec(dllexport) struct _class_t OBJC_CLASS_$_Man;
 
 /*
- __attribute__ ((used, section ("__DATA,__objc_const"))) 语法说明文章
+ __attribute__ ((used, section ("__DATA,__objc_const"))) 编译函数语法说明文章
  http://liumh.com/2018/08/18/ios-attribute-section/
+ 
+ https://github.com/guohongwei719/GHWAppLaunchManager
  */
 static struct _category_t _OBJC_$_CATEGORY_Man_$_Ex __attribute__ ((used, section ("__DATA,__objc_const"))) = 
 {

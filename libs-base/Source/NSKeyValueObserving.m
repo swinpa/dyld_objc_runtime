@@ -1512,6 +1512,7 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
 	       ofObject: self
 	     withTarget: anObserver
 		context: aContext];
+        
       [info addObserver: anObserver
              forKeyPath: aPath
                 options: options

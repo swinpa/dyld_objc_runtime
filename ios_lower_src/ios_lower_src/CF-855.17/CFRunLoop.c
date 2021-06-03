@@ -682,7 +682,7 @@ struct __CFRunLoop {
     pthread_t _pthread;
     uint32_t _winthread;
     CFMutableSetRef _commonModes;//将mode的name添加到这里，
-    CFMutableSetRef _commonModeItems;
+    CFMutableSetRef _commonModeItems;///存储所有commonMode的item(source、timer、observer)
     CFRunLoopModeRef _currentMode;
     /*
      用来存放RunLoop中所有的Mode，但没一次RunLoop都只能在其中的一种Mode运行
