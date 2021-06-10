@@ -47,3 +47,8 @@ Slide = actual_address - preferred_address
 
 ##Binding
 Binding 是处理那些指向 dylib 外部的指针，它们实际上被符号（symbol）名称绑定，也就是个字符串。之前提到 __LINKEDIT 段中也存储了需要 bind 的指针，以及指针需要指向的符号。dyld 需要找到 symbol 对应的实现，这需要很多计算，去符号表里查找。找到后会将内容存储到 __DATA 段中的那个指针中。Binding 看起来计算量比 Rebasing 更大，但其实需要的 I/O 操作很少，因为之前 Rebasing 已经替 Binding 做过了。
+
+##静态链接
+* [参考文章](https://juejin.cn/post/6844903912198127623)
+* 链接的目的是将多个目标文件(.o文件)链接成一个可执行文件 
+* 编译期间，模块内使用模块外部的符号(函数，变量)时是不知道它的地址的，此时只有先用占位符
