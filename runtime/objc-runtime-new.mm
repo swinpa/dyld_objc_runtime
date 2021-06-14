@@ -5021,7 +5021,9 @@ log_and_fill_cache(Class cls, IMP imp, SEL sel, id receiver, Class implementer)
 * This lookup avoids optimistic cache scan because the dispatcher 
 * already tried that.
 **********************************************************************/
-IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)
+IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)/*当objc_msgSend(id self, SEL _cmd, ...)中的self是实例对象时cls 为
+                                                                 类对象，当self是类对象时cls 为元类对象
+                                                                 */
 {
     return lookUpImpOrForward(cls, sel, obj, 
                               YES/*initialize*/, NO/*cache*/, YES/*resolver*/);

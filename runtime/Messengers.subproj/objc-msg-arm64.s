@@ -315,7 +315,13 @@ _objc_debug_taggedpointer_ext_classes:
      @interface NSObject <NSObject> {objc_class *isa;}
      也就是类，对象的第一个成员都是isa,
      */
-	ldr	p13, [x0]		// p13 = isa
+	ldr	p13, [x0]		/* p13 = isa，[x0]为第一个参数self这个对象，
+        如果外部传进来的self这个对象是一个实例对象，那么它的ISA位于NSObject这个类的第一个成员变量
+        此时使用[x0]也可以当成获取实例对象的isa 这个指针，而实例对象的isa 指向的是类对象（在alloc实例对象时会将对象的isa = cls），故去到了类对象的方法列表中查找
+        
+        如果外部传进来的self这个对象是一个类对象，那么它的ISA位于_class_t这个类的第一个成员变量
+        此时使用[x0]也可以当成获取类对象的isa 这个指针，而类对象的isa 指向的是元类对象（编译期间将类对象的isa 指向元类对象），故去到了元类对象的方法列表中查找
+    */
 	GetClassFromIsa_p16 p13		// p16 = class
 LGetIsaDone:
 	CacheLookup NORMAL		// calls imp or objc_msgSend_uncached
