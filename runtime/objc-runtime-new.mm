@@ -5045,6 +5045,16 @@ IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)/*当objc_msgSen
 IMP lookUpImpOrForward(Class cls, SEL sel, id inst, 
                        bool initialize, bool cache, bool resolver)
 {
+    /*
+     1. 从当前类的缓存中查找，找到则返回
+     2. 当前类的缓存没有，则去当前类的方法列表中查找，找到缓存并返回
+     3. 当前类的方法列表中没有找到则去父类的缓存查找，找到将其缓存到当前类并返回
+     4. 父类的缓存没有则去父类的方法列表中查找，找到将其缓存到当前类并返回
+     5. 如果遍历完父类的缓存以及方法列表都没找到，则进行动态方法决议
+     6. 如果动态方法决议后也没找到方法imp，则进行消息转发
+     7. 消息转发失败则崩溃
+     */
+    
     IMP imp = nil;
     bool triedResolver = NO;
 
@@ -5091,7 +5101,7 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
     imp = cache_getImp(cls, sel);
     if (imp) goto done;
 
-    // Try this class's method lists.
+    // Try this class's method lists.从方法列表中查找
     {
         Method meth = getMethodNoSuper_nolock(cls, sel);
         if (meth) {
@@ -5101,7 +5111,7 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
         }
     }
 
-    // Try superclass caches and method lists.
+    // Try superclass caches and method lists.，从父类的缓存或方法列表中查找
     {
         unsigned attempts = unreasonableClassCount();
         for (Class curClass = cls->superclass;
