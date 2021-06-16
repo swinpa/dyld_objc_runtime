@@ -84,7 +84,32 @@ public:
 };
 
 
-// classref_t is unremapped class_t*
+/**
+* classref_t is unremapped class_t*
+
+* classref 就是unremapped 时的class_t
+ 
+ struct _class_ro_t {
+     unsigned int flags;
+     unsigned int instanceStart;
+     unsigned int instanceSize;
+     const unsigned char *ivarLayout;
+     const char *name;
+     const struct _method_list_t *baseMethods;
+     const struct _objc_protocol_list *baseProtocols;
+     const struct _ivar_list_t *ivars;
+     const unsigned char *weakIvarLayout;
+     const struct _prop_list_t *properties;
+ };
+
+ struct _class_t {
+     struct _class_t *isa;
+     struct _class_t *superclass;
+     void *cache;
+     void *vtable;
+     struct _class_ro_t *ro;
+ };
+*/
 typedef struct classref * classref_t;
 
 /***********************************************************************

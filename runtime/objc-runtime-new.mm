@@ -2439,6 +2439,7 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
         
         // 将class_rw_t 中的ro(class_ro_t) 指向objc_class 中的 data(class_rw_t)部分数据
         rw->ro = (class_ro_t *)newCls->data();
+        
         newCls->setData(rw);
         freeIfMutable((char *)old_ro->name);
         free((void *)old_ro);
@@ -2681,7 +2682,19 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // Discover classes. Fix up unresolved future classes. Mark bundle classes.
 
     for (EACH_HEADER) {
-        //从数据段__objc_classlist 中读取所有的类
+        /*
+         从数据段__objc_classlist 中读取所有的类
+         读出来时的类型如下
+         struct _class_t {
+             struct _class_t *isa;
+             struct _class_t *superclass;
+             void *cache;
+             void *vtable;
+             struct _class_ro_t *ro;
+         };
+         
+         */
+        
         classref_t *classlist = _getObjc2ClassList(hi, &count);
         
         if (! mustReadClasses(hi)) {
