@@ -12,9 +12,12 @@
 7. 开始主程序sMainExecutable链接（link） 
 
 		实际做的事情是如下两点：
+		
+		1. rebase
 		旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个随机地址偏移量？？？》
 		this->recursiveRebase(context);
 			  
+		2. bind
 		《占位地址》转成《实际地址》，
 		（编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，在加载的时候才能确定地址）
 		this->recursiveBind(context, forceLazysBound, neverUnload);
@@ -23,9 +26,11 @@
 	
 		遍历sAllImages中所有的动态库，并调用的他的link方法 image->link(gLinkContext, forceLazysBound, false, neverUnload, loaderRPaths);
 		实际做的事情是如下两点：
+		1. rebase
 		旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个随机地址偏移量？？？》
 		this->recursiveRebase(context);
 			  
+		2. bind
 		《占位地址》转成《实际地址》，
 		（编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，在加载的时候才能确定地址）
 		this->recursiveBind(context, forceLazysBound, neverUnload);
@@ -51,4 +56,7 @@ Binding 是处理那些指向 dylib 外部的指针，它们实际上被符号�
 ##静态链接
 * [参考文章](https://juejin.cn/post/6844903912198127623)
 * 链接的目的是将多个目标文件(.o文件)链接成一个可执行文件 
-* 编译期间，模块内使用模块外部的符号(函数，变量)时是不知道它的地址的，此时只有先用占位符
+* 编译期间，模块内使用模块外部的符号(函数，变量)时是不知道它的地址的，此时只有先用占位符，等到链接时才确定
+
+##dyld在项目中的应用场景
+* 通过_dyld_register_func_for_add_image添加监听回调，监听所有的image ，从而判断是否有未知的第三方动态库被加载进来，破坏应用的完整性
