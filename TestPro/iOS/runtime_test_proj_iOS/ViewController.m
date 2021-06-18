@@ -8,6 +8,7 @@
 
 #import "ViewController.h"
 #import <objc/runtime.h>
+#include <mach-o/dyld.h>
 
 @interface ViewController ()
 
