@@ -76,6 +76,8 @@ objc_msgSend((id)obj, sel_registerName("doJob"));
 	2. 类方法调用objc_msgSend(id self, SEL _cmd, ...)时第一个参数传的是类对象(id)objc_getClass("Person")
 * 在objc_msgSend(id self, SEL _cmd, ...)函数内部，会获取第一个参数self(外部传进来的obj对象)的isa里面的methods
 
+####类与元类，跟元类都是objc_class类型的对象
+
 	```
 	isa === objc_class
 	
@@ -89,7 +91,7 @@ objc_msgSend((id)obj, sel_registerName("doJob"));
 	isa -> data() -> methods
 	
 	```
-	
+
 	* obj 的isa 是objc_class类型，objc_class类型中保存了class_rw_t类型的数据，class_rw_t中保存了方法列表methods，
 	* 对象的isa 指向的是类对象，也就是方法查找时查找的是类对象中的数据（类对象中的methods保存的是成员方法，这是编译期间确定的）
 	* 类对象的isa 指向的是元类对象，也就是方法查找时查找的是元类对象中的数据（元类对象中的methods保存的是类方法，这是编译期间确定的）
@@ -98,4 +100,18 @@ objc_msgSend((id)obj, sel_registerName("doJob"));
 	####类
 	* _class_t 中有一个保存了类变量信息的_class_ro_t类型的变量ro
 	* _class_ro_t中的_ivar_list_t *ivars变量保存了变量相对于对象的地址偏移信息，而这个ivars 的大小在编译期间已经确定了，后续访问变量都是通过该列表找到变量的地址偏移信息进行访问
+	
+####查找逻辑
+* objc_msgSend 查找IMP 是通过调用IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)实现的，传进来的cls 是对象（类对象）的isa
+* _class_lookupMethodAndLoadCache3 直接调用IMP lookUpImpOrForward(Class cls, SEL sel, id inst, bool initialize, bool cache, bool resolver)方法
+* 具体逻辑如下
+     1. 从当前类的缓存中查找，找到则返回
+     2. 当前类的缓存没有，则去当前类的方法列表中查找，找到缓存并返回
+     3. 当前类的方法列表中没有找到则去父类的缓存查找，找到将其缓存到当前类并返回
+     4. 父类的缓存没有则去父类的方法列表中查找，找到将其缓存到当前类并返回
+     5. 如果遍历完父类的缓存以及方法列表都没找到，则进行动态方法决议
+     6. 如果动态方法决议后也没找到方法imp，则进行消息转发
+     7. 消息转发失败则崩溃
+	
+	
 
