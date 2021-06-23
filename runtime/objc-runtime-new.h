@@ -1001,7 +1001,7 @@ public:
          
          
          通过bits & FAST_DATA_MASK进行与操作，拿到类的class_rw_t 这个结构体的数据
-         也就是类的class_rw_t 结构体数据存放在bits 中的从第3到37 位中，总共31位
+         也就是类的class_rw_t 结构体数据存放在bits 中的从第3到47 位中，总共31位
          */
         return (class_rw_t *)(bits & FAST_DATA_MASK);
     }
