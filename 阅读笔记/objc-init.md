@@ -31,4 +31,4 @@ map_images()
 	* 遍历分类的类方法，并将其添加到类的isa的methods列表中
 	* 《也就是说，实例方法保存在类中，类方法保存在元类中》
 
-##### class_rw_t以及class_ro_t中并没有类方法列表，只有methods，baseMethodList，所以类方法不存在类对象中，存在于元类的对象(也就是类，类也是一个对象)中的methods，baseMethodList，这个在编译期间已经确定的
+##### class\_rw\_t以及class\_ro\_t中并没有类方法列表，只有methods，baseMethodList，所以类方法不存在类对象中，存在于元类的对象(也就是类，类也是一个对象)中的methods，baseMethodList，这个在编译期间已经确定的

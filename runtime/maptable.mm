@@ -69,7 +69,12 @@ static INLINE unsigned nextIndex(NXMapTable *table, unsigned index) {
 static INLINE void *allocBuckets(void *z, unsigned nb) {
     MapPair	*pairs = 1+(MapPair *)malloc_zone_malloc((malloc_zone_t *)z, ((nb+1) * sizeof(MapPair)));
     MapPair	*pair = pairs;
-    while (nb--) { pair->key = NX_MAPNOTAKEY; pair->value = NULL; pair++; }
+    while (nb--) {
+        //初始化扩展的空间
+        pair->key = NX_MAPNOTAKEY;
+        pair->value = NULL;
+        pair++;
+    }
     return pairs;
 }
 
@@ -311,50 +316,70 @@ static void _NXMapRehash(NXMapTable *table) {
 }
 
 void *NXMapInsert(NXMapTable *table, const void *key, const void *value) {
+    /*
+     表头,buckets 中存放的都是MapPair结构的数据，相当于是
+     [MapPair,MapPair,MapPair,MapPair,MapPair]
+     */
     MapPair	*pairs = (MapPair *)table->buckets;
+    /*
+     通过key进行hash计算得到MapPair所在表中的下标
+     */
     unsigned	index = bucketOf(table, key);
     MapPair	*pair = pairs + index;
     if (key == NX_MAPNOTAKEY) {
-	_objc_inform("*** NXMapInsert: invalid key: -1\n");
-	return NULL;
+        _objc_inform("*** NXMapInsert: invalid key: -1\n");
+        return NULL;
     }
 
     unsigned numBuckets = table->nbBucketsMinusOne + 1;
 
     if (pair->key == NX_MAPNOTAKEY) {
-	pair->key = key; pair->value = value;
-	table->count++;
-	if (table->count * 4 > numBuckets * 3) _NXMapRehash(table);
-	return NULL;
+        //表示该key 是新的，还没用过，该pair 没存放有数据
+        pair->key = key;
+        pair->value = value;
+        
+        table->count++;
+        if (table->count * 4 > numBuckets * 3) {
+            _NXMapRehash(table);
+        }
+        return NULL;
     }
     
     if (isEqual(table, pair->key, key)) {
-	const void	*old = pair->value;
-	if (old != value) pair->value = value;/* avoid writing unless needed! */
-	return (void *)old;
+        //根据key 找到旧的数据，更新value，返回旧数据
+        const void	*old = pair->value;
+        if (old != value) {
+            pair->value = value;/* avoid writing unless needed! */
+        }
+        return (void *)old;
     } else if (table->count == numBuckets) {
-	/* no room: rehash and retry */
-	_NXMapRehash(table);
-	return NXMapInsert(table, key, value);
+        /*
+         no room: rehash and retry
+         表中空间已经满了，需要更新表的空间
+         */
+        _NXMapRehash(table);
+        return NXMapInsert(table, key, value);
     } else {
-	unsigned	index2 = index;
-	while ((index2 = nextIndex(table, index2)) != index) {
-	    pair = pairs + index2;
-	    if (pair->key == NX_MAPNOTAKEY) {
-		pair->key = key; pair->value = value;
-		table->count++;
-		if (table->count * 4 > numBuckets * 3) _NXMapRehash(table);
-		return NULL;
-	    }
-	    if (isEqual(table, pair->key, key)) {
-		const void	*old = pair->value;
-		if (old != value) pair->value = value;/* avoid writing unless needed! */
-		return (void *)old;
-	    }
-	}
-	/* no room: can't happen! */
-	_objc_inform("**** NXMapInsert: bug\n");
-	return NULL;
+        unsigned	index2 = index;
+        while ((index2 = nextIndex(table, index2)) != index) {
+            pair = pairs + index2;
+            if (pair->key == NX_MAPNOTAKEY) {
+                pair->key = key; pair->value = value;
+                table->count++;
+                if (table->count * 4 > numBuckets * 3) _NXMapRehash(table);
+                return NULL;
+            }
+            if (isEqual(table, pair->key, key)) {
+                const void	*old = pair->value;
+                if (old != value) {
+                    pair->value = value;/* avoid writing unless needed! */
+                }
+                return (void *)old;
+            }
+        }
+        /* no room: can't happen! */
+        _objc_inform("**** NXMapInsert: bug\n");
+        return NULL;
     }
 }
 

@@ -318,8 +318,11 @@ header_info *preoptimizedHinfoForHeader(const headerType *mhdr)
 #endif
 
     objc_headeropt_ro_t *hinfos = opt ? opt->headeropt_ro() : nil;
-    if (hinfos) return hinfos->get(mhdr);
-    else return nil;
+    if (hinfos) {
+        return hinfos->get(mhdr);
+    }else {
+        return nil;
+    }
 }
 
 

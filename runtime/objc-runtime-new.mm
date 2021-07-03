@@ -915,6 +915,7 @@ static void methodizeClass(Class cls)
      获取类对应的所有分类
      */
     category_list *cats = unattachedCategoriesForClass(cls, true /*realizing*/);
+    //将分类的方法添加到类的rw->methods 的前面
     attachCategories(cls, cats, false /*don't flush caches*/);
 
     if (PrintConnecting) {
@@ -1199,12 +1200,14 @@ static void addNamedClass(Class cls, const char *name, Class replacing = nil)
     Class old;
     if ((old = getClass(name))  &&  old != replacing) {
         inform_duplicate(name, old, cls);
-
         // getNonMetaClass uses name lookups. Classes not found by name 
         // lookup must be in the secondary meta->nonmeta table.
         addNonMetaClass(cls);
     } else {
-        //将非元类添加到一张map上, 以name 作为key ,以cls 作为value
+        /*
+         将非元类添加到一张hash表示上, 以name 作为key ,以cls 作为value
+         根据hash(name)计算出MapPair<name,cls>节点在hash表中的index，然后插入其中
+         */
         NXMapInsert(gdb_objc_realized_classes, name, cls);
     }
     //如果该类为元类，则抛出异常，断言中断
@@ -1903,7 +1906,7 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
         class_ro_t *ro_w = make_ro_writeable(rw);
         ro = rw->ro;
         /*
-         这里将当前类的成员变量已到父类成员变量后面（其实是更新当前类的成员变量的offset,将offset变更到父类的instanceSize 后面）
+         这里将当前类的成员变量移到父类成员变量后面（其实是更新当前类的成员变量的offset,将offset变更到父类的instanceSize 后面）
          */
         moveIvars(ro_w, super_ro->instanceSize);
         gdb_objc_class_changed(cls, OBJC_CLASS_IVARS_CHANGED, ro->name);
@@ -1930,6 +1933,25 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
 * 3，将ro中的一些标志(flag) 设置到类的rw 中的标志中（可能是为了后续方便访问）
 * 4，将ro中的方法，协议，属性拷贝到rw中，并且把分类的方法，协议，属性也拷贝到rw中，后续通过class 的rw中的methods 就能访问到该类的
  所有的方法，协议，与属性
+ 
+ struct _class_t {
+     struct _class_t *isa;
+     struct _class_t *superclass;
+     void *cache;
+     void *vtable;
+     struct _class_ro_t *ro;
+ };
+ 
+ struct Class {
+     isa_t isa;
+     Class superclass;
+     cache_t cache;             // formerly cache pointer and vtable
+     //存放对象相关数据的地方，比如成员变量
+     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
+     class_rw_t *data() { return bits.data();}
+  }
+ 传进来的是_class_t 类型，返回的是Class 类型，其实相当于只是把ro 数据保存到bits 中
+ 
 */
 
 static Class realizeClass(Class cls)
@@ -1963,7 +1985,10 @@ static Class realizeClass(Class cls)
         //将rw->ro 指向编译期已确定的ro内存
         rw->ro = ro;
         rw->flags = RW_REALIZED|RW_REALIZING;
-        //将申请的rw 内存设置给class
+        /*
+         将申请的rw 内存设置给class
+         也就是将rw数据保存到objc_class->bits 中，此时rw 中只有ro数据，也就是原始的编译器确定下来的ro数据
+         */
         cls->setData(rw);
     }
 
@@ -2432,14 +2457,25 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
                         "because the real class is too big.", 
                         cls->nameForLogging());
         }
-        //获取objc_class 中的class_rw_t 数据
+        /*
+         获取objc_class 中的class_rw_t 数据
+         保存旧数据rw
+         */
         class_rw_t *rw = newCls->data();
         const class_ro_t *old_ro = rw->ro;
+        /*
+         通过内存拷贝，将需要readClass 的cls 的数据覆盖在旧的Class上
+         */
         memcpy(newCls, cls, sizeof(objc_class));
         
-        // 将class_rw_t 中的ro(class_ro_t) 指向objc_class 中的 data(class_rw_t)部分数据
+        /*
+         将class_rw_t 中的ro(class_ro_t) 指向objc_class 中的 data(class_rw_t)部分数据
+         将旧的rw 中的ro 指向新的需要readClass 的cls的 ro 上，此时rw 中保存的methods，properties，protocols
+         还是旧的
+         */
         rw->ro = (class_ro_t *)newCls->data();
         
+        //将rw 更新到将需要readClass 的cls上，也就是整个过程相当于只更新了rw->ro 部分数据
         newCls->setData(rw);
         freeIfMutable((char *)old_ro->name);
         free((void *)old_ro);
@@ -2681,9 +2717,12 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     // Discover classes. Fix up unresolved future classes. Mark bundle classes.
 
-    for (EACH_HEADER) {
+    /*
+     循环遍历所有的image，获取image中所有的classref_t
+     */
+    for (EACH_HEADER) {// 相当于 for (hIndex = 0;hIndex < hCount && (hi = hList[hIndex]); hIndex++) {}
         /*
-         从数据段__objc_classlist 中读取所有的类
+         从image的数据段__objc_classlist 中读取所有的类
          读出来时的类型如下
          struct _class_t {
              struct _class_t *isa;
@@ -2693,21 +2732,33 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
              struct _class_ro_t *ro;
          };
          
+         struct Class {
+             isa_t isa;
+             Class superclass;
+             cache_t cache;             // formerly cache pointer and vtable
+             //存放对象相关数据的地方，比如成员变量
+             class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
+             class_rw_t *data() { return bits.data();}
+          }
          */
-        
         classref_t *classlist = _getObjc2ClassList(hi, &count);
-        
         if (! mustReadClasses(hi)) {
             // Image is sufficiently optimized that we need not call readClass()
             continue;
         }
-
         bool headerIsBundle = hi->isBundle();
         bool headerIsPreoptimized = hi->isPreoptimized();
-
+        /*
+         遍历所有从image的数据段__objc_classlist中读取出来的classref_t，对其进行readClass, 也就是将_class_t转换成Class
+         
+         */
         for (i = 0; i < count; i++) {
             Class cls = (Class)classlist[i];
-            //读取被编译器写的class 和 metaclass,主要是存放到一些map 上
+            /*
+             读取被编译器写的class 和 metaclass,主要是存放到一些map 上
+             主要做的事情是：
+             将编译阶段的_class_t->ro 中的数据拷贝到运行阶段的Class->bits 上
+             */
             Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
 
             if (newCls != cls  &&  newCls) {
@@ -2720,7 +2771,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
                 resolvedFutureClasses[resolvedFutureClassCount++] = newCls;
             }
         }
-    }
+    }//-------for (EACH_HEADER) {} 结束
 
     ts.log("IMAGE TIMES: discover classes");
 
@@ -2813,7 +2864,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     /*
      Realize non-lazy classes (for +load methods and static instances)
-     non-lazy classes 也就是没有 +load 的类
+     non-lazy classes 也就是有 +load 的类
      */
     for (EACH_HEADER) {
         classref_t *classlist = 
