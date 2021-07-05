@@ -1,6 +1,6 @@
 --- !tapi-tbd-v3
 archs:           [ x86_64 ]
-uuids:           [ 'x86_64: 5DD7A870-22E7-34ED-B92A-66C42839774B' ]
+uuids:           [ 'x86_64: B6F6D732-0FFA-3B3E-9E85-F582D82FD97F' ]
 platform:        macosx
 flags:           [ not_app_extension_safe ]
 install-name:    '/usr/lib/libobjc.A.dylib'

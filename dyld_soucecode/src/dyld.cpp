@@ -771,7 +771,15 @@ static int imageSorter(const void* l, const void* r)
 	const ImageLoader* right= *((ImageLoader**)r);
 	return left->compare(right);
 }
-
+/**
+ 某个时机会回调到z该方法
+ 
+ 
+ objc_init
+	--> dyld::registerObjCNotifiers
+		--> dyld::notifyBatchPartial
+			--> map_images
+ */
 static void notifyBatchPartial(dyld_image_states state, bool orLater, dyld_image_state_change_handler onlyHandler)
 {
 	std::vector<dyld_image_state_change_handler>* handlers = stateToHandlers(state, sBatchHandlers);

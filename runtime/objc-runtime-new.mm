@@ -2761,7 +2761,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
              */
             Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
 
-            if (newCls != cls  &&  newCls) {
+            if (newCls != cls  &&  newCls) {//应用启动时基本跑不进if中
                 // Class was moved but not deleted. Currently this occurs 
                 // only when the new class resolved a future class.
                 // Non-lazily realize the class below.
@@ -2866,7 +2866,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
      Realize non-lazy classes (for +load methods and static instances)
      non-lazy classes 也就是有 +load 的类
      */
-    for (EACH_HEADER) {
+    for (EACH_HEADER) {//应用启动时，主要跑了这里对class进行fix,也就是realizeClass
         classref_t *classlist = 
             _getObjc2NonlazyClassList(hi, &count);
         for (i = 0; i < count; i++) {
