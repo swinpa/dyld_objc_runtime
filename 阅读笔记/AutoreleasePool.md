@@ -96,3 +96,30 @@ int main(int argc, char * argv[]) {
 
 ###那线程跟autoreleasepool 有关系吗？如果没开启RunLoop，那线程中的autorelease对象是添加到那个autoreleasepool中的呢？（目前没在GNUstep源码中的NSThread 看到相关的创建autoreleasepool 的代码）
 
+
+```
+
+App启动后，系统在主线程RunLoop 里注册两个Observser,其回调都是_wrapRunLoopWithAutoreleasePoolHandler()。
+
+第一个 Observer 监视的事件
+是 Entry(即将进入Loop)，其回调内会调用 _objc_autoreleasePoolPush() 创建自动释放池。其优先级最高，保证创建释放池发生在其他所有回调之前。
+
+第二个 Observer 监视了两个事件
+
+_BeforeWaiting(准备进入休眠) 时 _
+调用_objc_autoreleasePoolPop() 和 _objc_autoreleasePoolPush() 释放旧的池并创建新池；
+
+_Exit(即将退出Loop) 时 _
+调用 _objc_autoreleasePoolPop() 来释放自动释放池。这个 Observer 优先级最低，保证其释放池子发生在其他所有回调之后。
+
+在主线程执行的代码，通常是写在诸如事件回调、Timer回调内的。这些回调会被 RunLoop 创建好的 AutoreleasePool 环绕着，所以不会出现内存泄漏，开发者也不必显示创建 Pool 了。
+
+现在我们知道了AutoreleasePool是在RunLoop即将进入RunLoop和准备进入休眠这两种状态的时候被创建和销毁的。
+
+所以AutoreleasePool的释放有如下两种情况。
+一是Autorelease对象是在当前的runloop迭代结束时释放的，而它能够释放的原因是系统在每个runloop迭代中都加入了自动释放池Push和Pop。
+二是手动调用AutoreleasePool的释放方法（drain方法）来销毁AutoreleasePool
+
+
+
+```

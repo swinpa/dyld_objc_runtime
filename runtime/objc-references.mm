@@ -170,10 +170,12 @@ namespace objc_references_support {
     typedef hash_map<disguised_ptr_t, ObjectAssociationMap *> AssociationsHashMap;
 #else
     typedef ObjcAllocator<std::pair<void * const, ObjcAssociation> > ObjectAssociationMapAllocator;
-    class ObjectAssociationMap : public std::map<void *, ObjcAssociation, ObjectPointerLess, ObjectAssociationMapAllocator> {
-    public:
-        void *operator new(size_t n) { return ::malloc(n); }
-        void operator delete(void *ptr) { ::free(ptr); }
+    
+    class ObjectAssociationMap : public std::map<void *, ObjcAssociation, ObjectPointerLess, ObjectAssociationMapAllocator>
+    {
+        public:
+            void *operator new(size_t n) { return ::malloc(n); }
+            void operator delete(void *ptr) { ::free(ptr); }
     };
     typedef ObjcAllocator<std::pair<const disguised_ptr_t, ObjectAssociationMap*> > AssociationsHashMapAllocator;
     

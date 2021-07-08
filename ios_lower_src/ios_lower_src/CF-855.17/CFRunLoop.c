@@ -1141,7 +1141,9 @@ struct __CFRunLoopSource {
     CFIndex _order;			/* immutable */
     CFMutableBagRef _runLoops;
     union {
+        //对应source0事件
         CFRunLoopSourceContext version0;	/* immutable, except invalidation */
+        //对应source1事件
         CFRunLoopSourceContext1 version1;	/* immutable, except invalidation */
     } _context;
 };

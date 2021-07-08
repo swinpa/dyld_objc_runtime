@@ -125,7 +125,21 @@ objc_msgSend((id)obj, sel_registerName("doJob"));
 * _class_lookupMethodAndLoadCache3 直接调用IMP lookUpImpOrForward(Class cls, SEL sel, id inst, bool initialize, bool cache, bool resolver)方法
 * 具体查找逻辑如下
      1. 从当前类的缓存中查找，找到则返回
-     2. 当前类的缓存没有，则去当前类的方法列表中查找，找到缓存并返回
+     2. 当前类的缓存没有，则去当前类的方法列表( cls->data()->methods)中查找，找到缓存并返回
+    		
+    			```
+    			static method_t * getMethodNoSuper_nolock(Class cls, SEL sel)
+			{
+			    for (auto mlists = cls->data()->methods.beginLists(), 
+			              end = cls->data()->methods.endLists();  mlists != end; ++mlists)
+			    {
+			        method_t *m = search_method_list(*mlists, sel);
+			        if (m) return m;
+			    }
+			    return nil;
+			}
+    			```
+    		
      3. 当前类的方法列表中没有找到则去父类的缓存查找，找到将其缓存到当前类并返回
      4. 父类的缓存没有则去父类的方法列表中查找，找到将其缓存到当前类并返回
      5. 如果遍历完父类的缓存以及方法列表都没找到，则进行动态方法决议

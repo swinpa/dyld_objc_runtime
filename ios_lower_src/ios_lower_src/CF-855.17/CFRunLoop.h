@@ -110,16 +110,20 @@ CF_EXPORT Boolean CFRunLoopContainsTimer(CFRunLoopRef rl, CFRunLoopTimerRef time
 CF_EXPORT void CFRunLoopAddTimer(CFRunLoopRef rl, CFRunLoopTimerRef timer, CFStringRef mode);
 CF_EXPORT void CFRunLoopRemoveTimer(CFRunLoopRef rl, CFRunLoopTimerRef timer, CFStringRef mode);
 
+//参考链接https://juejin.cn/post/6913094534037504014
 typedef struct {
     CFIndex	version;
-    void *	info;
+    void *	info;// 作为 perform 函数的参数
     const void *(*retain)(const void *info);
     void	(*release)(const void *info);
     CFStringRef	(*copyDescription)(const void *info);
     Boolean	(*equal)(const void *info1, const void *info2);
     CFHashCode	(*hash)(const void *info);
+    // 当 source0 加入到 run loop 时触发的回调函数（在 CFRunLoopAddSource 函数中可看到其被调用）
     void	(*schedule)(void *info, CFRunLoopRef rl, CFStringRef mode);
+    // 当 source0 从 run loop 中移除时触发的回调函数
     void	(*cancel)(void *info, CFRunLoopRef rl, CFStringRef mode);
+    // source0 要执行的任务块，当 source0 事件被触发时的回调, 调用 __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__ 函数来执行 perform(info)
     void	(*perform)(void *info);
 } CFRunLoopSourceContext;
 
@@ -132,9 +136,12 @@ typedef struct {
     Boolean	(*equal)(const void *info1, const void *info2);
     CFHashCode	(*hash)(const void *info);
 #if (TARGET_OS_MAC && !(TARGET_OS_EMBEDDED || TARGET_OS_IPHONE)) || (TARGET_OS_EMBEDDED || TARGET_OS_IPHONE)
+    // getPort 函数指针，用于当 source1 被添加到 run loop 中的时候，从该函数中获取具体的 mach_port_t 对象，用来唤醒 run loop
     mach_port_t	(*getPort)(void *info);
+    // perform 函数指针即指向 run loop 被唤醒后 source1 要执行的回调函数，调用 __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE1_PERFORM_FUNCTION__ 函数来执行
     void *	(*perform)(void *msg, CFIndex size, CFAllocatorRef allocator, void *info);
 #else
+    // 其它平台
     void *	(*getPort)(void *info);
     void	(*perform)(void *info);
 #endif
