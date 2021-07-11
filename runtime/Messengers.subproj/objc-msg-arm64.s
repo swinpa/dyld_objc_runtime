@@ -283,16 +283,21 @@ LExit$0:
  * IMP objc_msgLookup(id self, SEL _cmd, ...);
  * 
  * objc_msgLookup ABI:
- * IMP returned in x17
- * x16 reserved for our use but not used
- *
+ * IMP returned in x17   找到的 IMP 保存在 x17 寄存器中
+ * x16 reserved for our use but not used     --- x16 寄存器则是保留寄存器
+ * [很好的一篇使用汇编阅读的文章][https://juejin.cn/post/6880774335192432647]
  ********************************************************************/
 
 #if SUPPORT_TAGGED_POINTERS
-	.data
-	.align 3
-	.globl _objc_debug_taggedpointer_classes
+	.data   // 数据内容
+	.align 3   // 2^3 = 8 字节对齐
+	.globl _objc_debug_taggedpointer_classes  // 定义一个全局的标记 _objc_debug_taggedpointer_classes
 _objc_debug_taggedpointer_classes:
+/*
+ .fill repeat, size, value 含义是反复拷贝 size 个字节，重复 repeat 次，
+ 其中 size 和 value 是可选的，默认值分别是 1 和 0
+ 全部填充 0
+ */
 	.fill 16, 8, 0
 	.globl _objc_debug_taggedpointer_ext_classes
 _objc_debug_taggedpointer_ext_classes:
@@ -302,11 +307,25 @@ _objc_debug_taggedpointer_ext_classes:
 	ENTRY _objc_msgSend
 	UNWIND _objc_msgSend, NoFrame
 
-    //对比p0寄存器是否为空，其中x0-x7是参数，x0可能会是返回值
+    /*
+     对比p0寄存器是否为空，其中x0-x7是参数，x0可能会是返回值
+     按照ARM64的Calling Convention，整形的参数前8个会按顺序放到'x0-x7'寄存器里，超过八个的放到栈上传递
+     
+     p0 和 空 对比，即判断接收者是否存在，
+     其中 p0 是 objc_msgSend 的第一个参数(消息接收者 receiver)
+     
+     */
 	cmp	p0, #0			// nil check and tagged pointer check
 #if SUPPORT_TAGGED_POINTERS
+    /*
+    p0 等于 0 的话，则跳转到 LNilOrTagged 标签处,执行 Taggend Pointer 对象的函数查找及执行
+    */
 	b.le	LNilOrTagged		//  (MSB tagged pointer looks negative)
 #else
+    /*
+     p0 等于 0 的话，则跳转到 LReturnZero 标签处
+     置 0 返回 nil 并直接结束 _objc_msgSend 函数
+     */
 	b.eq	LReturnZero
 #endif
     /*
@@ -315,13 +334,19 @@ _objc_debug_taggedpointer_ext_classes:
      @interface NSObject <NSObject> {objc_class *isa;}
      也就是类，对象的第一个成员都是isa,
      */
-	ldr	p13, [x0]		/* p13 = isa，[x0]为第一个参数self这个对象，
+	ldr	p13, [x0]		/* p13 = isa，根据对象拿出 isa，即从 x0 寄存器指向的地址取出 isa，存入 p13 寄存器  [x0]为第一个参数self这个对象，
         如果外部传进来的self这个对象是一个实例对象，那么它的ISA位于NSObject这个类的第一个成员变量
         此时使用[x0]也可以当成获取实例对象的isa 这个指针，而实例对象的isa 指向的是类对象（在alloc实例对象时会将对象的isa = cls），故去到了类对象的方法列表中查找
         
         如果外部传进来的self这个对象是一个类对象，那么它的ISA位于_class_t这个类的第一个成员变量
         此时使用[x0]也可以当成获取类对象的isa 这个指针，而类对象的isa 指向的是元类对象（编译期间将类对象的isa 指向元类对象），故去到了元类对象的方法列表中查找
     */
+
+    /*
+     GetClassFromIsa_p16：从 isa 中获取类指针并存放在通用寄存器 p16 中
+     and p16, $0, #ISA_MASK
+     在 __LP64__ 下通过 p16 = isa(正是 p13) & ISA_MASK，拿出 shiftcls 信息，得到 class 信息
+     */
 	GetClassFromIsa_p16 p13		// p16 = class
 LGetIsaDone:
 	CacheLookup NORMAL		// calls imp or objc_msgSend_uncached
@@ -350,14 +375,16 @@ LNilOrTagged:
 #endif
 
 LReturnZero:
-	// x0 is already zero
+	// x0 is already zero, 清空，置0
 	mov	x1, #0
 	movi	d0, #0
 	movi	d1, #0
 	movi	d2, #0
 	movi	d3, #0
+    // return 结束执行
 	ret
 
+    // LExit 结束 _objc_msgSend 函数执行
 	END_ENTRY _objc_msgSend
 
 
@@ -448,10 +475,21 @@ LLookup_Nil:
 	END_ENTRY _objc_msgLookupSuper2
 
 
+    //准备去obj->isa->data()->methods方法列表中查找
 .macro MethodTableLookup
 	
 	// push frame
 	SignLR
+    /*
+     参考文章 https://juejin.cn/post/6844903816362459144
+     stp 入栈指令  stp x29, x30, [sp, #0x10]     ; 将 x29, x30 的值存入 sp 偏移 16 个字节的位置
+     sp： (Stack Pointer)，栈顶寄存器，用于保存栈顶地址；
+     fp(x29)： (Frame Pointer)为栈基址寄存，用于保存栈底地址；
+     lr(x30)： (Link Register) ，保存调用跳转指令 bl 指令的下一条指令的内存地址；
+     zr(x31)： (Zero Register)，xzr/wzr分别代表 64/32 位，其作用就是 0，写进去代表丢弃结果，读出来是 0；
+     pc： 保存将要执行的指令的地址（有操作系统决定其值，不能改写）。
+
+     */
 	stp	fp, lr, [sp, #-16]!
 	mov	fp, sp
 
@@ -469,7 +507,10 @@ LLookup_Nil:
 
 	// receiver and selector already in x0 and x1
 	mov	x2, x16
-    //源码在objc-runtime-new.mm 5024 行 IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)
+    /*
+     如果缓存中未找到，则跳转到 __class_lookupMethodAndLoadCache3（c 函数） 去方法列表中去找函数，
+     源码在objc-runtime-new.mm 5024 行 IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)
+     */
 	bl	__class_lookupMethodAndLoadCache3
 
 	// IMP in x0
