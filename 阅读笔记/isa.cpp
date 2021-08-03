@@ -34153,7 +34153,8 @@ static void OBJC_CLASS_SETUP_$_Man(void ) {
 	OBJC_METACLASS_$_Man.isa = &OBJC_METACLASS_$_NSObject;
 	OBJC_METACLASS_$_Man.superclass = &OBJC_METACLASS_$_Person;
 	OBJC_METACLASS_$_Man.cache = &_objc_empty_cache;
-	OBJC_CLASS_$_Man.isa = &OBJC_METACLASS_$_Man;
+	
+    OBJC_CLASS_$_Man.isa = &OBJC_METACLASS_$_Man;
 	OBJC_CLASS_$_Man.superclass = &OBJC_CLASS_$_Person;
 	OBJC_CLASS_$_Man.cache = &_objc_empty_cache;
 }

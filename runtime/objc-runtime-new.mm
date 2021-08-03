@@ -1162,6 +1162,7 @@ static Class getClass_impl(const char *name)
     assert(gdb_objc_realized_classes);
 
     // Try runtime-allocated table
+    
     Class result = (Class)NXMapGet(gdb_objc_realized_classes, name);
     if (result) return result;
 
