@@ -291,7 +291,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nproductPath = $(SRCROOT)../../objc_runtime_products/Debug\nrm -rf $productPath\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\necho \"start \"\nproductPath = $(SRCROOT)../../objc_runtime_products/Debug\nrm -rf $productPath\n";
 		};
 		84E9D01C2200288C007F7365 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -308,7 +308,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\nlibobjc_A_dylib_Path=\"Debug/libobjc.A.dylib\"\napp_path=\"Debug/TestProMac.app/Contents/MacOS/TestProMac\"\ncd $(SRCROOT)../../objc_runtime_products\necho \"==========================\"\necho $libobjc_A_dylib_Path\necho $app_path\necho \"==========================\"\ninstall_name_tool -change /usr/lib/libobjc.A.dylib $libobjc_A_dylib_Path $app_path\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\nlibobjc_A_dylib_Path=\"Debug/libobjc.A.dylib\"\napp_path=\"Debug/TestProMac.app/Contents/MacOS/TestProMac\"\ncd $(SRCROOT)../../objc_runtime_products\necho \"==========================\"\necho $libobjc_A_dylib_Path\necho $app_path\necho \"==========================\"\nls $libobjc_A_dylib_Path\necho \"==========================\"\n\ninstall_name_tool -change /usr/lib/libobjc.A.dylib $libobjc_A_dylib_Path $app_path\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

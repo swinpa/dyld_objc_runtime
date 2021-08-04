@@ -3,7 +3,7 @@ tbd-version:     4
 targets:         [ x86_64-macos ]
 uuids:
   - target:          x86_64-macos
-    value:           5D403700-A0F9-3929-ADDF-6BDBF12C0C8E
+    value:           8BDB7869-F94A-3378-B99F-DF18F3863E80
 flags:           [ not_app_extension_safe ]
 install-name:    '/usr/lib/libobjc.A.dylib'
 current-version: 228
