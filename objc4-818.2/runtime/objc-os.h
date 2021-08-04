@@ -146,7 +146,7 @@ static inline uintptr_t mask16ShiftBits(uint16_t mask)
 #   include <os/lock_private.h>
 #   include <libkern/OSAtomic.h>
 #   include <libkern/OSCacheControl.h>
-#   include <System/pthread_machdep.h>
+//#   include <System/pthread_machdep.h>
 #   include "objc-probes.h"  // generated dtrace probe definitions.
 
 // Some libc functions call objc_msgSend() 
@@ -750,7 +750,7 @@ class mutex_tt : nocopy_t {
         lockdebug_mutex_lock(this);
 
         // <rdar://problem/50384154>
-        uint32_t opts = OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION | OS_UNFAIR_LOCK_ADAPTIVE_SPIN;
+        uint32_t opts = OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION ;//| OS_UNFAIR_LOCK_ADAPTIVE_SPIN;
         os_unfair_lock_lock_with_options_inline
             (&mLock, (os_unfair_lock_options_t)opts);
     }
@@ -1046,8 +1046,7 @@ ustrdupMaybeNil(const uint8_t *str)
     (dyld_program_sdk_at_least(dyld_platform_version_macOS_ ## x)   || \
      dyld_program_sdk_at_least(dyld_platform_version_iOS_ ## i)     || \
      dyld_program_sdk_at_least(dyld_platform_version_tvOS_ ## t)    || \
-     dyld_program_sdk_at_least(dyld_platform_version_watchOS_ ## w) || \
-     dyld_program_sdk_at_least(dyld_platform_version_bridgeOS_ ## b))
+     dyld_program_sdk_at_least(dyld_platform_version_watchOS_ ## w))
 
 
 #ifndef __BUILDING_OBJCDT__

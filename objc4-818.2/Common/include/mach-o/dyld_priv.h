@@ -24,17 +24,12 @@
 #ifndef _MACH_O_DYLD_PRIV_H_
 #define _MACH_O_DYLD_PRIV_H_
 
-#define DYLD_MACOSX_VERSION_10_11 0x000A0B00
-#define DYLD_MACOSX_VERSION_10_12 0x000A0C00
-#define DYLD_MACOSX_VERSION_10_13 0x000A0D00
-#define DYLD_MACOSX_VERSION_10_14 0x000A0E00
-
 #include <assert.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <Availability.h>
 #include <TargetConditionals.h>
 #include <mach-o/dyld.h>
-#include <mach-o/dyld_images.h>
 #include <uuid/uuid.h>
 
 #if __cplusplus
@@ -46,23 +41,9 @@ extern "C" {
 //
 // private interface between libSystem.dylib and dyld
 //
+extern void _dyld_atfork_prepare(void);
+extern void _dyld_atfork_parent(void);
 extern void _dyld_fork_child(void);
-
-
-// DEPRECATED
-enum dyld_image_states
-{
-	dyld_image_state_mapped					= 10,		// No batch notification for this
-	dyld_image_state_dependents_mapped		= 20,		// Only batch notification for this
-	dyld_image_state_rebased				= 30, 
-	dyld_image_state_bound					= 40,
-	dyld_image_state_dependents_initialized	= 45,		// Only single notification for this
-	dyld_image_state_initialized			= 50,
-	dyld_image_state_terminated				= 60		// Only single notification for this
-};
-
-// DEPRECATED
-typedef const char* (*dyld_image_state_change_handler)(enum dyld_image_states state, uint32_t infoCount, const struct dyld_image_info info[]);
 
 
 
@@ -84,52 +65,6 @@ typedef void (*_dyld_objc_notify_unmapped)(const char* path, const struct mach_h
 void _dyld_objc_notify_register(_dyld_objc_notify_mapped    mapped,
                                 _dyld_objc_notify_init      init,
                                 _dyld_objc_notify_unmapped  unmapped);
-
-
-
-//
-// Possible thread-local variable state changes for which you can register to be notified
-//
-enum dyld_tlv_states {
-    dyld_tlv_state_allocated = 10,   // TLV range newly allocated
-    dyld_tlv_state_deallocated = 20  // TLV range about to be deallocated
-};
-
-// 
-// Info about thread-local variable storage.
-// 
-typedef struct {
-    size_t info_size;    // sizeof(dyld_tlv_info)
-    void * tlv_addr;     // Base address of TLV storage
-    size_t tlv_size;     // Byte size of TLV storage
-} dyld_tlv_info;
-
-#if __BLOCKS__
-
-// 
-// Callback that notes changes to thread-local variable storage.
-// 
-typedef void (^dyld_tlv_state_change_handler)(enum dyld_tlv_states state, const dyld_tlv_info *info);
-
-//
-// Register a handler to be called when a thread adds or removes storage for thread-local variables.
-// The registered handler will only be called from and on behalf of the thread that owns the storage.
-// The registered handler will NOT be called for any storage that was 
-//   already allocated before dyld_register_tlv_state_change_handler() was 
-//   called. Use dyld_enumerate_tlv_storage() to get that information.
-// Exists in Mac OS X 10.7 and later 
-// 
-extern void 
-dyld_register_tlv_state_change_handler(enum dyld_tlv_states state, dyld_tlv_state_change_handler handler);
-
-// 
-// Enumerate the current thread-local variable storage allocated for the current thread. 
-// Exists in Mac OS X 10.7 and later 
-//
-extern void 
-dyld_enumerate_tlv_storage(dyld_tlv_state_change_handler handler);
-
-#endif
 
 
 //
@@ -178,63 +113,12 @@ extern const char* dyld_image_path_containing_address(const void* addr);
 // Exists in Mac OS X 10.11 and later
 extern const struct mach_header* dyld_image_header_containing_address(const void* addr);
 
-#define DYLD_MACOSX_VERSION_10_4        0x000A0400
-#define DYLD_MACOSX_VERSION_10_5        0x000A0500
-#define DYLD_MACOSX_VERSION_10_6        0x000A0600
-#define DYLD_MACOSX_VERSION_10_7        0x000A0700
-#define DYLD_MACOSX_VERSION_10_8        0x000A0800
-#define DYLD_MACOSX_VERSION_10_9        0x000A0900
-#define DYLD_MACOSX_VERSION_10_10       0x000A0A00
-#define DYLD_MACOSX_VERSION_10_11       0x000A0B00
-#define DYLD_MACOSX_VERSION_10_12       0x000A0C00
-#define DYLD_MACOSX_VERSION_10_13       0x000A0D00
-#define DYLD_MACOSX_VERSION_10_14       0x000A0E00
-    
-#define DYLD_IOS_VERSION_2_0        0x00020000
-#define DYLD_IOS_VERSION_2_1        0x00020100
-#define DYLD_IOS_VERSION_2_2        0x00020200
-#define DYLD_IOS_VERSION_3_0        0x00030000
-#define DYLD_IOS_VERSION_3_1        0x00030100
-#define DYLD_IOS_VERSION_3_2        0x00030200
-#define DYLD_IOS_VERSION_4_0        0x00040000
-#define DYLD_IOS_VERSION_4_1        0x00040100
-#define DYLD_IOS_VERSION_4_2        0x00040200
-#define DYLD_IOS_VERSION_4_3        0x00040300
-#define DYLD_IOS_VERSION_5_0        0x00050000
-#define DYLD_IOS_VERSION_5_1        0x00050100
-#define DYLD_IOS_VERSION_6_0        0x00060000
-#define DYLD_IOS_VERSION_6_1        0x00060100
-#define DYLD_IOS_VERSION_7_0        0x00070000
-#define DYLD_IOS_VERSION_7_1        0x00070100
-#define DYLD_IOS_VERSION_8_0        0x00080000
-#define DYLD_IOS_VERSION_8_1        0x00080100
-#define DYLD_IOS_VERSION_8_2        0x00080200
-#define DYLD_IOS_VERSION_8_3        0x00080300
-#define DYLD_IOS_VERSION_8_4        0x00080400
-#define DYLD_IOS_VERSION_9_0        0x00090000
-#define DYLD_IOS_VERSION_9_1        0x00090100
-#define DYLD_IOS_VERSION_9_2        0x00090200
-#define DYLD_IOS_VERSION_9_3        0x00090300
-#define DYLD_IOS_VERSION_10_0       0x000A0000
-#ifndef DYLD_IOS_VERSION_11_0
-#define DYLD_IOS_VERSION_11_0 0x000B0000
-#endif
+//
+// Return the mach header of the process
+//
+// Exists in Mac OS X 10.16 and later
+extern const struct mach_header* _dyld_get_prog_image_header(void);
 
-#ifndef DYLD_IOS_VERSION_11_3
-#define DYLD_IOS_VERSION_11_3 0x000B0300
-#endif
-
-#ifndef DYLD_IOS_VERSION_12_0
-#define DYLD_IOS_VERSION_12_0 0x000C0000
-#endif
-    
-    
-#define DYLD_WATCHOS_VERSION_1_0    0x00010000
-#define DYLD_WATCHOS_VERSION_2_0    0x00020000
-#define DYLD_WATCHOS_VERSION_2_1    0x00020100
-#define DYLD_WATCHOS_VERSION_2_2    0x00020200
-#define DYLD_WATCHOS_VERSION_3_0    0x00030000
-    
 typedef uint32_t dyld_platform_t;
 
 typedef struct {
@@ -247,6 +131,28 @@ extern dyld_platform_t dyld_get_active_platform(void) __API_AVAILABLE(macos(10.1
 
 // Base platforms are platforms that have version numbers (macOS, iOS, watchos, tvOS, bridgeOS)
 // All other platforms are mapped to a base platform for version checks
+
+// It is intended that most code in the OS will use the version set constants, which will correctly deal with secret and future
+// platforms. For example:
+
+//  if (dyld_program_sdk_at_least(dyld_fall_2018_os_versions)) {
+//      New behaviour for programs built against the iOS 12, tvOS 12, watchOS 5, macOS 10.14, or bridgeOS 3 (or newer) SDKs
+//  } else {
+//      Old behaviour
+//  }
+
+// In cases where more precise control is required (such as APIs that were added to varions platforms in different years)
+// the os specific values may be used instead. Unlike the version set constants, the platform specific ones will only ever
+// return true if the running binary is the platform being testsed, allowing conditions to be built for specific platforms
+// and releases that came out at different times. For example:
+
+//  if (dyld_program_sdk_at_least(dyld_platform_version_iOS_12_0)
+//      || dyld_program_sdk_at_least(dyld_platform_version_watchOS_6_0)) {
+//      New behaviour for programs built against the iOS 12 (fall 2018), watchOS 6 (fall 2019) (or newer) SDKs
+//  } else {
+//      Old behaviour all other platforms, as well as older iOSes and watchOSes
+//  }
+
 extern dyld_platform_t dyld_get_base_platform(dyld_platform_t platform) __API_AVAILABLE(macos(10.14), ios(12.0), watchos(5.0), tvos(12.0));
 
 // SPI to ask if a platform is a simulation platform
@@ -271,25 +177,16 @@ extern void dyld_get_image_versions(const struct mach_header* mh, void (^callbac
 
 // Convienence constants for dyld version SPIs.
 
-//@VERSION_SET_DEFS@
+// Because we now have so many different OSes with different versions these version set values are intended to
+// to provide a more convenient way to version check. They may be used instead of platform specific version in
+// dyld_sdk_at_least(), dyld_minos_at_least(), dyld_program_sdk_at_least(), and dyld_program_minos_at_least().
+// Since they are references into a lookup table they MUST NOT be used by any code that does not ship as part of
+// the OS, as the values may change and the tables in older OSes may not have the necessary values for back
+// deployed binaries. These values are future proof against new platforms being added, and any checks against
+// platforms that did not exist at the epoch of a version set will return true since all versions of that platform
+// are inherently newer.
 
-//@MACOS_PLATFORM_VERSION_DEFS@
-
-//@IOS_PLATFORM_VERSION_DEFS@
-
-//@WATCHOS_PLATFORM_VERSION_DEFS@
-
-//@TVOS_PLATFORM_VERSION_DEFS@
-
-//@BRIDGEOS_PLATFORM_VERSION_DEFS@
-
-// Convienence constants for return values from dyld_get_sdk_version() and friends.
-
-//@MAC_VERSION_DEFS@
-
-//@IOS_VERSION_DEFS@
-
-//@WATCHOS_VERSION_DEFS@
+//@VERSION_DEFS@
 
 //
 // This finds the SDK version a binary was built against.
@@ -372,6 +269,8 @@ extern bool dyld_shared_cache_some_image_overridden(void);
 	
 //
 // Returns if the process is setuid or is code signed with entitlements.
+// NOTE: It is safe to call this prior to malloc being initialized.  This function
+// is guaranteed to not call malloc, or depend on its state.
 //
 // Exists in Mac OS X 10.9 and later
 extern bool dyld_process_is_restricted(void);
@@ -384,6 +283,21 @@ extern bool dyld_process_is_restricted(void);
 // Exists in Mac OS X 10.11 and later
 extern const char* dyld_shared_cache_file_path(void);
 
+
+
+//
+// Returns if there are any inserted (via DYLD_INSERT_LIBRARIES) or interposing libraries.
+//
+// Exists in Mac OS X 10.15 and later
+extern bool dyld_has_inserted_or_interposing_libraries(void);
+
+//
+// Return true if dyld contains a fix for a specific identifier. Intended for staging breaking SPI
+// changes
+//
+// Exists in macOS 10.16, iOS 14, tvOS14, watchOS 7 and later
+
+extern bool _dyld_has_fix_for_radar(const char *rdar);
 
 
 //
@@ -408,7 +322,7 @@ extern void dyld_dynamic_interpose(const struct mach_header* mh, const struct dy
 
 
 struct dyld_shared_cache_dylib_text_info {
-	uint64_t		version;		// current version 1
+	uint64_t		version;		// current version 2
 	// following fields all exist in version 1
 	uint64_t		loadAddressUnslid;
 	uint64_t		textSegmentSize; 
@@ -477,6 +391,28 @@ extern bool _dyld_get_shared_cache_uuid(uuid_t uuid);
 extern const void* _dyld_get_shared_cache_range(size_t* length);
 
 
+//
+// Returns if the currently active dyld shared cache is optimized.
+// Note: macOS does not use optimized caches and will always return false.
+//
+// Exists in Mac OS X 10.15 and later
+// Exists in iOS 13.0 and later
+extern bool _dyld_shared_cache_optimized(void);
+
+
+//
+// Returns if the currently active dyld shared cache was built locally.
+//
+// Exists in Mac OS X 10.15 and later
+// Exists in iOS 13.0 and later
+extern bool _dyld_shared_cache_is_locally_built(void);
+
+//
+// Returns if the given app needs a closure built.
+//
+// Exists in Mac OS X 10.15 and later
+// Exists in iOS 13.0 and later
+extern bool dyld_need_closure(const char* execPath, const char* dataContainerRootDir);
 
 
 struct dyld_image_uuid_offset {
@@ -506,6 +442,50 @@ extern void _dyld_images_for_addresses(unsigned count, const void* addresses[], 
 // Exists in iOS 12.0 and later
 extern void _dyld_register_for_image_loads(void (*func)(const struct mach_header* mh, const char* path, bool unloadable));
 
+
+
+
+//
+// Lets you register a callback which is called for bulk notifications of images loaded. During the call to
+// _dyld_register_for_bulk_image_loads(), the callback is called once with all images currently loaded.
+// Then later during dlopen() the callback is called once with all newly images.
+//
+// Exists in macOS 10.15 and later
+// Exists in iOS 13.0 and later
+extern void _dyld_register_for_bulk_image_loads(void (*func)(unsigned imageCount, const struct mach_header* mhs[], const char* paths[]));
+
+
+//
+// DriverKit main executables do not have an LC_MAIN.  Instead DriverKit.framework's initializer calls
+// _dyld_register_driverkit_main() with a function pointer that dyld should call into instead
+// of using LC_MAIN.
+//
+extern void _dyld_register_driverkit_main(void (*mainFunc)(void));
+
+
+//
+// This is similar to _dyld_shared_cache_contains_path(), except that it returns the canonical
+// shared cache path for the given path.
+//
+// Exists in macOS 10.16 and later
+// Exists in iOS 14.0 and later
+extern const char* _dyld_shared_cache_real_path(const char* path);
+
+
+//
+// Dyld has a number of modes. This function returns the mode for the current process.
+// dyld2 is the classic "interpreter" way to run.
+// dyld3 runs by compiling down and caching what dyld needs to do into a "closure".
+//
+// Exists in macOS 10.16 and later
+// Exists in iOS 14.0 and later
+//
+#define DYLD_LAUNCH_MODE_USING_CLOSURE               0x00000001     // if 0, then running in classic dyld2 mode
+#define DYLD_LAUNCH_MODE_BUILT_CLOSURE_AT_LAUNCH     0x00000002     // launch was slow, to build closure
+#define DYLD_LAUNCH_MODE_CLOSURE_SAVED_TO_FILE       0x00000004     // next launch will be faster
+#define DYLD_LAUNCH_MODE_CLOSURE_FROM_OS             0x00000008     // closure built into dyld cache
+#define DYLD_LAUNCH_MODE_MINIMAL_CLOSURE             0x00000010     // closure does not contain fix ups
+extern uint32_t _dyld_launch_mode(void);
 
 
 //
@@ -553,10 +533,59 @@ extern void _dyld_initializer(void);
 // never called from source code. Used by static linker to implement lazy binding
 extern void dyld_stub_binder(void) __asm__("dyld_stub_binder");
 
+// never call from source code.  Used by closure builder to bind missing lazy symbols to
+extern void _dyld_missing_symbol_abort(void);
+
+// Called only by objc to see if dyld has uniqued this selector.
+// Returns the value if dyld has uniqued it, or nullptr if it has not.
+// Note, this function must be called after _dyld_objc_notify_register.
+//
+// Exists in Mac OS X 10.15 and later
+// Exists in iOS 13.0 and later
+extern const char* _dyld_get_objc_selector(const char* selName);
+
+
+// Called only by objc to see if dyld has pre-optimized classes with this name.
+// The callback will be called once for each class with the given name where
+// isLoaded is true if that class is in a binary which has been previously passed
+// to the objc load notifier.
+// Note you can set stop to true to stop iterating.
+// Also note, this function must be called after _dyld_objc_notify_register.
+//
+// Exists in Mac OS X 10.15 and later
+// Exists in iOS 13.0 and later
+extern void _dyld_for_each_objc_class(const char* className,
+                                      void (^callback)(void* classPtr, bool isLoaded, bool* stop));
+
+
+// Called only by objc to see if dyld has pre-optimized protocols with this name.
+// The callback will be called once for each protocol with the given name where
+// isLoaded is true if that protocol is in a binary which has been previously passed
+// to the objc load notifier.
+// Note you can set stop to true to stop iterating.
+// Also note, this function must be called after _dyld_objc_notify_register.
+//
+// Exists in Mac OS X 10.15 and later
+// Exists in iOS 13.0 and later
+extern void _dyld_for_each_objc_protocol(const char* protocolName,
+                                         void (^callback)(void* protocolPtr, bool isLoaded, bool* stop));
+
 
 // called by exit() before it calls cxa_finalize() so that thread_local
 // objects are destroyed before global objects.
 extern void _tlv_exit(void);
+
+typedef enum {
+    dyld_objc_string_kind
+} DyldObjCConstantKind;
+
+// CF constants such as CFString's can be moved in to a contiguous range of
+// shared cache memory.  This returns true if the given pointer is to an object of
+// the given kind.
+//
+// Exists in Mac OS X 10.16 and later
+// Exists in iOS 14.0 and later
+extern bool _dyld_is_objc_constant(DyldObjCConstantKind kind, const void* addr);
 
 
 // temp exports to keep tapi happy, until ASan stops using dyldVersionNumber

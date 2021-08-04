@@ -56,43 +56,39 @@
 #include <os/tsd.h>
 #include <pthread/spinlock_private.h>
 
-#ifndef __TSD_MACH_THREAD_SELF
-#define __TSD_MACH_THREAD_SELF 3
-#endif
-
-#ifndef __TSD_THREAD_QOS_CLASS
-#define __TSD_THREAD_QOS_CLASS 4
-#endif
-
-#ifndef __TSD_RETURN_TO_KERNEL
-#define __TSD_RETURN_TO_KERNEL 5
-#endif
-
-#ifndef __TSD_PTR_MUNGE
-#define __TSD_PTR_MUNGE 7
-#endif
-
-#ifndef __TSD_MACH_SPECIAL_REPLY
-#define __TSD_MACH_SPECIAL_REPLY 8
-#endif
-
 /* Constant TSD slots for inline pthread_getspecific() usage. */
 
 /* Keys 0 - 9 are for Libsyscall/libplatform usage */
-#define _PTHREAD_TSD_SLOT_PTHREAD_SELF __TSD_THREAD_SELF
-#define _PTHREAD_TSD_SLOT_ERRNO __TSD_ERRNO
-#define _PTHREAD_TSD_SLOT_MIG_REPLY __TSD_MIG_REPLY
-#define _PTHREAD_TSD_SLOT_MACH_THREAD_SELF __TSD_MACH_THREAD_SELF
-#define _PTHREAD_TSD_SLOT_PTHREAD_QOS_CLASS	__TSD_THREAD_QOS_CLASS
-#define _PTHREAD_TSD_SLOT_RETURN_TO_KERNEL __TSD_RETURN_TO_KERNEL
-#define _PTHREAD_TSD_SLOT_PTR_MUNGE __TSD_PTR_MUNGE
-#define _PTHREAD_TSD_SLOT_MACH_SPECIAL_REPLY __TSD_MACH_SPECIAL_REPLY
-//#define _PTHREAD_TSD_SLOT_SEMAPHORE_CACHE __TSD_SEMAPHORE_CACHE
+#define _PTHREAD_TSD_SLOT_PTHREAD_SELF              __TSD_THREAD_SELF
+#define _PTHREAD_TSD_SLOT_ERRNO                     __TSD_ERRNO
+#define _PTHREAD_TSD_SLOT_MIG_REPLY                 __TSD_MIG_REPLY
+#define _PTHREAD_TSD_SLOT_MACH_THREAD_SELF          __TSD_MACH_THREAD_SELF
+#define _PTHREAD_TSD_SLOT_PTHREAD_QOS_CLASS         __TSD_THREAD_QOS_CLASS
+#define _PTHREAD_TSD_SLOT_RETURN_TO_KERNEL          __TSD_RETURN_TO_KERNEL
+#define _PTHREAD_TSD_SLOT_PTR_MUNGE                 __TSD_PTR_MUNGE
+#define _PTHREAD_TSD_SLOT_MACH_SPECIAL_REPLY        __TSD_MACH_SPECIAL_REPLY
+#define _PTHREAD_TSD_SLOT_SEMAPHORE_CACHE           __TSD_SEMAPHORE_CACHE
+
+#define _PTHREAD_TSD_SLOT_PTHREAD_SELF_TYPE         pthread_t
+#define _PTHREAD_TSD_SLOT_ERRNO_TYPE                int *
+#define _PTHREAD_TSD_SLOT_MIG_REPLY_TYPE            mach_port_t
+#define _PTHREAD_TSD_SLOT_MACH_THREAD_SELF_TYPE     mach_port_t
+#define _PTHREAD_TSD_SLOT_PTHREAD_QOS_CLASS_TYPE    pthread_priority_t
+#define _PTHREAD_TSD_SLOT_RETURN_TO_KERNEL_TYPE     uintptr_t
+#define _PTHREAD_TSD_SLOT_PTR_MUNGE_TYPE            uintptr_t
+#define _PTHREAD_TSD_SLOT_MACH_SPECIAL_REPLY_TYPE   mach_port_t
+#define _PTHREAD_TSD_SLOT_SEMAPHORE_CACHE_TYPE      semaphore_t
 
 /*
  * Windows 64-bit ABI bakes %gs relative accesses into its code in the same
  * range as our TSD keys.  To allow some limited interoperability for code
  * targeting that ABI, we leave slots 6 and 11 unused.
+ *
+ * The Go runtime on x86_64 also uses this because their ABI doesn't reserve a
+ * register for the TSD base.  They were previously using an arbitrarily chosen
+ * dynamic key and relying on being able to get it at runtime, but switched to
+ * this slot to avoid issues with that approach.  It's assumed that Go and
+ * Windows code won't run in the same address space.
  */
 //#define _PTHREAD_TSD_SLOT_RESERVED_WIN64 6
 
@@ -207,6 +203,39 @@
 /* Keys 95 for CoreText */
 #define __PTK_FRAMEWORK_CORETEXT_KEY0			95
 
+/* Keys 100-109 are for the Swift runtime */
+#define __PTK_FRAMEWORK_SWIFT_KEY0		100
+#define __PTK_FRAMEWORK_SWIFT_KEY1		101
+#define __PTK_FRAMEWORK_SWIFT_KEY2		102
+#define __PTK_FRAMEWORK_SWIFT_KEY3		103
+#define __PTK_FRAMEWORK_SWIFT_KEY4		104
+#define __PTK_FRAMEWORK_SWIFT_KEY5		105
+#define __PTK_FRAMEWORK_SWIFT_KEY6		106
+#define __PTK_FRAMEWORK_SWIFT_KEY7		107
+#define __PTK_FRAMEWORK_SWIFT_KEY8		108
+#define __PTK_FRAMEWORK_SWIFT_KEY9		109
+
+/* Keys 110-115 for libmalloc */
+#define __PTK_LIBMALLOC_KEY0		110
+#define __PTK_LIBMALLOC_KEY1		111
+#define __PTK_LIBMALLOC_KEY2		112
+#define __PTK_LIBMALLOC_KEY3		113
+#define __PTK_LIBMALLOC_KEY4		114
+
+/* Keys 115-120 for libdispatch workgroups */
+#define __PTK_LIBDISPATCH_WORKGROUP_KEY0		115
+#define __PTK_LIBDISPATCH_WORKGROUP_KEY1		116
+#define __PTK_LIBDISPATCH_WORKGROUP_KEY2		117
+#define __PTK_LIBDISPATCH_WORKGROUP_KEY3		118
+#define __PTK_LIBDISPATCH_WORKGROUP_KEY4		119
+
+/* Keys 190 - 194 are for the use of PerfUtils */
+#define __PTK_PERF_UTILS_KEY0		190
+#define __PTK_PERF_UTILS_KEY1		191
+#define __PTK_PERF_UTILS_KEY2		192
+#define __PTK_PERF_UTILS_KEY3		193
+#define __PTK_PERF_UTILS_KEY4		194
+
 /* Keys 210 - 229 are for libSystem usage within the iOS Simulator */
 /* They are offset from their corresponding libSystem keys by 200 */
 #define __PTK_LIBC_SIM_LOCALE_KEY	210
@@ -253,21 +282,6 @@ _pthread_has_direct_tsd(void)
 	return 1;
 #endif
 }
-
-/*
- 黑魔法之Thread Local Storage
- Thread Local Storage（TLS）线程局部存储，目的很简单，将一块内存作为某个线程专有的存储，以key-value的形式进行读写，比如在非arm架构下，使用pthread提供的方法实现：
-
- void* pthread_getspecific(pthread_key_t);
- int pthread_setspecific(pthread_key_t , const void *);
- 说它是黑魔法可能被懂pthread的笑话- -
-
- 在返回值身上调用objc_autoreleaseReturnValue方法时，runtime将这个返回值object储存在TLS中，然后直接返回这个object（不调用autorelease）；同时，在外部接收这个返回值的objc_retainAutoreleasedReturnValue里，发现TLS中正好存了这个对象，那么直接返回这个object（不调用retain）。
- 于是乎，调用方和被调方利用TLS做中转，很有默契的免去了对返回值的内存管理。
-
- 于是问题又来了，假如被调方和主调方只有一边是ARC环境编译的该咋办？（比如我们在ARC环境下用了非ARC编译的第三方库，或者反之）
- 只能动用更高级的黑魔法。
- */
 
 /* To be used with static constant keys only */
 __header_always_inline void *

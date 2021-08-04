@@ -96,9 +96,6 @@
       location = "group:/Users/mac/Desktop/objc-runtime-master-canrun_shezhi/dyld-832.7.1/dyld_832.7.1.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:objc4-818.2/objc_new.xcodeproj">
-   </FileRef>
-   <FileRef
       location = "group:Libsystem-1281.100.1/Libsystem.xcodeproj">
    </FileRef>
    <FileRef

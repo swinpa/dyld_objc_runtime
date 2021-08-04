@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Apple Inc. All rights reserved.
+ * Copyright (c) 2019 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -33,22 +33,23 @@
 
 __BEGIN_DECLS
 
-#ifdef KERNEL
+#ifdef KERNEL_PRIVATE
 
 #include <kern/kern_cdata.h>
+#include <os/refcnt.h>
 
 #ifdef XNU_KERNEL_PRIVATE
 #include <kern/locks.h>
 
 typedef struct os_reason {
-    decl_lck_mtx_data(,       	osr_lock)
-    int				osr_refcount;
-    uint32_t			osr_namespace;
-    uint64_t			osr_code;
-    uint64_t			osr_flags;
-    uint32_t			osr_bufsize;
-    struct kcdata_descriptor	osr_kcd_descriptor;
-    char 				*osr_kcd_buf;
+	decl_lck_mtx_data(, osr_lock);
+	os_refcnt_t                     osr_refcount;
+	uint32_t                        osr_namespace;
+	uint64_t                        osr_code;
+	uint64_t                        osr_flags;
+	uint32_t                        osr_bufsize;
+	struct kcdata_descriptor        osr_kcd_descriptor;
+	char                            *osr_kcd_buf;
 } *os_reason_t;
 
 #define OS_REASON_NULL ((os_reason_t) 0)
@@ -59,8 +60,11 @@ typedef struct os_reason {
 void os_reason_init(void);
 
 os_reason_t build_userspace_exit_reason(uint32_t reason_namespace, uint64_t reason_code, user_addr_t payload, uint32_t payload_size,
-                                        user_addr_t reason_string, uint64_t reason_flags);
+    user_addr_t reason_string, uint64_t reason_flags);
 char *launchd_exit_reason_get_string_desc(os_reason_t exit_reason);
+
+/* The blocking allocation is currently not exported to KEXTs */
+int os_reason_alloc_buffer(os_reason_t cur_reason, uint32_t osr_bufsize);
 
 #else /* XNU_KERNEL_PRIVATE */
 
@@ -69,12 +73,13 @@ typedef void * os_reason_t;
 #endif /* XNU_KERNEL_PRIVATE */
 
 os_reason_t os_reason_create(uint32_t osr_namespace, uint64_t osr_code);
-int os_reason_alloc_buffer(os_reason_t cur_reason, uint32_t osr_bufsize);
+int os_reason_alloc_buffer_noblock(os_reason_t cur_reason, uint32_t osr_bufsize);
 struct kcdata_descriptor * os_reason_get_kcdata_descriptor(os_reason_t cur_reason);
 void os_reason_ref(os_reason_t cur_reason);
 void os_reason_free(os_reason_t cur_reason);
-
-#endif /* KERNEL */
+void os_reason_set_flags(os_reason_t cur_reason, uint64_t flags);
+void os_reason_set_description_data(os_reason_t cur_reason, uint32_t type, void *reason_data, uint32_t reason_data_len);
+#endif /* KERNEL_PRIVATE */
 
 /*
  * Reason namespaces.
@@ -94,27 +99,46 @@ void os_reason_free(os_reason_t cur_reason);
 #define OS_REASON_REPORTCRASH   12
 #define OS_REASON_COREANIMATION 13
 #define OS_REASON_AGGREGATED    14
+#define OS_REASON_RUNNINGBOARD  15
+#define OS_REASON_ASSERTIOND    OS_REASON_RUNNINGBOARD  /* old name */
+#define OS_REASON_SKYWALK       16
+#define OS_REASON_SETTINGS      17
+#define OS_REASON_LIBSYSTEM     18
+#define OS_REASON_FOUNDATION    19
+#define OS_REASON_WATCHDOG      20
+#define OS_REASON_METAL         21
+#define OS_REASON_WATCHKIT      22
+#define OS_REASON_GUARD         23
+#define OS_REASON_ANALYTICS     24
+#define OS_REASON_SANDBOX       25
+#define OS_REASON_SECURITY      26
+#define OS_REASON_ENDPOINTSECURITY      27
+#define OS_REASON_PAC_EXCEPTION 28
+#define OS_REASON_BLUETOOTH_CHIP 29
 
 /*
  * Update whenever new OS_REASON namespaces are added.
  */
-#define OS_REASON_MAX_VALID_NAMESPACE OS_REASON_AGGREGATED
+#define OS_REASON_MAX_VALID_NAMESPACE OS_REASON_BLUETOOTH_CHIP
 
 #define OS_REASON_BUFFER_MAX_SIZE 5120
 
-#define OS_REASON_FLAG_NO_CRASH_REPORT          0x1  /* Don't create a crash report */
-#define OS_REASON_FLAG_GENERATE_CRASH_REPORT    0x2  /* Create a crash report - the default for userspace requests */
-#define OS_REASON_FLAG_FROM_USERSPACE           0x4  /* Reason created from a userspace syscall */
-#define OS_REASON_FLAG_FAILED_DATA_COPYIN       0x8  /* We failed to copyin data from userspace */
-#define OS_REASON_FLAG_PAYLOAD_TRUNCATED        0x10 /* The payload was truncated because it was longer than allowed */
-#define OS_REASON_FLAG_BAD_PARAMS               0x20 /* Invalid parameters were passed involved with creating this reason */
-#define OS_REASON_FLAG_CONSISTENT_FAILURE       0x40 /* Whatever caused this reason to be created will happen again */
-#define OS_REASON_FLAG_ONE_TIME_FAILURE         0x80 /* Whatever caused this reason to be created was a one time issue */
+#define OS_REASON_FLAG_NO_CRASH_REPORT          0x1   /* Don't create a crash report */
+#define OS_REASON_FLAG_GENERATE_CRASH_REPORT    0x2   /* Create a crash report - the default for userspace requests */
+#define OS_REASON_FLAG_FROM_USERSPACE           0x4   /* Reason created from a userspace syscall */
+#define OS_REASON_FLAG_FAILED_DATA_COPYIN       0x8   /* We failed to copyin data from userspace */
+#define OS_REASON_FLAG_PAYLOAD_TRUNCATED        0x10  /* The payload was truncated because it was longer than allowed */
+#define OS_REASON_FLAG_BAD_PARAMS               0x20  /* Invalid parameters were passed involved with creating this reason */
+#define OS_REASON_FLAG_CONSISTENT_FAILURE       0x40  /* Whatever caused this reason to be created will happen again */
+#define OS_REASON_FLAG_ONE_TIME_FAILURE         0x80  /* Whatever caused this reason to be created was a one time issue */
+#define OS_REASON_FLAG_NO_CRASHED_TID           0x100 /* Don't include the TID that processed the exit in the crash report */
+#define OS_REASON_FLAG_ABORT                    0x200 /* Reason created from abort_* rather than terminate_* */
+#define OS_REASON_FLAG_SHAREDREGION_FAULT       0x400 /* Fault happened within the shared cache region */
 
 /*
  * Set of flags that are allowed to be passed from userspace
  */
-#define OS_REASON_FLAG_MASK_ALLOWED_FROM_USER	(OS_REASON_FLAG_CONSISTENT_FAILURE | OS_REASON_FLAG_ONE_TIME_FAILURE | OS_REASON_FLAG_NO_CRASH_REPORT)
+#define OS_REASON_FLAG_MASK_ALLOWED_FROM_USER (OS_REASON_FLAG_CONSISTENT_FAILURE | OS_REASON_FLAG_ONE_TIME_FAILURE | OS_REASON_FLAG_NO_CRASH_REPORT | OS_REASON_FLAG_ABORT)
 
 /*
  * Macros to encode the exit reason namespace and first 32 bits of code in exception code
@@ -122,9 +146,9 @@ void os_reason_free(os_reason_t cur_reason);
  * looses higher 32 bits of exit reason code.
  */
 #define ENCODE_OSR_NAMESPACE_TO_MACH_EXCEPTION_CODE(code, osr_namespace) \
-(code) = (code) | (((osr_namespace) & ((uint64_t)UINT32_MAX)) << 32)
+	(code) = (code) | (((osr_namespace) & ((uint64_t)UINT32_MAX)) << 32)
 #define ENCODE_OSR_CODE_TO_MACH_EXCEPTION_CODE(code, osr_code) \
-(code) = (code) | ((osr_code) & ((uint64_t)UINT32_MAX))
+	(code) = (code) | ((osr_code) & ((uint64_t)UINT32_MAX))
 
 #ifndef KERNEL
 /*
@@ -138,7 +162,8 @@ void os_reason_free(os_reason_t cur_reason);
  *
  * Outputs:             Does not return.
  */
-void abort_with_reason(uint32_t reason_namespace, uint64_t reason_code, const char *reason_string, uint64_t reason_flags) __attribute__((noreturn));
+void abort_with_reason(uint32_t reason_namespace, uint64_t reason_code, const char *reason_string, uint64_t reason_flags)
+__attribute__((noreturn, cold));
 
 /*
  * abort_with_payload: Used to exit the current process and pass along
@@ -156,7 +181,7 @@ void abort_with_reason(uint32_t reason_namespace, uint64_t reason_code, const ch
  * Outputs:             Does not return.
  */
 void abort_with_payload(uint32_t reason_namespace, uint64_t reason_code, void *payload, uint32_t payload_size, const char *reason_string,
-                        uint64_t reason_flags) __attribute__((noreturn));
+    uint64_t reason_flags) __attribute__((noreturn, cold));
 
 /*
  * terminate_with_reason: Used to terminate a specific process and pass along
@@ -195,7 +220,7 @@ int terminate_with_reason(int pid, uint32_t reason_namespace, uint64_t reason_co
  *                      returns 0 otherwise
  */
 int terminate_with_payload(int pid, uint32_t reason_namespace, uint64_t reason_code, void *payload, uint32_t payload_size,
-                           const char *reason_string, uint64_t reason_flags);
+    const char *reason_string, uint64_t reason_flags);
 #endif /* KERNEL */
 
 /*
@@ -220,6 +245,16 @@ int terminate_with_payload(int pid, uint32_t reason_namespace, uint64_t reason_c
 #define EXEC_EXIT_REASON_FAIRPLAY_DECRYPT   10
 #define EXEC_EXIT_REASON_DECRYPT            11
 #define EXEC_EXIT_REASON_UPX                12
+#define EXEC_EXIT_REASON_NO32EXEC           13
+#define EXEC_EXIT_REASON_WRONG_PLATFORM     14
+#define EXEC_EXIT_REASON_MAIN_FD_ALLOC      15
+#define EXEC_EXIT_REASON_COPYOUT_ROSETTA    16
+/*
+ * guard reasons
+ */
+#define GUARD_REASON_VNODE       1
+#define GUARD_REASON_VIRT_MEMORY 2
+#define GUARD_REASON_MACH_PORT   3
 
 __END_DECLS
 
