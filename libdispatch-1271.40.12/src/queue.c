@@ -6373,6 +6373,7 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 #endif
 	do {
 		_dispatch_retain(dq); // released in _dispatch_worker_thread
+		//创建线程
 		while ((r = pthread_create(pthr, attr, _dispatch_worker_thread, dq))) {
 			if (r != EAGAIN) {
 				(void)dispatch_assume_zero(r);
@@ -6941,6 +6942,7 @@ _dispatch_root_queue_push(dispatch_queue_global_t rq, dispatch_object_t dou,
 #else
 	(void)qos;
 #endif
+	// 重点函数
 	_dispatch_root_queue_push_inline(rq, dou, dou, 1);
 }
 

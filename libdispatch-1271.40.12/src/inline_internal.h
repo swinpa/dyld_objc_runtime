@@ -1970,7 +1970,10 @@ static inline dispatch_queue_global_t
 _dispatch_get_root_queue(dispatch_qos_t qos, bool overcommit)
 {
 	if (unlikely(qos < DISPATCH_QOS_MIN || qos > DISPATCH_QOS_MAX)) {
-		DISPATCH_CLIENT_CRASH(qos, "Corrupted priority");
+		/*
+		 Corrupted  -- [kəˈrʌptɪd]  损坏的,已损坏,崩溃的
+		 */
+		DISPATCH_CLIENT_CRASH(qos, "Corrupted priority");//
 	}
 	return &_dispatch_root_queues[2 * (qos - 1) + overcommit];
 }

@@ -319,7 +319,24 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 //++++++++++++++++++++++++++++++++++++++++++++++++++++
 	/*
 	 从这里才是数组的开始，前面是数组元素构造时用到的的宏定义
+	 DISPATCH_GLOBAL_OBJECT_HEADER(queue_global) 最终将会展开为_dispatch_queue_global_vtable
+	 
+	 _dispatch_root_queues[]中存放的应该是以下这种类型的对象(结构体)
+	 
+	 DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_global, lane,
+		 .do_type        = DISPATCH_QUEUE_GLOBAL_ROOT_TYPE,
+		 .do_dispose     = _dispatch_object_no_dispose,
+		 .do_debug       = _dispatch_queue_debug,
+		 .do_invoke      = _dispatch_object_no_invoke,
+
+		 .dq_activate    = _dispatch_queue_no_activate,
+		 .dq_wakeup      = _dispatch_root_queue_wakeup,
+		 .dq_push        = _dispatch_root_queue_push,//用来将block 添加到队列中
+	 );
+	 
 	 */
+	_dispatch_queue_global_vtable
+	
 	//_dispatch_root_queues[0]
 	_DISPATCH_ROOT_QUEUE_ENTRY(MAINTENANCE, 0,
 		.dq_label = "com.apple.root.maintenance-qos",
@@ -350,7 +367,10 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 		.dq_label = "com.apple.root.utility-qos.overcommit",
 		.dq_serialnum = 9,
 	),
-	//_dispatch_root_queues[6]
+	/*
+	 _dispatch_root_queues[6]
+	 dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0) 返回的就是该节点
+	 */
 	_DISPATCH_ROOT_QUEUE_ENTRY(DEFAULT, DISPATCH_PRIORITY_FLAG_FALLBACK,
 		.dq_label = "com.apple.root.default-qos",
 		.dq_serialnum = 10,
@@ -386,9 +406,11 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 unsigned long volatile _dispatch_queue_serial_numbers =
 		DISPATCH_QUEUE_SERIAL_NUMBER_INIT;
 
-
-dispatch_queue_global_t
-dispatch_get_global_queue(intptr_t priority, uintptr_t flags)
+/*
+ 外部调用一般是
+ dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+ */
+dispatch_queue_global_t dispatch_get_global_queue(intptr_t priority, uintptr_t flags)
 {
 	dispatch_assert(countof(_dispatch_root_queues) ==
 			DISPATCH_ROOT_QUEUE_COUNT);
@@ -443,6 +465,24 @@ dispatch_get_global_queue(intptr_t priority, uintptr_t flags)
 	
 
 	
+	/*
+	 当外部调用dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);时，qos == 4
+	 也就是
+	 _dispatch_get_root_queue(4, 0 & DISPATCH_QUEUE_OVERCOMMIT);
+	 ||
+	 &_dispatch_root_queues[2 * (4 - 1) + false];
+	 ||
+	 _dispatch_root_queues[6 + 0];
+	 ||
+	 
+	 //_dispatch_root_queues[6]
+	 _DISPATCH_ROOT_QUEUE_ENTRY(DEFAULT, DISPATCH_PRIORITY_FLAG_FALLBACK,
+		 .dq_label = "com.apple.root.default-qos",
+		 .dq_serialnum = 10,
+	 ),
+	 
+	 
+	 */
 	return _dispatch_get_root_queue(qos, flags & DISPATCH_QUEUE_OVERCOMMIT);
 }
 
@@ -747,7 +787,11 @@ DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_concurrent, lane,
 	.dq_wakeup      = _dispatch_lane_wakeup,
 	.dq_push        = _dispatch_lane_concurrent_push,
 );
-
+/*
+ _dispatch_queue_global_vtable 可以定位跳转到这里
+ DISPATCH_VTABLE_SUBCLASS_INSTANCE看意思应该是定义一些实例变量
+ 
+ */
 DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_global, lane,
 	.do_type        = DISPATCH_QUEUE_GLOBAL_ROOT_TYPE,
 	.do_dispose     = _dispatch_object_no_dispose,
@@ -756,6 +800,10 @@ DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_global, lane,
 
 	.dq_activate    = _dispatch_queue_no_activate,
 	.dq_wakeup      = _dispatch_root_queue_wakeup,
+/*
+	这里的.dq_push 应该是一个函数指针，指向了_dispatch_root_queue_push 函数，这个函数指针会在
+ dispatch_async()内部用到
+ */
 	.dq_push        = _dispatch_root_queue_push,
 );
 

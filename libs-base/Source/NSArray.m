@@ -144,48 +144,51 @@ static SEL	rlSel;
 + (id) allocWithZone: (NSZone*)z
 {
   if (self == NSArrayClass)
-    {
+    
+  {
       /*
        * For a constant array, we return a placeholder object that can
        * be converted to a real object when its initialisation method
        * is called.
        */
       if (z == NSDefaultMallocZone() || z == 0)
-	{
-	  /*
-	   * As a special case, we can return a placeholder for an array
-	   * in the default malloc zone extremely efficiently.
-	   */
-	  return defaultPlaceholderArray;
-	}
-      else
-	{
-	  id	obj;
+	
+      {
+          /*
+           * As a special case, we can return a placeholder for an array
+           * in the default malloc zone extremely efficiently.
+           */
+          return defaultPlaceholderArray;
+	
+      } else {
+          id	obj;
 
-	  /*
-	   * For anything other than the default zone, we need to
-	   * locate the correct placeholder in the (lock protected)
-	   * table of placeholders.
-	   */
-	  (void)pthread_mutex_lock(&placeholderLock);
-	  obj = (id)NSMapGet(placeholderMap, (void*)z);
-	  if (obj == nil)
-	    {
-	      /*
-	       * There is no placeholder object for this zone, so we
-	       * create a new one and use that.
-	       */
-	      obj = (id)NSAllocateObject(GSPlaceholderArrayClass, 0, z);
-	      NSMapInsert(placeholderMap, (void*)z, (void*)obj);
-	    }
-	  (void)pthread_mutex_unlock(&placeholderLock);
-	  return obj;
-	}
-    }
-  else
-    {
+          /*
+           * For anything other than the default zone, we need to
+           * locate the correct placeholder in the (lock protected)
+           * table of placeholders.
+           */
+          (void)pthread_mutex_lock(&placeholderLock);
+          obj = (id)NSMapGet(placeholderMap, (void*)z);
+          if (obj == nil)
+          {
+              /*
+               * There is no placeholder object for this zone, so we
+               * create a new one and use that.
+               */
+              obj = (id)NSAllocateObject(GSPlaceholderArrayClass, 0, z);
+              NSMapInsert(placeholderMap, (void*)z, (void*)obj);
+          }
+	  
+          (void)pthread_mutex_unlock(&placeholderLock);
+	  
+          return obj;
+	
+      }
+    
+  } else {
       return NSAllocateObject(self, 0, z);
-    }
+  }
 }
 
 /**
@@ -654,20 +657,16 @@ static SEL	rlSel;
       [array getObjects: objects];
     }
   if (shouldCopy == YES)
-    {
+  {
       NSUInteger	i;
-
-      for (i = 0; i < c; i++)
-	{
-	  objects[i] = [objects[i] copy];
-	}
+      for (i = 0; i < c; i++) {
+          objects[i] = [objects[i] copy];
+      }
       self = [self initWithObjects: objects count: c];
-      while (i > 0)
-	{
-	  [objects[--i] release];
-	}
-    }
-  else
+      while (i > 0) {
+          [objects[--i] release];
+      }
+  }else
     {
       self = [self initWithObjects: objects count: c];
     }
