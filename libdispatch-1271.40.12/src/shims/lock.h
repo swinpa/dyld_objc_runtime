@@ -675,6 +675,25 @@ DISPATCH_ALWAYS_INLINE
 static inline bool
 _dispatch_once_gate_tryenter(dispatch_once_gate_t l)
 {
+	
+	/*
+	 os_atomic_cmpxchg
+	      ||
+		  ||
+	{
+		_os_atomic_basetypeof(p) _r = (e);
+		atomic_compare_exchange_strong_explicit(_os_atomic_c11_atomic(p), &_r, v, memory_order_##m, memory_order_relaxed);
+	}
+	 参考文章：
+	 https://juejin.cn/post/6844904055655890952
+	 https://juejin.cn/post/6844904143753052174
+	 */
+	
+	/*
+	 os_atomic_cmpxchg
+	 其内部就是atomic_compare_exchange_strong_explicit函数，这个函数的作用是：第二个参数与第一个参数值比较，如果相等，第三个参数的值替换第一个参数的值。如果不相等，把第一个参数的值赋值到第二个参数上。
+	 */
+	
 	return os_atomic_cmpxchg(&l->dgo_once, DLOCK_ONCE_UNLOCKED,
 			(uintptr_t)_dispatch_lock_value_for_self(), relaxed);
 }

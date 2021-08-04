@@ -1528,7 +1528,9 @@ _dispatch_client_callout(void *ctxt, dispatch_function_t f)
 {
 	_dispatch_get_tsd_base();
 	void *u = _dispatch_get_unwind_tsd();
-	if (likely(!u)) return f(ctxt);
+	if (likely(!u)) {
+		return f(ctxt);
+	}
 	_dispatch_set_unwind_tsd(NULL);
 	f(ctxt);
 	_dispatch_free_unwind_tsd();

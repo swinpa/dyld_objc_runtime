@@ -48,23 +48,37 @@ _dispatch_once_callout(dispatch_once_gate_t l, void *ctxt,
 }
 
 DISPATCH_NOINLINE
-void
-dispatch_once_f(dispatch_once_t *val, void *ctxt, dispatch_function_t func)
+//									token
+void dispatch_once_f(dispatch_once_t *val, void *ctxt, dispatch_function_t func)
 {
+	/*
+	 可参考文章：https://xiaozhuanlan.com/topic/7916538240
+	 */
 	dispatch_once_gate_t l = (dispatch_once_gate_t)val;
 
 #if !DISPATCH_ONCE_INLINE_FASTPATH || DISPATCH_ONCE_USE_QUIESCENT_COUNTER
+	
 	uintptr_t v = os_atomic_load(&l->dgo_once, acquire);
+	
+	//likely表示更大可能成立，unlikely表示更大可能不成立。
+	
 	if (likely(v == DLOCK_ONCE_DONE)) {
+		/*
+		 如果token的值为DLOCK_ONCE_DONE 说明token的值已经被设置过(在执行block后会把token的值置成DLOCK_ONCE_DONE)，
+		 所以直接返回（也就是block已经被执行过了，单例已经纯在了）
+		 */
 		return;
 	}
-#if DISPATCH_ONCE_USE_QUIESCENT_COUNTER
-	if (likely(DISPATCH_ONCE_IS_GEN(v))) {
-		return _dispatch_once_mark_done_if_quiesced(l, v);
-	}
-#endif
+	
+	#if DISPATCH_ONCE_USE_QUIESCENT_COUNTER
+		if (likely(DISPATCH_ONCE_IS_GEN(v))) {
+			return _dispatch_once_mark_done_if_quiesced(l, v);
+		}
+	#endif
+	
 #endif
 	if (_dispatch_once_gate_tryenter(l)) {
+		//调用block
 		return _dispatch_once_callout(l, ctxt, func);
 	}
 	return _dispatch_once_wait(l);
