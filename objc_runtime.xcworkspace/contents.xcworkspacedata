@@ -2,6 +2,12 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:runtime818-demo/CommLineMac/CommLineMac.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:runtime818-demo/objc4-818.2/objc-818.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "group:libs-base/base.xcodeproj">
    </FileRef>
    <FileRef

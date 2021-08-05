@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:CommLineMac/CommLineMac.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:/Users/priders/Desktop/runtime818-demo/objc4-818.2/objc-818.xcodeproj">
+   </FileRef>
+</Workspace>
