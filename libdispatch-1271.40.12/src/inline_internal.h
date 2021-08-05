@@ -1809,7 +1809,17 @@ _dispatch_root_queue_push_inline(dispatch_queue_global_t dq,
 		dispatch_object_t _head, dispatch_object_t _tail, int n)
 {
 	struct dispatch_object_s *hd = _head._do, *tl = _tail._do;
+	/*
+	 相当于
+	 struct dispatch_object_s *hd = _head._do;
+	 struct dispatch_object_s *tl = _tail._do;
+	 */
+	/*
+	 这里是插入queue里面吗？？？？？？
+	 unlikely(os_mpsc_push_list(dq, hd, tl, do_next))
+	 */
 	if (unlikely(os_mpsc_push_list(os_mpsc(dq, dq_items), hd, tl, do_next))) {
+		//重点函数
 		return _dispatch_root_queue_poke(dq, n, 0);
 	}
 }
@@ -2568,6 +2578,10 @@ _dispatch_continuation_invoke_inline(dispatch_object_t dou,
 		if (unlikely(dc_flags & DC_FLAG_GROUP_ASYNC)) {
 			_dispatch_continuation_with_group_invoke(dc);
 		} else {
+			/*
+			 重点函数，直接执行block函数
+			 dc->dc_func = _dispatch_block_async_invoke
+			 */
 			_dispatch_client_callout(dc->dc_ctxt, dc->dc_func);
 			_dispatch_trace_item_complete(dc);
 		}
@@ -2584,11 +2598,18 @@ _dispatch_continuation_pop_inline(dispatch_object_t dou,
 		dispatch_invoke_context_t dic, dispatch_invoke_flags_t flags,
 		dispatch_queue_class_t dqu)
 {
-	dispatch_pthread_root_queue_observer_hooks_t observer_hooks =
-			_dispatch_get_pthread_root_queue_observer_hooks();
-	if (observer_hooks) observer_hooks->queue_will_execute(dqu._dq);
+	dispatch_pthread_root_queue_observer_hooks_t observer_hooks = _dispatch_get_pthread_root_queue_observer_hooks();
+	if (observer_hooks) {
+		observer_hooks->queue_will_execute(dqu._dq);
+	}
 	flags &= _DISPATCH_INVOKE_PROPAGATE_MASK;
 	if (_dispatch_object_has_vtable(dou)) {
+		/*
+		 调度出任务的执行函数
+		 do_invoke = _dispatch_async_redirect_invoke//自定义队列
+		 或者
+		 do_invoke = _dispatch_queue_override_invoke//全局队列
+		 */
 		dx_invoke(dou._dq, dic, flags);
 	} else {
 		_dispatch_continuation_invoke_inline(dou, flags, dqu);
@@ -2712,8 +2733,28 @@ _dispatch_continuation_init(dispatch_continuation_t dc,
 }
 
 DISPATCH_ALWAYS_INLINE
-static inline void
-_dispatch_continuation_async(dispatch_queue_class_t dqu,
+
+/*
+ dispatch_queue_class_t 类型
+ 
+ typedef union {
+	 struct dispatch_queue_s *_dq;
+	 struct dispatch_workloop_s *_dwl;
+	 struct dispatch_lane_s *_dl;
+	 struct dispatch_queue_static_s *_dsq;
+	 struct dispatch_queue_global_s *_dgq;
+	 struct dispatch_queue_pthread_root_s *_dpq;
+	 struct dispatch_source_s *_ds;
+	 struct dispatch_channel_s *_dch;
+	 struct dispatch_mach_s *_dm;
+	 dispatch_lane_class_t _dlu;
+ #ifdef __OBJC__
+	 id<OS_dispatch_queue> _objc_dq;
+ #endif
+ } dispatch_queue_class_t DISPATCH_TRANSPARENT_UNION;
+
+ */
+static inline void _dispatch_continuation_async(dispatch_queue_class_t dqu,
 		dispatch_continuation_t dc, dispatch_qos_t qos, uintptr_t dc_flags)
 {
 #if DISPATCH_INTROSPECTION
@@ -2723,21 +2764,25 @@ _dispatch_continuation_async(dispatch_queue_class_t dqu,
 #else
 	(void)dc_flags;
 #endif
-	return dx_push(dqu._dq, dc, qos);
+	return dx_push(dqu._dq, dc, qos);// ==== _dispatch_root_queue_push(dqu._dq, dc, qos);
 	/*
 				x     y    z
 	 dx_push(dqu._dq, dc, qos);
 	 ||
-	 dx_vtable(x)->dq_push(x, y, z)
+	 dx_vtable(dqu._dq)->dq_push(dqu._dq, dc, qos)
 	 ||
-	 (&(x)->do_vtable->_os_obj_vtable)->dq_push(x, y, z)
+	 (&(dqu._dq)->do_vtable->_os_obj_vtable)->dq_push(dqu._dq, dc, qos)
 	 
 	 dispatch_queue_class_t {
-	 
+		struct dispatch_queue_s *_dq;
 	 }
 		
+	 struct dispatch_queue_s {
+		isa//   const struct dispatch_queue_vtable_s *__ptrauth_objc_isa_pointer do_vtable;  ==
+	 }
 	 
 	 */
+
 }
 
 #endif // DISPATCH_PURE_C

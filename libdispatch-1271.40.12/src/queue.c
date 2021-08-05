@@ -520,6 +520,7 @@ _dispatch_block_async_invoke2(dispatch_block_t b, unsigned long invoke_flags)
 	}
 
 	if (likely(!(atomic_flags & DBF_CANCELED))) {
+		//执行block
 		dbpd->dbpd_block();
 	}
 	if ((atomic_flags & DBF_PERFORM) == 0) {
@@ -798,6 +799,7 @@ _dispatch_async_redirect_invoke(dispatch_continuation_t dc,
 
 	uintptr_t dc_flags = DC_FLAG_CONSUME | DC_FLAG_NO_INTROSPECTION;
 	_dispatch_thread_frame_push(&dtf, dq);
+	// _dispatch_continuation_pop_forwarded里面就是执行_dispatch_continuation_pop函数
 	_dispatch_continuation_pop_forwarded(dc, dc_flags, NULL, {
 		_dispatch_continuation_pop(other_dc, dic, flags, dq);
 	});
@@ -6304,17 +6306,23 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 	int r = ENOSYS;
 #endif
 
+	// 先初始化root queues 包括初始化XUN 的workqueue
 	_dispatch_root_queues_init();
 	_dispatch_debug_root_queue(dq, __func__);
 	_dispatch_trace_runtime_event(worker_request, dq, (uint64_t)n);
 
 #if !DISPATCH_USE_INTERNAL_WORKQUEUE
 #if DISPATCH_USE_PTHREAD_ROOT_QUEUES
+	// 如果dq的type是DISPATCH_QUEUE_GLOBAL_ROOT_TYPE类型
 	if (dx_type(dq) == DISPATCH_QUEUE_GLOBAL_ROOT_TYPE)
 #endif
 	{
 		_dispatch_root_queue_debug("requesting new worker thread for global "
 				"queue: %p", dq);
+		/*
+		 这里创建线程
+		 直接往工作队列添加线程
+		 */
 		r = _pthread_workqueue_addthreads(remaining,
 				_dispatch_priority_to_pp_prefer_fallback(dq->dq_priority));
 		(void)dispatch_assume_zero(r);
@@ -6344,24 +6352,28 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 		}
 	}
 
+	// 这个do while循环检测是否能开辟线程
 	int can_request, t_count;
 	// seq_cst with atomic store to tail <rdar://problem/16932833>
+	// t_count表示现有的线程个数
 	t_count = os_atomic_load2o(dq, dgq_thread_pool_size, ordered);
 	do {
+		// 如果现有的线程个数小于线程池的大小
 		can_request = t_count < floor ? 0 : t_count - floor;
 		if (remaining > can_request) {
+			// 容积崩溃
 			_dispatch_root_queue_debug("pthread pool reducing request from %d to %d",
 					remaining, can_request);
 			os_atomic_sub2o(dq, dgq_pending, remaining - can_request, relaxed);
 			remaining = can_request;
 		}
 		if (remaining == 0) {
+			// 线程池满了，崩溃
 			_dispatch_root_queue_debug("pthread pool is full for root queue: "
 					"%p", dq);
 			return;
 		}
-	} while (!os_atomic_cmpxchgv2o(dq, dgq_thread_pool_size, t_count,
-			t_count - remaining, &t_count, acquire));
+	} while (!os_atomic_cmpxchgv2o(dq, dgq_thread_pool_size, t_count,t_count - remaining, &t_count, acquire));
 
 #if !defined(_WIN32)
 	pthread_attr_t *attr = &pqc->dpq_thread_attr;
@@ -6373,7 +6385,7 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 #endif
 	do {
 		_dispatch_retain(dq); // released in _dispatch_worker_thread
-		//创建线程
+		//创建线程，  根据remaining大小去创建线程 这里是普通的并发队列创建线程
 		while ((r = pthread_create(pthr, attr, _dispatch_worker_thread, dq))) {
 			if (r != EAGAIN) {
 				(void)dispatch_assume_zero(r);
@@ -6433,6 +6445,7 @@ _dispatch_root_queue_poke(dispatch_queue_global_t dq, int n, int floor)
 		}
 	}
 #endif // !DISPATCH_USE_INTERNAL_WORKQUEUE
+	//重点函数
 	return _dispatch_root_queue_poke_slow(dq, n, floor);
 }
 
@@ -6728,7 +6741,10 @@ _dispatch_root_queue_drain(dispatch_queue_global_t dq,
 	_dispatch_queue_drain_init_narrowing_check_deadline(&dic, pri);
 	_dispatch_perfmon_start();
 	while (likely(item = _dispatch_root_queue_drain_one(dq))) {
-		if (reset) _dispatch_wqthread_override_reset();
+		if (reset) {
+			_dispatch_wqthread_override_reset();
+		}
+		//重点函数
 		_dispatch_continuation_pop_inline(item, &dic, flags, dq);
 		reset = _dispatch_reset_basepri_override();
 		if (unlikely(_dispatch_queue_drain_should_narrow(&dic))) {
@@ -6810,9 +6826,13 @@ _dispatch_root_queue_init_pthread_pool(dispatch_queue_global_t dq,
 
 // 6618342 Contact the team that owns the Instrument DTrace probe before
 //         renaming this symbol
-static void *
-_dispatch_worker_thread(void *context)
+/*
+ gcd 底层开辟的线程的线程入口函数
+ 在创建线程时会将dispatch_queue_t 对象通过参数方式传进来
+ */
+static void * _dispatch_worker_thread(void *context)//dispatch_queue_t对象
 {
+	
 	dispatch_queue_global_t dq = context;
 	dispatch_pthread_root_queue_context_t pqc = dq->do_ctxt;
 
@@ -6864,6 +6884,7 @@ _dispatch_worker_thread(void *context)
 
 	do {
 		_dispatch_trace_runtime_event(worker_unpark, dq, 0);
+		// 开始调用_dispatch_root_queue_drain函数，取出任务
 		_dispatch_root_queue_drain(dq, pri, DISPATCH_INVOKE_REDIRECTING_DRAIN);
 		_dispatch_reset_priority_and_voucher(pp, NULL);
 		_dispatch_trace_runtime_event(worker_park, NULL, 0);
@@ -6903,13 +6924,34 @@ _dispatch_root_queue_wakeup(dispatch_queue_global_t dq,
 }
 
 DISPATCH_NOINLINE
-void
-_dispatch_root_queue_push(dispatch_queue_global_t rq, dispatch_object_t dou,
-		dispatch_qos_t qos)
+/*
+                                  
+ */
+void _dispatch_root_queue_push(dispatch_queue_global_t rq,//其实相当于 dispatch_queue_t对象
+							   dispatch_object_t dou,//封装block的dispatch_continuation_t对象
+							   dispatch_qos_t qos)//优先级
 {
 #if DISPATCH_USE_KEVENT_WORKQUEUE
+	/*
+	 获取当前线程TSD线程缓存区中已dispatch_deferred_items_key 做为key保存的数据
+	 typedef struct dispatch_deferred_items_s {
+		 dispatch_queue_global_t ddi_stashed_rq;
+		 dispatch_object_t ddi_stashed_dou;
+		 dispatch_qos_t ddi_stashed_qos;
+		 dispatch_wlh_t ddi_wlh;
+	 #if DISPATCH_EVENT_BACKEND_KEVENT
+		 dispatch_kevent_t ddi_eventlist;
+		 uint16_t ddi_nevents;
+		 uint16_t ddi_maxevents;
+		 bool     ddi_can_stash;
+		 uint16_t ddi_wlh_needs_delete : 1;
+		 uint16_t ddi_wlh_needs_update : 1;
+		 uint16_t ddi_wlh_servicing : 1;
+	 #endif
+	 } dispatch_deferred_items_s, *dispatch_deferred_items_t;
+	 */
 	dispatch_deferred_items_t ddi = _dispatch_deferred_items_get();
-	if (unlikely(ddi && ddi->ddi_can_stash)) {
+	if (unlikely(ddi && ddi->ddi_can_stash)) {//这里是不是说明，如果当前线程没有创建过队列
 		dispatch_object_t old_dou = ddi->ddi_stashed_dou;
 		dispatch_priority_t rq_overcommit;
 		rq_overcommit = rq->dq_priority & DISPATCH_PRIORITY_FLAG_OVERCOMMIT;
