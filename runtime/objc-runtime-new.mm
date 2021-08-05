@@ -3115,6 +3115,7 @@ void prepare_load_methods(const headerType *mhdr)
     for (i = 0; i < count; i++) {
         /*
          遍历所有的类，将类以及他对应的+load 的IMP 加入到一个全局的loadable_classes 数组中
+         内部会有一个递归的处理父类的调用，所以父类会被加在loadable_classes数组的前面
          */
         schedule_class_load(remapClass(classlist[i]));
     }
