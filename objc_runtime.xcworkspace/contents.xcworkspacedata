@@ -2,12 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:OBJC_Study_MacProject/OBJC_Study_MacProject.xcodeproj">
-   </FileRef>
-   <FileRef
-      location = "group:objc4-818.2/objc_new.xcodeproj">
-   </FileRef>
-   <FileRef
       location = "group:libs-base/base.xcodeproj">
    </FileRef>
    <FileRef
