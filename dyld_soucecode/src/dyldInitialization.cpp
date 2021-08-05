@@ -197,7 +197,14 @@ static void rebaseDyld(const struct macho_header* mh, intptr_t slide)
 	}
 }
 
-
+//extern是C/C++语言中表明函数和全局变量的作用范围的关键字，该关键字告诉编译器，其申明的函数和变量可以在本模块或其他模块中使用。
+//extern "C"修饰的变量和函数是按照C语言方式进行编译和链接的
+//由于C++支持函数重载，而C语言不支持
+//因此函数被C++编译后在符号库中的名字是与C语言不同的；C++编译后的函数需要加上参数的类型才能唯一标定重载后的函数，而加上extern "C"后，是为了向编译器指明这段代码按照C语言的方式进行编译
+//由于C++支持函数重载，因此编译器编译函数的过程中会将函数的参数类型也加到编译后的代码中，而不仅仅是函数名；而C语言并不支持函数重载，因此编译C语言代码的函数时不会带上函数的参数类型，一般只包括函数名。
+//int foo(int x, int y); ---在C语言中 被编译成了_foo的符号
+//foo(1,2) ---C++中变成了 _foo_int_int符号
+//在链接阶段，链接器会从模块A生成的目标文件moduleA.obj中找_foo_int_int这样的符号，显然这是不可能找到的，因为foo()函数被编译成了_foo的符号，因此会出现链接错误。
 extern "C" void mach_init();
 extern "C" void __guard_setup(const char* apple[]);
 

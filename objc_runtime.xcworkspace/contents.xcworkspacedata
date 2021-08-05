@@ -71,6 +71,9 @@
          location = "group:objc&#x7b14;&#x8bb0;.md">
       </FileRef>
       <FileRef
+         location = "group:before in main.md">
+      </FileRef>
+      <FileRef
          location = "group:Category&#x7b14;&#x8bb0;.md">
       </FileRef>
       <FileRef
