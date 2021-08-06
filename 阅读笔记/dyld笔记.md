@@ -1,5 +1,5 @@
-#dyld
-##_main()逻辑
+# dyld
+## _main()逻辑
 1. 全局的参数变量设置setContext(mainExecutableMH, argc, argv, envp, apple)
 2. 执行权限检查（签名相关）
 3. 检查环境变量（checkEnvironmentVariables）(依赖的动态库数量在这阶段得知)
