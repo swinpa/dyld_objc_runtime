@@ -5148,6 +5148,7 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
         realizeClass(cls);
     }
 
+    //调用initialize 方法
     if (initialize  &&  !cls->isInitialized()) {
         runtimeLock.unlock();
         _class_initialize (_class_getNonMetaClass(cls, inst));
