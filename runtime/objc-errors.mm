@@ -234,7 +234,12 @@ void _objc_inform(const char *fmt, ...)
     va_start (ap,fmt); 
     vasprintf(&buf1, fmt, ap);
     va_end (ap);
-
+    // 用法原型
+    // archetype:为按照那种风格进行校验，如printf/scanf等
+    // string-index:格式化format字符串所在的位置,如void test(testA, format,...)，此时为2
+    // first-to-check:第一个可变参数的位置，如void test(testA, format,...)，此时为3
+    //__attribute__((format(archetype, string-index, first-to-check)))
+    //int     asprintf(char ** __restrict, const char * __restrict, ...) __printflike(2, 3);
     asprintf(&buf2, "objc[%d]: %s\n", getpid(), buf1);
     _objc_syslog(buf2);
 

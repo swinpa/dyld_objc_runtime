@@ -45,6 +45,10 @@ T* getDataSection(const headerType *mhdr, const char *sectname,
     if (outCount) *outCount = byteCount / sizeof(T);
     return data;
 }
+//extern SEL *_getObjc2SelectorRefs(const header_info *hi, size_t *count);
+//name type 对应起来
+//T* getDataSection(const headerType *mhdr, const char *sectname, 通过范型
+                  //size_t *outBytes, size_t *outCount)
 
 #define GETSECT(name, type, sectname)                                   \
     type *name(const headerType *mhdr, size_t *outCount) {              \
@@ -55,6 +59,7 @@ T* getDataSection(const headerType *mhdr, const char *sectname,
     }
 
 //      function name                 content type     section name
+//内部使用宏定义 跳转对应的方法
 GETSECT(_getObjc2SelectorRefs,        SEL,             "__objc_selrefs"); 
 GETSECT(_getObjc2MessageRefs,         message_ref_t,   "__objc_msgrefs"); 
 GETSECT(_getObjc2ClassRefs,           Class,           "__objc_classrefs");
