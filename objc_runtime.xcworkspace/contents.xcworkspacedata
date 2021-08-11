@@ -16,6 +16,20 @@
    <Group
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
+      <Group
+         location = "container:"
+         name = "objc_init">
+         <Group
+            location = "container:"
+            name = "map_images">
+            <FileRef
+               location = "group:map_images.md">
+            </FileRef>
+            <FileRef
+               location = "group:_read_images.md">
+            </FileRef>
+         </Group>
+      </Group>
       <FileRef
          location = "group:KVO.md">
       </FileRef>

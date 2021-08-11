@@ -13,3 +13,4 @@ _dyld_start的方法地址的确是在 LC_UNIXTHREAD 段中解析出来的。后
         ▼ activate_exec_state
           ▶︎ thread_setentrypoint // 设置entry_point。
 暂且简单 利用此总结的原因 继续从_dyld_start 内部 来学习其他内容 
+https://www.jianshu.com/p/8498cec10a41

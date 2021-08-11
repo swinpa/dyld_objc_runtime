@@ -125,7 +125,7 @@ __BEGIN_DECLS
 // _objc_opt_data: opt data possibly written by dyld
 // opt is initialized to ~0 to detect incorrect use before preopt_init()
 
-static const objc_opt_t *opt = (objc_opt_t *)~0;
+static const objc_opt_t *opt = (objc_opt_t *)~0; //~0 就是0Xffffffff，这是块安全区域，防止进入其他位置导致野指针
 static bool preoptimized;
 
 extern const objc_opt_t _objc_opt_data;  // in __TEXT, __objc_opt_ro
@@ -512,16 +512,20 @@ void preopt_init(void)
 {
     // Get the memory region occupied by the shared cache.
     size_t length;
+    ///应该是通过 dyld 的里的Segments 部分？ 获取对应的其实位置和长度
     const uintptr_t start = (uintptr_t)_dyld_get_shared_cache_range(&length);
 
     if (start) {
+        //进行对objc: SafeRanges::添加。注册一个新的已知数据段。
         objc::dataSegmentsRanges.setSharedCacheRange(start, start + length);
     }
     
     // `opt` not set at compile time in order to detect too-early usage
     const char *failure = nil;
+    //in __TEXT, __objc_opt_ro 上面如果有的话 就从里面拿出对应的数据段
     opt = &_objc_opt_data;
-
+    //以下进行一些错误判断处理
+    //宏定义注册的一个 全局变量？ OBJC_DISABLE_PREOPTIMIZATION 设置？ 暂未理解 哪里设置的
     if (DisablePreopt) {
         // OBJC_DISABLE_PREOPTIMIZATION is set
         // If opt->version != VERSION then you continue at your own risk.

@@ -221,7 +221,7 @@ bool bad_magic(const headerType *mhdr)
 static header_info * addHeader(const headerType *mhdr, const char *path, int &totalClasses, int &unoptimizedTotalClasses)
 {
     header_info *hi;
-
+    //判断Mach-o magic 是否（有效的） invalid 为YES
     if (bad_magic(mhdr)) return NULL;
 
     bool inSharedCache = false;
@@ -229,6 +229,11 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
     /*
      Look for hinfo from the dyld shared cache.
      从dyld的共享缓存中查找mhdr 对应的 header_info
+     */ //旧版本的runtime 如此 750没有准备preoptInit 所以直接返回 nil
+    /*
+     objc_headeropt_ro_t *hinfos = opt ? opt->headeropt_ro() : nil;
+     if (hinfos) return hinfos->get(mhdr);
+     else return nil;
      */
     hi = preoptimizedHinfoForHeader(mhdr);
     if (hi) {
