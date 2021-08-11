@@ -2663,11 +2663,12 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
                              FORMAT_SDK(dyld_get_program_sdk_version()));
             }
         }
-
+        //如果应用程序有__DATA，__objc_rawisa节，则禁用非指针isa
+        //加载旧扩展的新应用程序可能需要这个。
         // Disable non-pointer isa if the app has a __DATA,__objc_rawisa section
         // New apps that load old extensions may need this.
-        for (EACH_HEADER) {
-            if (hi->mhdr()->filetype != MH_EXECUTE) continue;
+        for (EACH_HEADER) {//for  hIndex = 0; hIndex < hCount && (hi = hList[hIndex]); hIndex++
+            if (hi->mhdr()->filetype != MH_EXECUTE) continue; //如果文件类型不是可执行文件类型 跳过
             unsigned long size;
             if (getsectiondata(hi->mhdr(), "__DATA", "__objc_rawisa", &size)) {
                 DisableNonpointerIsa = true;

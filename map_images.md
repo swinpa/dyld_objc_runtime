@@ -28,7 +28,7 @@ https://www.jianshu.com/p/5a44f69466cc
  hinfos = opt->headeropt_ro()  对静态变量 opt 缓存 
  (struct objc_headeropt_ro_t *)((uint8_t *)this + headeropt_ro_offset);进行offset偏移 拿出来headeropt_ro_t 
  hinfos->get(mhdr); 通过mhdr 对比 ro_t中的(start+end)/2 折半查找 进行查询对应的header_info
- ####  hi存在 则进行 对应的设置读取 否则进行封装
+ ####  header_info存在 则进行 对应的设置读取 否则进行封装
  Locate the __OBJC segment
  getDataSection<objc_image_info>(mhdr, "__objc_imageinfo", 
                                         outBytes, nil);
