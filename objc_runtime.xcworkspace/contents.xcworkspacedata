@@ -21,6 +21,19 @@
          name = "objc_init">
          <Group
             location = "container:"
+            name = "&#x5f00;&#x59cb;&#x4e4b;&#x524d;">
+            <FileRef
+               location = "group:/Users/priders/dev/dyld_objc_runtime/0 &#x7f16;&#x8bd1;Objc&#x53ef;&#x8c03;&#x8bd5;&#x4ee3;&#x7801;&#x9047;&#x5230;&#x7684;&#x4e00;&#x4e9b;&#x95ee;&#x9898;&#x603b;&#x7ed3;.md">
+            </FileRef>
+            <FileRef
+               location = "group:/Users/priders/dev/dyld_objc_runtime/1 _dyld_start&#x4e4b;&#x524d;.md">
+            </FileRef>
+            <FileRef
+               location = "group:/Users/priders/dev/dyld_objc_runtime/2 before in main.md">
+            </FileRef>
+         </Group>
+         <Group
+            location = "container:"
             name = "map_images">
             <FileRef
                location = "group:map_images.md">
@@ -91,9 +104,6 @@
          location = "group:objc&#x7b14;&#x8bb0;.md">
       </FileRef>
       <FileRef
-         location = "group:before in main.md">
-      </FileRef>
-      <FileRef
          location = "group:Category&#x7b14;&#x8bb0;.md">
       </FileRef>
       <FileRef
@@ -104,12 +114,6 @@
       </FileRef>
       <FileRef
          location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;.md">
-      </FileRef>
-      <FileRef
-         location = "group:_dyld_start&#x4e4b;&#x524d;.md">
-      </FileRef>
-      <FileRef
-         location = "group:&#x7f16;&#x8bd1;Objc&#x53ef;&#x8c03;&#x8bd5;&#x4ee3;&#x7801;&#x9047;&#x5230;&#x7684;&#x4e00;&#x4e9b;&#x95ee;&#x9898;&#x603b;&#x7ed3;.md">
       </FileRef>
    </Group>
    <FileRef

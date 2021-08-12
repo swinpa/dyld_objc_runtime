@@ -519,12 +519,12 @@ static bool isKnownClass(Class cls) {
 static void addClassTableEntry(Class cls, bool addMeta = true) {
     runtimeLock.assertLocked();
 
-    // This class is allowed to be a known class via the shared cache or via
-    // data segments, but it is not allowed to be in the dynamic table already.
+    // This class is allowed to be a known class via the shared cache or via 这个类允许是已知的类通过共享缓存或通过
+    // data segments, but it is not allowed to be in the dynamic table already. 数据段，但它不允许已经在动态表中。
     assert(!NXHashMember(allocatedClasses, cls));
 
     if (!isKnownClass(cls))
-        NXHashInsert(allocatedClasses, cls);
+        NXHashInsert(allocatedClasses, cls); //加载过才进入
     if (addMeta)
         addClassTableEntry(cls->ISA(), false);
 }
@@ -912,7 +912,7 @@ static void methodizeClass(Class cls)
 
     /*
      Attach categories.
-     获取类对应的所有分类
+     获取类对应的所有分类 //look_up_class 时候进入 学习map_image 涉及readImage 里的 不会进入 新版本优化 单独分开 采用map查找分类管理
      */
     category_list *cats = unattachedCategoriesForClass(cls, true /*realizing*/);
     //将分类的方法添加到类的rw->methods 的前面
@@ -1885,6 +1885,8 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
     /*
      这里是否是父类没成员变量？？，也就是父类不需要分配成员变量的内存空间？？
      或者当前类的首个成员变量的前面的内存空间已经足够父类使用？？
+     例子：ManSuperClass:NSObjcet Man:ManSuperClass
+     运行到 ManSuperClass ro start = 8 super_ro instanceSize = 8 相同 默认留有一定的空间也就是说 偏移的start 就是8 如果父类中 instanceSize需求空间大于了8 都必须 进行偏移
      */
     if (ro->instanceStart >= super_ro->instanceSize) {
         // Superclass has not overgrown its space. We're done here.
@@ -1973,7 +1975,7 @@ static Class realizeClass(Class cls)
      fixme verify class is not in an un-dlopened part of the shared cache?
      调整class 中的rw（class_rw_t） 数据
      */
-    ro = (const class_ro_t *)cls->data();//编译器已确定的ro
+    ro = (const class_ro_t *)cls->data();//编译器已确定的ro 在之前只有ro
     if (ro->flags & RO_FUTURE) {
         // This was a future class. rw data is already allocated.
         rw = cls->data();
@@ -2016,6 +2018,7 @@ static Class realizeClass(Class cls)
      就能确保
      reconcileInstanceVariables(cls, supercls, ro);
      时能确定父类的InstanceSize
+     要保证 superclass 和 isa 的完整性，也就是保证类的完整性
      */
     {
         // Realize superclass and metaclass, if they aren't already.
@@ -2078,7 +2081,7 @@ static Class realizeClass(Class cls)
     }
 
     // Set fastInstanceSize if it wasn't set already.
-    cls->setInstanceSize(ro->instanceSize);
+    cls->setInstanceSize(ro->instanceSize); //按道理ro 已经在上面 reconcileInstanceVariables 通过地址形式去修改 不需要改变 但是 在新旧objc对比中发现 旧版的nothing 变成了 cache相关的setFastInstanceSize 估计是为了以后的优化
 
     /*
      Copy some flags from ro to rw
@@ -2696,7 +2699,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
              */
             disableTaggedPointers();
         }
-        
+        //初始化 TaggedPointer 混淆器：用于保护 Tagged Pointer 上的数据
         initializeTaggedPointerObfuscator();
 
         if (PrintConnecting) {
@@ -2709,9 +2712,12 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         int namedClassesSize = 
             (isPreoptimized() ? unoptimizedTotalClasses : totalClasses) * 4 / 3;
         gdb_objc_realized_classes =
-            NXCreateMapTable(NXStrValueMapPrototype, namedClassesSize);
+            NXCreateMapTable(NXStrValueMapPrototype, namedClassesSize); //所有类的表 -实现/未实现
         
-        allocatedClasses = NXCreateHashTable(NXPtrPrototype, 0, nil);
+        allocatedClasses = NXCreateHashTable(NXPtrPrototype, 0, nil); //包含包含objc)allocateClassPair分配的所有类和元类的表（已分配）
+        // 新版在objc_init runtime.init()处理
+        // robjc::allocatedClasses.init();
+
         
         ts.log("IMAGE TIMES: first time tasks");
     }
@@ -2742,6 +2748,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
              class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
              class_rw_t *data() { return bits.data();}
           }
+         */
+        /*
+         因为 通过 xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc -fobjc-arc -fobjc-runtime=ios-8.0.0 main.m
+         经过一层编译 将oc代码转化为C++代码 可得 __objc_classlist 如何存入 由此可得以上类型
          */
         classref_t *classlist = _getObjc2ClassList(hi, &count);
         if (! mustReadClasses(hi)) {
@@ -2870,9 +2880,9 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
      */
     for (EACH_HEADER) {//应用启动时，主要跑了这里对class进行fix,也就是realizeClass
         classref_t *classlist = 
-            _getObjc2NonlazyClassList(hi, &count);
+            _getObjc2NonlazyClassList(hi, &count);//新旧版的差别 在于新版支持opt 套多一层opt判断获取
         for (i = 0; i < count; i++) {
-            Class cls = remapClass(classlist[i]);
+            Class cls = remapClass(classlist[i]);//重映射的map中 里面有个_did_init估计是还没初始化 第一次时候都为空 返回本身？？
             if (!cls) continue;
 
             // hack for class __ARCLite__, which didn't get this above
@@ -2891,7 +2901,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
             }
 #endif
             
-            addClassTableEntry(cls);
+            addClassTableEntry(cls); //如果第一次加载相当于 无法加入 因为 没有allocate?
             realizeClass(cls);
         }
     }
@@ -2911,7 +2921,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     /*
      Discover categories.
-     将分类从image中获取，并插入到类对应的分类列表中
+     将分类从image中获取，并插入到类对应的分类列表中  //新版的这部分内容 提前到了objc_msgSend_fixup 之后
      */
     for (EACH_HEADER) {
         //从 __objc_catlist 段中读取image中的所有的分类信息

@@ -46,7 +46,7 @@ namedSelectors.init((unsigned)selrefCount);
 AutoreleasePoolPage::init(); 自动释放池
 SideTablesMap.init();   Side散列表的初始化
 _objc_associations_init(); 关联对象管理初始化 
-### _read_images
+### _read_images    ===>  _read_images.md
 将分类的实例方法添加到类的rw中的methods 列表中
 将分类的类方法添加到类的isa（元类）的rw中的methods列表中
 ###  // Call image load funcs after everything is set up.
