@@ -3140,7 +3140,7 @@ void prepare_load_methods(const headerType *mhdr)
         category_t *cat = categorylist[i];
         Class cls = remapClass(cat->cls);
         if (!cls) continue;  // category for ignored weak-linked class
-        realizeClass(cls);
+        realizeClass(cls); //为什么需要这步骤 诉诸宿主类不一定有load方法实现 那么现在如果他的分类进行了load 方法的实现 这里必须也提前去realize
         assert(cls->ISA()->isRealized());
         add_category_to_loadable_list(cat);
     }
