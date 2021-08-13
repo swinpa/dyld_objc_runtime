@@ -1,0 +1,3 @@
+[submodule "阅读笔记/StudyNotes"]
+	path = 阅读笔记/StudyNotes
+	url = ./阅读笔记/StudyNotes/.git
