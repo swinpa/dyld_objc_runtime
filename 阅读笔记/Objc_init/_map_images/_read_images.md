@@ -29,6 +29,7 @@
 > addClassTableEntry 已经分配了才进入 在所有类的表中添加一个类。如果addMeta为真，也自动添加类的元类。这里是不会进入的
 
 **对于这个函数而言 封装起来被多处调用 有部分内容 并不是为readImages此方法所设立 **
+
 ![readClass_CallHierarchy.png](./../AllImages/readClass_CallHierarchy.png)
 ## Fix up remapped classes 流程
 1. 通过 noClassesRemapped 方法判断是否有类引用(_objc_classrefs)需要进行重映射
