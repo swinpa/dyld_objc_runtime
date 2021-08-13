@@ -1,14 +1,17 @@
-#  _read_images
+#  read_images
 关于map_images核心的部分
 ##  gdb_objc_realized_classes
-int namedClassesSize = 
-    (isPreoptimized() ? unoptimizedTotalClasses : totalClasses) * 4 / 3;
-gdb_objc_realized_classes =
-    NXCreateMapTable(NXStrValueMapPrototype, namedClassesSize);
-    预先优化过的类不会加入到 gdb_objc_realized_classes 这个哈希表中来， gdb_objc_realized_classes 哈希表的装载因子为 0.75，这是一个经过验证的效率很高的扩容临界值。
-    除了 gdb_objc_realized_classes 表之外，还有一张表 allocatedClasses :
-    在新版的objc_已经调整到objc_init runtime.init()处理 robjc::allocatedClasses.init();
-    其实 gdb_objc_realized_classes 对 allocatedClasses 是一种包含的关系，一张是类的总表，一张是已经开辟了内存的类表，
+`int namedClassesSize = (isPreoptimized() ?` 
+`unoptimizedTotalClasses : totalClasses) * 4 / 3;`
+`gdb_objc_realized_classes =
+    NXCreateMapTable(NXStrValueMapPrototype, namedClassesSize);`
+
+> 预先优化过的类不会加入到 gdb_objc_realized_classes 这个哈希表中来，
+> gdb_objc_realized_classes 哈希表的装载因子为 0.75，这是一个经过验证的效率很高的扩容临界值。
+> 除了 gdb_objc_realized_classes 表之外，还有一张表 allocatedClasses :
+> 在新版的objc_已经调整到objc_init runtime.init()处理 robjc::allocatedClasses.init();
+> 其实 gdb_objc_realized_classes 对 allocatedClasses 是一种包含的关系，一张是类的总表，一张是已经开辟了内存的类表，
+
 ## Discover classes 流程
 接着还是遍历所有的 Mach-O 的 header 部分，然后通过 mustReadClasses 来判断哪些条件可以跳过读取类这一步骤（预检）非必需readclass就跳过
 遍历 _getObjc2ClassList 取出的所有的类
