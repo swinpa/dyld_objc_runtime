@@ -912,7 +912,7 @@ static void methodizeClass(Class cls)
 
     /*
      Attach categories.
-     获取类对应的所有分类 //look_up_class 时候进入 学习map_image 涉及readImage 里的 不会进入 新版本优化 单独分开 采用map查找分类管理
+     获取类对应的所有分类
      */
     category_list *cats = unattachedCategoriesForClass(cls, true /*realizing*/);
     //将分类的方法添加到类的rw->methods 的前面

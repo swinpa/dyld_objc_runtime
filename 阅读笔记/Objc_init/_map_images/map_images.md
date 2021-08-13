@@ -55,3 +55,5 @@ for (auto func : loadImageFuncs) {
         func(mhdrs[i]);
     }
 }
+## 总结
+如其名字一样mapImages 对images进行映射 还有大部分要用的容器初始化 为后续的流程做准备 新版中很多功能进行延后处理提神objc相关启动速度？

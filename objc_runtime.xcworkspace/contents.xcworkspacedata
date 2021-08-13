@@ -17,10 +17,10 @@
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
       <Group
-         location = "container:"
-         name = "objc_init">
+         location = "group:Objc_init"
+         name = "Objc_init">
          <Group
-            location = "group:Objc_init/&#x5f00;&#x59cb;&#x4e4b;&#x524d;"
+            location = "group:&#x5f00;&#x59cb;&#x4e4b;&#x524d;"
             name = "&#x5f00;&#x59cb;&#x4e4b;&#x524d;">
             <FileRef
                location = "group:2 before in main.md">
@@ -33,13 +33,13 @@
             </FileRef>
          </Group>
          <Group
-            location = "group:/Users/priders/dev/study/dyld_objc_runtime/_map_images"
+            location = "group:_map_images"
             name = "_map_images">
             <FileRef
-               location = "group:../Objc_init/_map_images/map_images.md">
+               location = "group:map_images.md">
             </FileRef>
             <FileRef
-               location = "group:../Objc_init/_map_images/_read_images.md">
+               location = "group:_read_images.md">
             </FileRef>
          </Group>
       </Group>
