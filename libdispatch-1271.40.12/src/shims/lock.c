@@ -136,6 +136,13 @@ _dispatch_sema4_wait(_dispatch_sema4_t *sema)
 {
 	kern_return_t kr;
 	do {
+		/*
+		 看参考文章：http://www.cs.fsu.edu/~baker/opsys/notes/semaphores.html
+		 https://juejin.cn/post/6844904158034821133
+		 对否自行判断
+		 
+		 调用系统的semaphore_wait方法，直到收到signal调用。()  -- 这对吗，会不会是直到sema 的值大于等于0
+		 */
 		kr = semaphore_wait(*sema);
 	} while (kr == KERN_ABORTED);
 	DISPATCH_SEMAPHORE_VERIFY_KR(kr);

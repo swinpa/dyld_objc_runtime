@@ -112,25 +112,28 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
 
 	_dispatch_sema4_create(&dsema->dsema_sema, _DSEMA4_POLICY_FIFO);
 	switch (timeout) {
-	default:
-		if (!_dispatch_sema4_timedwait(&dsema->dsema_sema, timeout)) {
-			break;
-		}
-		// Fall through and try to undo what the fast path did to
-		// dsema->dsema_value
-	case DISPATCH_TIME_NOW:
-		orig = dsema->dsema_value;
-		while (orig < 0) {
-			if (os_atomic_cmpxchgv2o(dsema, dsema_value, orig, orig + 1,
-					&orig, relaxed)) {
-				return _DSEMA4_TIMEOUT();
+		default:
+			if (!_dispatch_sema4_timedwait(&dsema->dsema_sema, timeout)) {
+				break;
 			}
-		}
-		// Another thread called semaphore_signal().
-		// Fall through and drain the wakeup.
-	case DISPATCH_TIME_FOREVER:
-		_dispatch_sema4_wait(&dsema->dsema_sema);
-		break;
+			// Fall through and try to undo what the fast path did to
+			// dsema->dsema_value
+		case DISPATCH_TIME_NOW:
+			orig = dsema->dsema_value;
+			while (orig < 0) {
+				if (os_atomic_cmpxchgv2o(dsema, dsema_value, orig, orig + 1,
+						&orig, relaxed)) {
+					return _DSEMA4_TIMEOUT();
+				}
+			}
+			// Another thread called semaphore_signal().
+			// Fall through and drain the wakeup.
+		case DISPATCH_TIME_FOREVER:
+			/*
+			 也不知道这文章对不对得上Apple的实现：http://www.cs.fsu.edu/~baker/opsys/notes/semaphores.html
+			 */
+			_dispatch_sema4_wait(&dsema->dsema_sema);
+			break;
 	}
 	return 0;
 }
@@ -138,6 +141,10 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
 intptr_t
 dispatch_semaphore_wait(dispatch_semaphore_t dsema, dispatch_time_t timeout)
 {
+	/*
+	 对dispatch_semaphore_t 进行原子减 1 操作
+	 如果减后的值 >= 0 则直接返回，也可就是不加锁等待操作
+	 */
 	long value = os_atomic_dec2o(dsema, dsema_value, acquire);
 	if (likely(value >= 0)) {
 		return 0;

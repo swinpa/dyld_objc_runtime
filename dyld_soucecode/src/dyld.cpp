@@ -5294,7 +5294,10 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		gLinkContext.linkingMainExecutable = false;
 		
 		// <rdar://problem/12186933> do weak binding only after all inserted images linked
-		// 所有的insert dylib加载之后再做weakBind
+		/*
+		 动态库链接完成后进行weakBind《弱绑定》
+		 所有的insert dylib加载之后再做weakBind
+		 */
 		sMainExecutable->weakBind(gLinkContext);
 		
 		CRSetCrashLogMessage("dyld: launch, running initializers");
