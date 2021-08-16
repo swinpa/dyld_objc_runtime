@@ -51,6 +51,9 @@
                <FileRef
                   location = "group:load_images.md">
                </FileRef>
+               <FileRef
+                  location = "group:loadAllCategories.md">
+               </FileRef>
             </Group>
          </Group>
       </Group>

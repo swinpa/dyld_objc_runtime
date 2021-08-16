@@ -39,7 +39,7 @@ if (!hasLoadMethods((const headerType *)mh))
 ```
 
 ## call_load_methods
-> 先执行类的load方法
+> 先执行类的load方法   
 > 在执行分类的load方法
 
 
