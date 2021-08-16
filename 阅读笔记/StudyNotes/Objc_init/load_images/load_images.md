@@ -21,7 +21,28 @@ if (!hasLoadMethods((const headerType *)mh))
 > _getObjc2NonlazyCategoryList
 
 ## prepare_load_methods
-准备加载load相关方法
-  
+准备加载load相关方法    
+1、加载非懒加载类的load方法。  
+> 递归加载父类load方法  
+> 把cls加入全局+load的类列表
+
+2、加载分类的load方法。
+> 取出分类的宿主类  
+> realize宿主类（分类的宿主类不一定实现了load方法 因为 未实现的load的类在mapImages阶段 并不会realize）  
+> 把cat加入全局+load的分类列表
+> 
+```
+加入全局的load列表两者方式类似 
+取出类方法 load是类方法 遍历selName == load即可
+类 ==> ISA()->data()->ro()->baseMethods()
+分类 ==>直接取出类列表 
+```
+
+## call_load_methods
+> 先执行类的load方法
+> 在执行分类的load方法
+
+
+
 
 
