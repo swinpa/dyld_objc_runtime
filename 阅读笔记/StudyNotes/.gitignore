@@ -67,6 +67,7 @@ fastlane/test_output
 
 iOSInjectionProject/
 *.DS_Store
+#用于子库存放中间变量 不需要提交仓库
 TEMPVAR
 TEMPCOMMITMSG
-
+subtreeGit.tar.gz
