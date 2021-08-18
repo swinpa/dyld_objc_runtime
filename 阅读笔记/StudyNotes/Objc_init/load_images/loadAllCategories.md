@@ -72,3 +72,5 @@ for (int i = oldCount - 1; i >= 0; i--)
                 newArray->lists[i] = addedLists[i];
 ```
 把前面的分类方法的数组添加到前面去 （所以这里就会在方法查找的时候 宿主类为什么痛同名方法被覆盖的原因）
+
+新增关于git hook 版本
