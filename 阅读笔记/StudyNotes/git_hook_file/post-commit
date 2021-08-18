@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# ===== 在commit 主仓库时候 就可以如果子仓库有改动就可以把子仓库的提交并且推送了
+# 子仓库提交完成之后 主仓库回滚 到上一次提交 把.git 压缩起来提交 以后都能使用 可以在提交前hook把其解压出来
+echo "======提交之后"
+##中间变量记录主仓库第几次提交
+fileName="./阅读笔记/StudyNotes/TEMPVAR" 
+##记录中间消息内容
+mssageFile="./阅读笔记/StudyNotes/TEMPCOMMITMSG" 
+TAGCOMMITFIRS=$(cat $fileName || { 
+    echo "true" > $fileName
+    })
+TAGCOMMITFIRS=$(cat $fileName)
+
+echo $TAGCOMMITFIRS
+if $TAGCOMMITFIRS
+then
+#回滚之前第一次主仓库提交
+git reset --mixed master^ 
+TAGCOMMITFIRS=false
+echo $TAGCOMMITFIRS > $fileName
+echo "====第一个提交 负责处理子仓库中的提交 和 推送"
+git add -A
+commitMsg=$(cat $mssageFile)
+#这才是真正的提交
+git commit -m "$commitMsg"
+else
+#移除中间文件
+echo "移除临时中间文件"
+rm -r $fileName
+rm -r $mssageFile
+echo "====结束所有流程"
+fi
