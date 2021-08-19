@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# An example hook script to check the commit log message.
+# Called by "git commit" with one argument, the name of the file
+# that has the commit message.  The hook should exit with non-zero
+# status after issuing an appropriate message if it wants to stop the
+# commit.  The hook is allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "commit-msg".
+
+# Uncomment the below to add a Signed-off-by line to the message.
+# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
+# hook is more suited to it.
+#
+#一开始默认是没有.git 必有git压缩包
+
+#没有git 解压.git 
+fileName="./阅读笔记/StudyNotes"
+cd "$fileName"
+ls .git &> /dev/null || {
+   tar -xvf subtreeGit.tar.gz &> /dev/null || {
+      echo "没有子仓库的.git 也没有 .git 的压缩包"
+   }
+}

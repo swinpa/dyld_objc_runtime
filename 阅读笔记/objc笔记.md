@@ -351,7 +351,7 @@ static struct /*_prop_list_t*/ {
 } _OBJC_$_PROP_LIST_Man __attribute__ ((used, section ("__DATA,__objc_const"))) = {
 	sizeof(_prop_t),
 	1,
-	{{"name","T@\"NSString\",C,N,V_name"}}
+	{{"name","T@\"NSString\",C,N,V_name"}}//猜想解读attributes T?type后面加上类型, C copy? V_name === V原因是在于非关联对象_加上名字 
 };
 
 static struct _class_ro_t _OBJC_METACLASS_RO_$_Man __attribute__ ((used, section ("__DATA,__objc_const"))) = {
@@ -404,7 +404,7 @@ static void OBJC_CLASS_SETUP_$_Man(void ) {
 	OBJC_CLASS_$_Man.superclass = &OBJC_CLASS_$_Person;
 	OBJC_CLASS_$_Man.cache = &_objc_empty_cache;
 }
-#pragma section(".objc_inithooks$B", long, read, write)
+#pragma section(".objc_inithooks$B", long, read, write) 猜想由hooks名字可知 会在objc_init中的某个时刻调用这个函数指针 $B或许还有$A 暂且留下思考
 ///OBJC_CLASS_SETUP[] 为存放函数指针的数组
 __declspec(allocate(".objc_inithooks$B")) static void *OBJC_CLASS_SETUP[] = {
 	(void *)&OBJC_CLASS_SETUP_$_Person,
@@ -417,3 +417,6 @@ static struct _class_t *L_OBJC_LABEL_CLASS_$ [2] __attribute__((used, section ("
 static struct IMAGE_INFO { unsigned version; unsigned flag; } _OBJC_IMAGE_INFO = { 0, 2 };
 
 ```
+
+__declspec(allocate("segname")) 告诉编译器分配一个名字为segname的段
+在实际使用时，还需要#pragma section事先告诉编译器，我们要使用的段名

@@ -1490,6 +1490,7 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
    * Get the existing observation information, creating it (and changing
    * the receiver to start key-value-observing by switching its class)
    * if necessary.
+   * info 是一个链表，一个存储着对象self 的所有Observer信息的链表，节点是GSKVOInfo
    */
   info = (GSKVOInfo*)[self observationInfo];
   if (info == nil)

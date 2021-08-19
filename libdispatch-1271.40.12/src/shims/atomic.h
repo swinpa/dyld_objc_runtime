@@ -181,8 +181,12 @@ typedef struct { unsigned long __opaque_zero; } os_atomic_dependency_t;
 		os_atomic_add(&(p)->f, (v), m)
 #define os_atomic_add_orig2o(p, f, v, m) \
 		os_atomic_add_orig(&(p)->f, (v), m)
+/*
+ 将p 中的f 属性的值减去 v 参数值
+ */
 #define os_atomic_sub2o(p, f, v, m) \
 		os_atomic_sub(&(p)->f, (v), m)
+
 #define os_atomic_sub_orig2o(p, f, v, m) \
 		os_atomic_sub_orig(&(p)->f, (v), m)
 #define os_atomic_and2o(p, f, v, m) \

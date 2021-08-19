@@ -6,9 +6,21 @@
 	
 		该阶段获取DYLD_FRAMEWORK_PATH，DYLD_INSERT_LIBRARIES(所有依赖的动态库的数量)
 4. 初始化一些容器（sAllImages，sImageRoots）用来存放应用的image 以及所依赖的动态库的image
-5. 根据应用的mach-o实例化成ImageLoader对象sMainExecutable（其实就是获取mach-o文件中的load command中的内容，然后用这些内容实例化ImageLoader），
-     并添加到sAllImages中
-6.  将所有依赖的动态库实例化成ImageLoader，并添加到sAllImages中（其实就是获取mach-o文件中的load command中的内容，然后用这些内容实例化ImageLoader）
+5. 根据应用的mach-o实例化成ImageLoader对象sMainExecutable（其实就是获取mach-o文件中的load command中的内容，
+	然后用这些内容实例化ImageLoader），并添加到sAllImages中
+	
+	```
+	// instantiate an image
+		ImageLoader* image = ImageLoaderMachO::instantiateFromFile(path, fd, firstPage, fileOffset, fileLength, stat_buf, gLinkContext);
+	```
+	
+6.  将所有依赖的动态库实例化成ImageLoader，并添加到sAllImages中（其实就是获取mach-o文件中的load command中的内容，
+	然后用这些内容实例化ImageLoader）
+	
+	```
+	// instantiate an image
+		ImageLoader* image = ImageLoaderMachO::instantiateFromFile(path, fd, firstPage, fileOffset, fileLength, stat_buf, gLinkContext);
+	```
 7. 开始主程序sMainExecutable链接（link） 
 
 		实际做的事情是如下两点：

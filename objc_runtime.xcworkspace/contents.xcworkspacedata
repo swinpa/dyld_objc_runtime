@@ -46,17 +46,13 @@
                </FileRef>
             </Group>
             <Group
-               location = "group:AllImages"
-               name = "AllImages">
-               <FileRef
-                  location = "group:readClass_CallHierarchy.png">
-               </FileRef>
-            </Group>
-            <Group
                location = "group:load_images"
                name = "load_images">
                <FileRef
                   location = "group:load_images.md">
+               </FileRef>
+               <FileRef
+                  location = "group:loadAllCategories.md">
                </FileRef>
             </Group>
          </Group>

@@ -1,0 +1,52 @@
+#!/bin/sh
+
+# ===== 在commit 主仓库时候 就可以如果子仓库有改动就可以把子仓库的提交并且推送了
+echo "======提交之前"
+mssageFile="./阅读笔记/StudyNotes/TEMPCOMMITMSG"
+fileName="./阅读笔记/StudyNotes/TEMPVAR"
+
+TAGCOMMITFIRS=$(cat $fileName || { 
+    ##确保之前就存在
+    touch $fileName 
+    echo "true" > $fileName
+    })
+TAGCOMMITFIRS=$(cat $fileName)
+
+#第一次 提交tag 为true 非第一次 tag 为false
+if $TAGCOMMITFIRS   
+then
+echo "进入 第一次的子库提交"
+else
+echo "提前结束"
+exit 0
+fi
+
+commitMessage=$(cat "$1")
+hasCommitCommand=true
+echo "信息描述为 $commitMessage"
+##确保之前就存在
+touch $mssageFile 
+#存起来我们提交的msg
+echo $commitMessage > $mssageFile 
+
+#处理子仓库 提交 
+cd ./阅读笔记/StudyNotes
+git add -A
+git pull origin main #解压出来的git 防止存在版本偏差 先进行拉取
+git commit -m "$commitMessage" || {
+echo "子仓库无commit或者在上一次已经提交了" 
+hasCommitCommand=false
+}
+
+#如果有提交内容 就进行推送 并且打包好推送完成的.git文件
+if $hasCommitCommand
+then
+echo "子仓库开始push"
+git push origin main || {
+    echo  "子仓库推送失败"
+}
+
+echo "把子仓库的.git打包起来 接着删除存在的 并且在进行解压"
+#对于子仓库应该是不知他的存在 在主仓库存在
+tar -zcvf subtreeGit.tar.gz .git &> /dev/null
+fi

@@ -241,17 +241,20 @@ static NSHTTPCookieStorage   *storage = nil;
 
 - (NSArray *) cookiesForURL: (NSURL *)URL
 {
-  NSMutableArray *a = [NSMutableArray array];
-  NSEnumerator *ckenum = [this->_cookies objectEnumerator];
-  NSHTTPCookie *cookie;
-  NSString *receive_domain = [URL host];
 
-  while ((cookie = [ckenum nextObject]))
+    NSMutableArray *a = [NSMutableArray array];
+    NSEnumerator *ckenum = [this->_cookies objectEnumerator];
+    NSHTTPCookie *cookie;
+    NSString *receive_domain = [URL host];
+
+    while ((cookie = [ckenum nextObject]))
     {
-      if ([receive_domain hasSuffix: [cookie domain]])
-        [a addObject: cookie];
+        if ([receive_domain hasSuffix: [cookie domain]])
+        {
+            [a addObject: cookie];
+        }
     }
-  return a;
+    return a;
 }
 
 - (void) deleteCookie: (NSHTTPCookie *)cookie
