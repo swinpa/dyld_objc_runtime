@@ -72,3 +72,25 @@ Binding 是处理那些指向 dylib 外部的指针，它们实际上被符号�
 
 ##dyld在项目中的应用场景
 * 通过_dyld_register_func_for_add_image添加监听回调，监听所有的image ，从而判断是否有未知的第三方动态库被加载进来，破坏应用的完整性
+
+* 越狱检测
+
+    ```
+    _dyld_image_count返回dyld映射的当前的image数
+    _dyld_get_image_name返回image名称，可以通过它来检索dyld的image名称
+    ```
+    ####可以通过检测目录中是否有MobileSubstrate.dylib来确认是否越狱，代码参考如下
+    ```
+    void dylibCheck() {
+        uint32_t count = _dyld_image_count();
+        char *substrate = "/Library/MobileSubstrate/MobileSubstrate.dylib";
+        for(uint32_t i = 0; i < count; i++) {
+            const char *dyld = _dyld_get_image_name(i);
+            if (strcmp(dyld,substrate)==0) { 
+                NSLog(@"该设备已越狱"); 
+              }
+         } 
+    }
+    ```
+    
+###关于安全的一点参考文章[应用安全检测](https://hello-sherlock.github.io/2017/03/22/eight-Blog/)
