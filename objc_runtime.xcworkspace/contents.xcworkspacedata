@@ -56,6 +56,16 @@
                </FileRef>
             </Group>
          </Group>
+         <Group
+            location = "group:Objc_About"
+            name = "Objc_About">
+            <FileRef
+               location = "group:&#x521b;&#x5efa;&#x7c7b;_&#x7c7b;&#x5bf9;&#x8c61;&#x4f55;&#x53bb;&#x4f55;&#x4ece;.md">
+            </FileRef>
+            <FileRef
+               location = "group:Objc_Clang_After.cpp">
+            </FileRef>
+         </Group>
       </Group>
       <FileRef
          location = "group:KVO.md">
