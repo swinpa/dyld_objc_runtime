@@ -2698,8 +2698,8 @@ _dispatch_continuation_init_f(dispatch_continuation_t dc,
 {
 	pthread_priority_t pp = 0;
 	dc->dc_flags = dc_flags | DC_FLAG_ALLOCATED;
-	dc->dc_func = f;
-	dc->dc_ctxt = ctxt;
+	dc->dc_func = f;//dispatch_async()传进来的block中的函数指针
+	dc->dc_ctxt = ctxt;//dispatch_async()传进来的block，block中保存有上下文
 	// in this context DISPATCH_BLOCK_HAS_PRIORITY means that the priority
 	// should not be propagated, only taken from the handler if it has one
 	if (!(flags & DISPATCH_BLOCK_HAS_PRIORITY)) {
@@ -2715,9 +2715,11 @@ _dispatch_continuation_init(dispatch_continuation_t dc,
 		dispatch_queue_class_t dqu, dispatch_block_t work,
 		dispatch_block_flags_t flags, uintptr_t dc_flags)
 {
+	//
 	void *ctxt = _dispatch_Block_copy(work);
 
 	dc_flags |= DC_FLAG_BLOCK | DC_FLAG_ALLOCATED;
+	//判断当前的block 是否是内部的私有block
 	if (unlikely(_dispatch_block_has_private_data(work))) {
 		dc->dc_flags = dc_flags;
 		dc->dc_ctxt = ctxt;

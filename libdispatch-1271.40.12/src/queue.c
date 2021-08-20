@@ -891,11 +891,14 @@ dispatch_async_enforce_qos_class_f(dispatch_queue_t dq, void *ctxt,
 void
 dispatch_async(dispatch_queue_t dq, dispatch_block_t work)
 {
+	//将dispatch_queue_t 跟 block 打包到dispatch_continuation_t 对象中
 	dispatch_continuation_t dc = _dispatch_continuation_alloc();
 	uintptr_t dc_flags = DC_FLAG_CONSUME;
 	dispatch_qos_t qos;
 
 	qos = _dispatch_continuation_init(dc, dq, work, 0, dc_flags);
+	
+	
 	_dispatch_continuation_async(dq, dc, qos, dc->dc_flags);
 }
 #endif
@@ -1835,6 +1838,10 @@ _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 		dispatch_function_t func, uintptr_t dc_flags)
 {
 	if (likely(dq->dq_width == 1)) {
+		/*
+		 串型队列和并行队列是通过 width 区分的，串型为1，并行为32766；
+		 主线程会从这里走
+		 */
 		return _dispatch_barrier_sync_f(dq, ctxt, func, dc_flags);
 	}
 
@@ -1842,7 +1849,27 @@ _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 		DISPATCH_CLIENT_CRASH(0, "Queue type doesn't support dispatch_sync");
 	}
 
-	dispatch_lane_t dl = upcast(dq)._dl;
+	dispatch_lane_t dl = upcast(dq)._dl;/* == dispatch_object_t._dl
+										 dispatch_object_t 又是啥？?
+										 
+										 typedef struct dispatch_object_s *dispatch_object_t;
+										 
+										 typedef union {
+											 struct _os_object_s *_os_obj;
+											 struct dispatch_object_s *_do;
+											 struct dispatch_queue_s *_dq;
+											 struct dispatch_queue_attr_s *_dqa;
+											 struct dispatch_group_s *_dg;
+											 struct dispatch_source_s *_ds;
+											 struct dispatch_channel_s *_dch;
+											 struct dispatch_mach_s *_dm;
+											 struct dispatch_mach_msg_s *_dmsg;
+											 struct dispatch_semaphore_s *_dsema;
+											 struct dispatch_data_s *_ddata;
+											 struct dispatch_io_s *_dchannel;
+										 } dispatch_object_t DISPATCH_TRANSPARENT_UNION;
+										 
+										 */
 	// Global concurrent queues and queues bound to non-dispatch threads
 	// always fall into the slow case, see DISPATCH_ROOT_QUEUE_STATE_INIT_VALUE
 	if (unlikely(!_dispatch_queue_try_reserve_sync_width(dl))) {
@@ -1850,6 +1877,13 @@ _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 	}
 
 	if (unlikely(dq->do_targetq->do_targetq)) {
+		/*
+		 struct dispatch_queue_s {
+			struct dispatch_queue_s *do_targetq;               // 目标队列，这个最终会指向一个系统的默认队列
+			...
+		 }
+		 队列的目标队列为空？？
+		 */
 		return _dispatch_sync_recurse(dl, ctxt, func, dc_flags);
 	}
 	_dispatch_introspection_sync_begin(dl);
@@ -6950,6 +6984,7 @@ void _dispatch_root_queue_push(dispatch_queue_global_t rq,//其实相当于 disp
 	 #endif
 	 } dispatch_deferred_items_s, *dispatch_deferred_items_t;
 	 */
+	
 	dispatch_deferred_items_t ddi = _dispatch_deferred_items_get();
 	if (unlikely(ddi && ddi->ddi_can_stash)) {//这里是不是说明，如果当前线程没有创建过队列
 		dispatch_object_t old_dou = ddi->ddi_stashed_dou;

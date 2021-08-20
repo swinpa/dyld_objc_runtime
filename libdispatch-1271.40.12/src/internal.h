@@ -457,6 +457,11 @@ DISPATCH_EXPORT DISPATCH_NOTHROW void dispatch_atfork_child(void);
 #define NSEC_PER_USEC 1000ull
 
 #if __GNUC__
+/*
+ __builtin_expect是编译器用来优化执行速度的函数
+ likely(x)   表示条件更可能成立
+ unlikely(x) 表示条件更不可能成立
+ */
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #else

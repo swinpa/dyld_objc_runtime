@@ -1,5 +1,7 @@
 ##GCD
 
+[参考文章](http://joeleee.github.io/2017/02/21/005.扒了扒libdispatch源码/)
+
 ###dispatch_once
 ```
 dispatch_once(dispatch_once_t *val, dispatch_block_t block)
@@ -131,6 +133,11 @@ struct dispatch_queue_s {
 	}
 	```
 ###queue总结
+#####从以下代码
+```
+typedef struct dispatch_queue_s *dispatch_queue_t;
+```
+#####可以看出dispatch_queue_t是dispatch_queue_s类型指针，可以向外部提供方便dispatch_queue_s类型指针变量的定义
 1. dispatch_queue_t是一个对象，该对象中有一个struct dispatch_queue_s *_dq; 属性
 2. dispatch_queue_s 类型的对象又有一个isa 属性，而该ISA其实就是do_vtable，是一个const struct dispatch_queue_vtable_s 类型
 3. do_vtable类型中有一个_os_obj_vtable属性，在_os_obj_vtable 这个属性中有一个dq_push()函数指针，该指针在dispatch_queue_t对象构造的时候会初始化为_dispatch_root_queue_push，

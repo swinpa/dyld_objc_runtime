@@ -979,7 +979,7 @@ dispatch_queue_attr_info_t _dispatch_queue_attr_to_info(dispatch_queue_attr_t);
 	struct dispatch_##x##_s *volatile do_next; \
 	struct voucher_s *dc_voucher; \
 	dispatch_function_t dc_func; \
-	void *dc_ctxt; \
+	void *dc_ctxt; /*dispatch_async()中的block参数*/\
 	void *dc_data; \
 	void *dc_other
 #elif OS_OBJECT_HAVE_OBJC1
