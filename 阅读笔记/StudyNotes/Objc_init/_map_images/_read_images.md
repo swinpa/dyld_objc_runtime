@@ -71,7 +71,7 @@ gdb_objc_realized_classes = NXCreateMapTable(NXStrValueMapPrototype, namedClasse
 
 1. 判断是否被处理过了 assert 出去了
 2. 编译器期间就确认了cls ro 通过cls->data()取出 （内部有个bits 维护着对象相关数据）
-3. ro->flags & RO_FUTURE 根据该变量与不同的标志位进行 & 操作判断 是否为元类，是否为跟类，是否为ARC 是否为 future class 
+3. ro->flags & RO_FUTURE 根据该变量与不同的标志位进行 & 操作判断 是否为元类，是否为根类，是否为ARC 是否为 future class 
 4. 申请rw空间 rw中的ro设置为编译期间确认的ro
 5. 接下来标识位和一些参数的设置
 
@@ -95,7 +95,7 @@ gdb_objc_realized_classes = NXCreateMapTable(NXStrValueMapPrototype, namedClasse
 `
 > 在新版本之中加入了didInitialAttachCategories判断
 
-> 在此处的 map_images作用不大 暂时忽略深入
+> 在此处的 map_images作用不大 暂时忽略深入 ===》load images 中分析 
 
 
 

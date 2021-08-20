@@ -337,3 +337,6 @@ static struct _class_t *_OBJC_LABEL_NONLAZY_CLASS_$[] = {
         &OBJC_CLASS_$_Singer,
 };
 static struct IMAGE_INFO { unsigned version; unsigned flag; } _OBJC_IMAGE_INFO = { 0, 2 };
+
+__declspec(allocate("segname")) 告诉编译器分配一个名字为segname的段
+在实际使用时，还需要#pragma section事先告诉编译器，我们要使用的段名
