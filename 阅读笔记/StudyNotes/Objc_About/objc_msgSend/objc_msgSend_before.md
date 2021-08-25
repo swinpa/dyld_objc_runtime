@@ -13,7 +13,8 @@ xcrun --sdk iphoneos clang -arch arm64 -rewrite-objc main.m -o main.cpp
         sel_registerName("init"));
 
 简化一下 摸索了一下
-===> 其实就是俄罗斯套娃 哈哈 目前使用了 函数指针的形式调用 以前是使用objc_msgSend(id,SEL)这样
+===> 其实就是俄罗斯套娃 哈哈 目前使用了 函数指针的形式调用 
+    以前是使用objc_msgSend(id,SEL)这样 前提必须设置Enbale Strict Checking of objc_msgSend Calls为NO 如果为YES 我们必须使用如下解释的函数指针的方式 直接跳过检查
     Man *msgMan = ((Man *(*)(id, SEL))(void *)objc_msgSend)
     ((id)((Man *(*)(id, SEL))(void *)objc_msgSend)((id)objc_getClass("Man"), sel_registerName("alloc")), //id
     sel_registerName("init"));//SEL

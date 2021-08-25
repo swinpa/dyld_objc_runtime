@@ -65,9 +65,16 @@
             <FileRef
                location = "group:Objc_Clang_After.cpp">
             </FileRef>
-            <FileRef
-               location = "group:objc_msgSend.md">
-            </FileRef>
+            <Group
+               location = "group:objc_msgSend"
+               name = "objc_msgSend">
+               <FileRef
+                  location = "group:objc_msgSend_before.md">
+               </FileRef>
+               <FileRef
+                  location = "group:objc_msgSend_.md">
+               </FileRef>
+            </Group>
          </Group>
       </Group>
       <FileRef
