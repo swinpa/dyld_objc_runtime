@@ -30,7 +30,7 @@ LGetIsaDone: //名如其目的 get完isa done 往下走
 	CacheLookup NORMAL, _objc_msgSend, __objc_msgSend_uncached 
 
 ```
-接下来进入 CacheLookup
+接下来进入 CacheLookup 关于缓存查找
 
 ```
 #if defined(__arm64__) && __LP64__
@@ -158,3 +158,47 @@ LLookupStart\Function:
 在此查询的目的就是 在汇编的角度来拿出它的buckets 接着key值为：`(mask_t)(value & mask); //value 相当sel `  拿到之后进行遍历（mast转一圈又回到原处 来结束）这里查到到直接return 不插入 如果在查找过程 找到了 就应该调用 `CacheHit \Mode              // hit:    call or return imp`现在是insert过程 所以是return    
 找到了是0那就说明是空的插入set 但是在我们查找过程 为0就应该miss `3:  cbz p9, \MissLabelDynamic       //     if (sel == 0) goto Miss;`
 再回去一字一字的去看 汇编 发现 简单如斯
+
+接着没命中（这才能继续往下走）MissLabelDynamic 还记得当初传进来的是啥？ __objc_msgSend_uncached！！！ 对的 定位到这个地方（在Mac 上用commonLine 断点调试 也可以看到这个）
+
+```
+STATIC_ENTRY __objc_msgSend_uncached
+	UNWIND __objc_msgSend_uncached, FrameWithNoSaves
+
+	// THIS IS NOT A CALLABLE C FUNCTION
+	// Out-of-band p15 is the class to search
+	
+	MethodTableLookup //这个是一个不可调用的？C函数？可能后期改为C?
+	TailCallFunctionPointer x17
+
+	END_ENTRY __objc_msgSend_uncached
+	
+.macro MethodTableLookup
+	
+	SAVE_REGS MSGSEND
+
+	// lookUpImpOrForward(obj, sel, cls, LOOKUP_INITIALIZE | LOOKUP_RESOLVER)
+	// receiver and selector already in x0 and x1
+	mov	x2, x16 //应该给我们准备 cls 以及后面的传入参数
+	mov	x3, #3 
+	bl	_lookUpImpOrForward //接着调用这个_lookUpImpOrForward
+
+	// IMP in x0
+	mov	 x17, x0
+
+	RESTORE_REGS MSGSEND
+
+.endmacro
+```
+简单看一下上面的源码 其实最终就调用到了.  
+ `IMP lookUpImpOrForward(id inst, SEL sel, Class cls, int behavior)`      
+checkIsKnowClass // 防止不是class类的？ CFI 控制流完整性（Control Flow Integrity, CFI）的防御机制
+`    cls = realizeAndInitializeIfNeeded_locked(inst, cls, behavior & LOOKUP_INITIALIZE);`
+这就是调用我们的常用的initialize方法之处 盲猜 必须要标志位调一次而已  （cls->isInitialized）.  
+ 接下来就进入到了 类和父类的方法列表查找了（旧版本很清晰 新版本 维护了一个for 无退出条件的循环 需要break）     
+1.  先是判断有没有支持缓存优化 有的话就查询cache中缓存 `cache_getImp(curClass, sel)` 接着从`curClass->cache.preoptFallbackClass`再拿缓存。奇怪 如果这里一直拿不到 怎么出来到我的方法中拿呢？猜测是`cache.preoptFallbackClass `移动回来得到的不会进入这个缓存优化。   
+2. `Method meth = getMethodNoSuper_nolock(curClass, sel);`获取目前class的方法列表 通过SEL查找对应的方法,查询到跳转done    
+3. 在2中拿不到就 把curClass 设置为父类 接着查询父类的缓存，接着就是第二个循环里面 查询当前类（第一次的父类）的方法列表 继续循环下去 
+4. 知道找到 缓存起来 `log_and_fill_cache(cls, imp, sel, inst, curClass);` 并且返回imp   或者 没找到break 跳出循环 走动态方法决议。 
+
+
