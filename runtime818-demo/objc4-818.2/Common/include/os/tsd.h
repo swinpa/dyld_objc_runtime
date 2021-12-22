@@ -79,6 +79,12 @@ _os_cpu_number(void)
 
 #if defined(__has_attribute)
 #if __has_attribute(address_space)
+/**
+关于说明，__attribute__((address_space(256)))
+请查看https://opensource.apple.com/source/clang/clang-137/src/tools/clang/docs/LanguageExtensions.html
+ http://62.234.115.194/ask/115088599.html
+ https://clang.llvm.org/docs/LanguageExtensions.html#target-specific-extensions
+*/
 #define OS_GS_RELATIVE  __attribute__((address_space(256)))
 #endif
 #endif

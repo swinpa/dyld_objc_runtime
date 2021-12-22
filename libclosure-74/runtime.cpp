@@ -9,11 +9,12 @@
 
 
 #include "Block_private.h"
-#include <platform/string.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <os/assumes.h>
+
 #ifndef os_assumes
 #define os_assumes(_x) os_assumes(_x)
 #endif
@@ -21,7 +22,7 @@
 #define os_assert(_x) os_assert(_x)
 #endif
 
-#define memmove _platform_memmove
+//#define memmove  _platform_memmove
 
 #if TARGET_OS_WIN32
 #define _CRT_SECURE_NO_WARNINGS 1
@@ -41,6 +42,13 @@ static __inline bool OSAtomicCompareAndSwapInt(int oldi, int newi, int volatile 
 }
 #else
 #define OSAtomicCompareAndSwapLong(_Old, _New, _Ptr) __sync_bool_compare_and_swap(_Ptr, _Old, _New)
+/*
+ 原子操作, 比加锁更加高效
+ CAS是compare and swap,   简单来说就是，在写入新值之前， 读出旧值，
+ 当且仅当旧值与存储中的当前值一致时，才把新值写入存储。
+ 也就是先读取旧值到_Ptr 中然后 _Ptr 跟 _Old 比较，如果相等，再把_New 写入_Ptr 中
+ __sync_bool_compare_and_swap是可供程序员调用的接口
+ */
 #define OSAtomicCompareAndSwapInt(_Old, _New, _Ptr) __sync_bool_compare_and_swap(_Ptr, _Old, _New)
 #endif
 
@@ -55,7 +63,9 @@ static int32_t latching_incr_int(volatile int32_t *where) {
         if ((old_value & BLOCK_REFCOUNT_MASK) == BLOCK_REFCOUNT_MASK) {
             return BLOCK_REFCOUNT_MASK;
         }
+        //                             旧值           新值    需要写入的地址
         if (OSAtomicCompareAndSwapInt(old_value, old_value+2, where)) {
+            //如果原子写入成功，则返回新值
             return old_value+2;
         }
     }
@@ -141,6 +151,7 @@ static struct Block_descriptor_1 * _Block_descriptor_1(struct Block_layout *aBlo
 }
 #endif
 
+// KC注释:Block 的描述 : copy 和 dispose 函数
 static struct Block_descriptor_2 * _Block_descriptor_2(struct Block_layout *aBlock)
 {
     if (! (aBlock->flags & BLOCK_HAS_COPY_DISPOSE)) return NULL;
@@ -149,6 +160,7 @@ static struct Block_descriptor_2 * _Block_descriptor_2(struct Block_layout *aBlo
     return (struct Block_descriptor_2 *)desc;
 }
 
+// KC注释: Block 的描述 : 签名相关
 static struct Block_descriptor_3 * _Block_descriptor_3(struct Block_layout *aBlock)
 {
     if (! (aBlock->flags & BLOCK_HAS_SIGNATURE)) return NULL;
@@ -185,6 +197,8 @@ Internal Support routines for copying
 #endif
 
 // Copy, or bump refcount, of a block.  If really copying, call the copy helper if present.
+// KC重点提示: 这里是核心重点 block的拷贝操作: 栈Block -> 堆Block
+
 void *_Block_copy(const void *arg) {
     struct Block_layout *aBlock;
 
@@ -192,6 +206,7 @@ void *_Block_copy(const void *arg) {
     
     // The following would be better done as a switch statement
     aBlock = (struct Block_layout *)arg;
+    //BLOCK_NEEDS_FREE 说明已经在堆上，在堆上才需要free，因为在栈上的话由栈的进栈出栈管理内存，不需要free
     if (aBlock->flags & BLOCK_NEEDS_FREE) {
         // latches on high
         latching_incr_int(&aBlock->flags);
@@ -227,16 +242,27 @@ void *_Block_copy(const void *arg) {
 // Closures that aren't copied must still work, so everyone always accesses variables after dereferencing the forwarding ptr.
 // We ask if the byref pointer that we know about has already been copied to the heap, and if so, increment and return it.
 // Otherwise we need to copy it and update the stack forwarding pointer
+
+// Cooci注释: __Block 捕获外界变量的操作 内存拷贝 以及常规处理
+
 static struct Block_byref *_Block_byref_copy(const void *arg) {
     struct Block_byref *src = (struct Block_byref *)arg;
 
     if ((src->forwarding->flags & BLOCK_REFCOUNT_MASK) == 0) {
-        // src points to stack
+        // src points to stack，说明栈上的src对象当前还没拷贝到堆上
         struct Block_byref *copy = (struct Block_byref *)malloc(src->size);
         copy->isa = NULL;
-        // byref value 4 is logical refcount of 2: one for caller, one for stack
+        /*
+         byref value 4 is logical refcount of 2: one for caller, one for stack
+         这就是苍耳大佬问的：“如果你知道为什么block 引用计数是+2”的原因，one for caller, one for stack
+         */
         copy->flags = src->flags | BLOCK_BYREF_NEEDS_FREE | 4;
+        /*
+         堆上对象的forwarding 指向自己，这样后续都通过forwarding 访问变量时，
+         都访问的是堆上的
+         */
         copy->forwarding = copy; // patch heap copy to point to itself
+        //栈上对象的forwarding 指向堆上的对象
         src->forwarding = copy;  // patch stack to point to heap copy
         copy->size = src->size;
 
@@ -262,7 +288,10 @@ static struct Block_byref *_Block_byref_copy(const void *arg) {
             memmove(copy+1, src+1, src->size - sizeof(*src));
         }
     }
-    // already copied to heap
+    /*
+     already copied to heap
+     如果对象已经拷贝到堆上，则更新对象的引用计数
+     */
     else if ((src->forwarding->flags & BLOCK_BYREF_NEEDS_FREE) == BLOCK_BYREF_NEEDS_FREE) {
         latching_incr_int(&src->forwarding->flags);
     }
@@ -401,7 +430,7 @@ A Block can reference four different kinds of things that require help when the 
 3) Other Blocks
 4) __block variables
 
-In these cases helper functions are synthesized by the compiler for use in Block_copy and Block_release, called the copy and dispose helpers.  The copy helper emits a call to the C++ const copy constructor for C++ stack based objects and for the rest calls into the runtime support function _Block_object_assign.  The dispose helper has a call to the C++ destructor for case 1 and a call into _Block_object_dispose for the rest.
+In these cases helper functions are synthesized(英  [ˈsɪnθəsaɪzd]   美  [ˈsɪnθəsaɪzd] adj. 合成的；综合的) by the compiler for use in Block_copy and Block_release, called the copy and dispose helpers.  The copy helper emits a call to the C++ const copy constructor for C++ stack based objects and for the rest calls into the runtime support function _Block_object_assign.  The dispose helper has a call to the C++ destructor for case 1 and a call into _Block_object_dispose for the rest.
 
 The flags parameter of _Block_object_assign and _Block_object_dispose is set to
     * BLOCK_FIELD_IS_OBJECT (3), for the case of an Objective-C Object,
@@ -426,6 +455,8 @@ So the __block copy/dispose helpers will generate flag values of 3 or 7 for obje
 // When Blocks or Block_byrefs hold objects then their copy routine helpers use this entry point
 // to do the assignment.
 //
+// KC注释: Block 捕获外界变量的操作
+// Used by the compiler. Do not call this function yourself.
 void _Block_object_assign(void *destArg, const void *object, const int flags) {
     const void **dest = (const void **)destArg;
     switch (os_assumes(flags & BLOCK_ALL_COPY_DISPOSE_FLAGS)) {

@@ -2,6 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:libclosure-74/Blocks.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "group:runtime818-demo/CommLineMac/CommLineMac.xcodeproj">
    </FileRef>
    <FileRef

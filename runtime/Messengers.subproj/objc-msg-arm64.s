@@ -101,8 +101,14 @@ _objc_indexed_classes:
 #if SUPPORT_INDEXED_ISA
 	// Indexed isa
 	mov	p16, $0			// optimistically set dst = src
-	tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa
+	//tbz: (test branch zero). 测试位为0，则跳转。
+    tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa
 	// isa in p16 is indexed
+    /*
+     adr: 作用：小范围的地址读取指令。ADR 指令将基于PC 相对偏移的地址值读取到寄存器中。
+     adrp: 以页为单位的大范围的地址读取指令，这里的p就是page的意思。
+     通俗来讲，adrp指令就是先进行PC+imm（偏移值）然后找到lable所在的一个4KB的页，然后取得label的基址，再进行偏移去寻址
+     */
 	adrp	x10, _objc_indexed_classes@PAGE
 	add	x10, x10, _objc_indexed_classes@PAGEOFF
 	ubfx	p16, p16, #ISA_INDEX_SHIFT, #ISA_INDEX_BITS  // extract index
@@ -286,6 +292,7 @@ LExit$0:
  * IMP returned in x17   找到的 IMP 保存在 x17 寄存器中
  * x16 reserved for our use but not used     --- x16 寄存器则是保留寄存器
  * [很好的一篇使用汇编阅读的文章][https://juejin.cn/post/6880774335192432647]
+ *[https://www.codenong.com/js1972010b88d7/]
  ********************************************************************/
 
 #if SUPPORT_TAGGED_POINTERS
@@ -305,6 +312,8 @@ _objc_debug_taggedpointer_ext_classes:
 #endif
 
 	ENTRY _objc_msgSend
+    
+    // UNWIND 展开信息生成，无窗口
 	UNWIND _objc_msgSend, NoFrame
 
     /*
@@ -313,12 +322,37 @@ _objc_debug_taggedpointer_ext_classes:
      
      p0 和 空 对比，即判断接收者是否存在，
      其中 p0 是 objc_msgSend 的第一个参数(消息接收者 receiver)
-     
+     p0 定义在objc-818/Project Headers/arm64-asm.h
+     p0-p15  等同于x0-x15, x0 ~ x31 是通用寄存器
      */
 	cmp	p0, #0			// nil check and tagged pointer check
 #if SUPPORT_TAGGED_POINTERS
     /*
-    p0 等于 0 的话，则跳转到 LNilOrTagged 标签处,执行 Taggend Pointer 对象的函数查找及执行
+     
+     
+     bl 跳转到标号处执行
+     b.le   loc_1000068E0 (标号)
+     小于判断le是(less than or equal to)
+     的意思当结果为小于等于的时候跳转执行loc_1000068E0(标号)地址pc寄存器的程序。（配合CMP做if判断）。
+   
+     b.ge   loc_1000068D0（标号）
+     大于等于判断（great than or equal to）原理同b.le。
+     注:le 和 ge 对应的高级代码是反向的即汇编是大于等于那么实际上高级代码是小于两者互补。
+    
+     b.gt
+     比较结果是大于（greater than），执行标号，否则不跳转。
+  
+     b.lt
+     比较结果是大于（less than），执行标号，否则不跳转
+    
+     b.eq
+     比较结果是等于（equal to），执行标号，否则不跳转
+     
+     b.hi
+     比较结果是无符号大于，执行标号，否则不跳转
+    
+     p0 小于或等于 0 的话，则跳转到 LNilOrTagged 标签处,执行 Taggend Pointer 对象的函数查找及执行
+     因为 tagged pointer 在 arm64 下，最高位为 1，作为有符号数 < 0
     */
 	b.le	LNilOrTagged		//  (MSB tagged pointer looks negative)
 #else
@@ -333,6 +367,17 @@ _objc_debug_taggedpointer_ext_classes:
      struct _class_t {struct _class_t *isa;}
      @interface NSObject <NSObject> {objc_class *isa;}
      也就是类，对象的第一个成员都是isa,
+     
+     
+     str和ldr是一对指令，str的全称是store register，即将寄存器的值存储到内存中，
+     ldr的全称是load register，即将内存中的值读到寄存器，
+     因此他们的第一个参数都是寄存器，第二个参数都是内存地址。[sp,#12] 代表 sp+12 这个地址，
+     同理 [sp,#-12] 代表 sp-12 这个地址。注意这里的数字都是以字节为单位的偏移量，
+     以 str w0,[sp,#12] 为例，w是4字节的寄存器（word），这个指令代表将w0寄存器的值存储在sp+12这个地址上
+     
+     ldr 是 Load Register 的缩写，[] 为间接寻址。它表示从 x0 所表示的地址中取出 8 字节数据，放到 x13 中。
+     x0 中是 self 的地址，所以这里取出来的数据其实是 isa 的值
+     
      */
 	ldr	p13, [x0]		/* p13 = isa，根据对象拿出 isa，即从 x0 寄存器指向的地址取出 isa，存入 p13 寄存器  [x0]为第一个参数self这个对象，
         如果外部传进来的self这个对象是一个实例对象，那么它的ISA位于NSObject这个类的第一个成员变量

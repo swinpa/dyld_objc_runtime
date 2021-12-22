@@ -197,7 +197,7 @@ typedef uintptr_t BlockByrefDestroyFunction;
 
 #endif
 
-
+// KC注释: flag 标识
 // Values for Block_layout->flags to describe block objects
 enum {
     BLOCK_DEALLOCATING =      (0x0001),  // runtime
@@ -232,6 +232,7 @@ struct Block_descriptor_3 {
     const char *layout;     // contents depend on BLOCK_HAS_EXTENDED_LAYOUT
 };
 
+// KC注释:Block 结构体
 struct Block_layout {
     void *isa;
     volatile int32_t flags; // contains ref count
@@ -261,6 +262,7 @@ enum {
     BLOCK_BYREF_NEEDS_FREE =        (  1 << 24), // runtime
 };
 
+// KC注释: __Block 修饰的结构体
 struct Block_byref {
     void *isa;
     struct Block_byref *forwarding;
@@ -268,6 +270,7 @@ struct Block_byref {
     uint32_t size;
 };
 
+// KC注释: __Block 修饰的结构体 byref_keep 和 byref_destroy 函数 - 来处理里面持有对象的保持和销毁
 struct Block_byref_2 {
     // requires BLOCK_BYREF_HAS_COPY_DISPOSE
     BlockByrefKeepFunction byref_keep;
@@ -313,7 +316,7 @@ enum {
     BLOCK_LAYOUT_UNUSED_F         = 0xF,  // unspecified, reserved
 };
 
-
+// KC注释: Block 捕获的外界变量的种类
 // Runtime support functions used by compiler when generating copy/dispose helpers
 
 // Values for _Block_object_assign() and _Block_object_dispose() parameters
@@ -334,7 +337,7 @@ enum {
 
 
 // Function pointer accessors
-
+// KC注释: Block invoke方法的获取
 static inline __typeof__(void (*)(void *, ...))
 _Block_get_invoke_fn(struct Block_layout *block)
 {
