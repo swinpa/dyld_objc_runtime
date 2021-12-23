@@ -88,18 +88,27 @@ _objc_exitPoints:
  *   p16 is a class pointer
  *   x10 is clobbered
  ********************************************************************/
-
+/*
+ 汇编中的.globl == C语言中的extern
+ .globl _objc_indexed_classes 中的.global，就是声明_objc_indexed_classes为全局变量/标号，可以供其他源文件所访问。
+ 即汇编器，在编译此汇编代码的时候，会将此变量记下来，知道其是个全局变量，遇到其他文件是用到此变量的的时候，知道是访问这个全局变量的。
+ 因此，从功能上来说，就相当于C语言用extern去生命一个变量，以实现本文件外部访问此变量。
+ */
 #if SUPPORT_INDEXED_ISA
 	.align 3
+//定义一全局变量 _objc_indexed_classes
 	.globl _objc_indexed_classes
+//定义_objc_indexed_classes标签, 相当于C中定义的标签，其他代码通过该标签可以跳转到这里，比如 goto xxx
 _objc_indexed_classes:
 	.fill ISA_INDEX_COUNT, PTRSIZE, 0
 #endif
 
+//定义宏 GetClassFromIsa_p16
 .macro GetClassFromIsa_p16 /* src */
 
 #if SUPPORT_INDEXED_ISA
 	// Indexed isa
+    //$0 为宏GetClassFromIsa_p16 的参数
 	mov	p16, $0			// optimistically set dst = src
 	//tbz: (test branch zero). 测试位为0，则跳转。
     tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa
@@ -292,7 +301,9 @@ LExit$0:
  * IMP returned in x17   找到的 IMP 保存在 x17 寄存器中
  * x16 reserved for our use but not used     --- x16 寄存器则是保留寄存器
  * [很好的一篇使用汇编阅读的文章][https://juejin.cn/post/6880774335192432647]
- *[https://www.codenong.com/js1972010b88d7/]
+ * [https://www.codenong.com/js1972010b88d7/]
+ * [http://kmanong.top/kmn/qxw/form/article?id=3197&cate=68]
+ * [很好的汇编语法说明][https://www.crifan.com/files/doc/docbook/uboot_starts_analysis/release/htmls/summary_assembly.html]
  ********************************************************************/
 
 #if SUPPORT_TAGGED_POINTERS
@@ -325,12 +336,13 @@ _objc_debug_taggedpointer_ext_classes:
      p0 定义在objc-818/Project Headers/arm64-asm.h
      p0-p15  等同于x0-x15, x0 ~ x31 是通用寄存器
      */
+    // p0 - 0 = 0。  状态寄存器标识zero: PSTATE.NZCV.Z = 1
 	cmp	p0, #0			// nil check and tagged pointer check
 #if SUPPORT_TAGGED_POINTERS
     /*
      
-     
-     bl 跳转到标号处执行
+     b：无返回跳转（一般是循环语句，判断语句跳转）（while，if else）
+     bl: 有返回跳转(一般是函数跳转)
      b.le   loc_1000068E0 (标号)
      小于判断le是(less than or equal to)
      的意思当结果为小于等于的时候跳转执行loc_1000068E0(标号)地址pc寄存器的程序。（配合CMP做if判断）。
@@ -354,6 +366,7 @@ _objc_debug_taggedpointer_ext_classes:
      p0 小于或等于 0 的话，则跳转到 LNilOrTagged 标签处,执行 Taggend Pointer 对象的函数查找及执行
      因为 tagged pointer 在 arm64 下，最高位为 1，作为有符号数 < 0
     */
+    //当判断状态寄存器 NZCV.Z == 0, N==V才跳转
 	b.le	LNilOrTagged		//  (MSB tagged pointer looks negative)
 #else
     /*

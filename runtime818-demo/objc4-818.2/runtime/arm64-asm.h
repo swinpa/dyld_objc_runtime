@@ -58,6 +58,32 @@
 #define p16 x16
 #define p17 x17
 
+/*
+ r0 - r30 是31个通用整形寄存器
+ 当使用 x0 - x30访问时，它就是一个64位的数。当使用 w0 - w30访问时，访问的是这些寄存器的低32位
+ r29 又被叫做 fp (frame pointer). r30 又被叫做 lr (link register)
+ 
+ SP
+ SP寄存器其实就是 x31，在指令编码中，使用 SP/WSP来进行对SP寄存器的访问。
+ PC
+ PC寄存器中存的是当前执行的指令的地址。在arm64中，软件是不能改写PC寄存器的。
+ V0 – V31
+ V0 - V31 是向量寄存器，也可以说是浮点型寄存器。它的特点是每个寄存器的大小是 128 位的。 分别可以用Bn Hn Sn Dn Qn的方式来访问不同的位数
+ Bn: 一个Byte的大小
+ Hn: half word. 就是16位
+ Sn: single word. 32位
+ Dn: double word. 64位
+ Qn: quad word. 128位
+ 
+ SPRs
+ SPRs是状态寄存器，用于存放程序运行中一些状态标识。不同于编程语言里面的
+ if else.在汇编中就需要根据状态寄存器中的一些状态来控制分支的执行。
+ 状态寄存器又分为 The Current Program Status Register (CPSR) 和 The Saved Program Status Registers (SPSRs)。
+ 一般都是使用CPSR， 当发生异常时， CPSR会存入SPSR。当异常恢复，再拷贝回CPSR。
+ 还有一些系统寄存器，如 FPSR FPCR是浮点型运算时的状态寄存器等。
+ 
+ */
+
 // true arm64
 #else
 // arm64_32
