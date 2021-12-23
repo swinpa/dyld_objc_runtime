@@ -102,8 +102,12 @@ static bool latching_decr_int_should_deallocate(volatile int32_t *where) {
         }
         int32_t new_value = old_value - 2;
         bool result = false;
+        /*
+         old_value 分别跟 BLOCK_REFCOUNT_MASK，BLOCK_DEALLOCATING进行& 操作后
+         再跟2比较
+         */
         if ((old_value & (BLOCK_REFCOUNT_MASK|BLOCK_DEALLOCATING)) == 2) {
-            new_value = old_value - 1;
+            new_value = old_value - 1;//这里是不是相当于new_value 一定为1 了？？
             result = true;
         }
         if (OSAtomicCompareAndSwapInt(old_value, new_value, where)) {
@@ -133,6 +137,8 @@ static void (*_Block_destructInstance) (const void *aBlock) = _Block_destructIns
 
 /**************************************************************************
 Callback registration from ObjC runtime and CoreFoundation
+ 在 runtime初始化过程中的libdispatch - _os_object_init()阶段调用该方法进行
+ block 回调初始化
 ***************************************************************************/
 
 void _Block_use_RR2(const Block_callbacks_RR *callbacks) {
@@ -156,6 +162,9 @@ static struct Block_descriptor_2 * _Block_descriptor_2(struct Block_layout *aBlo
 {
     if (! (aBlock->flags & BLOCK_HAS_COPY_DISPOSE)) return NULL;
     uint8_t *desc = (uint8_t *)aBlock->descriptor;
+    /*
+     指针偏移操作,将指针指向copy,dispose 开始的位置
+     */
     desc += sizeof(struct Block_descriptor_1);
     return (struct Block_descriptor_2 *)desc;
 }
@@ -177,6 +186,10 @@ static void _Block_call_copy_helper(void *result, struct Block_layout *aBlock)
     struct Block_descriptor_2 *desc = _Block_descriptor_2(aBlock);
     if (!desc) return;
 
+    /*
+     (*desc->copy)(result, aBlock); 最终会调用到
+     _Block_object_assign()方法进行对象的拷贝操作
+     */
     (*desc->copy)(result, aBlock); // do fixup
 }
 
@@ -185,6 +198,10 @@ static void _Block_call_dispose_helper(struct Block_layout *aBlock)
     struct Block_descriptor_2 *desc = _Block_descriptor_2(aBlock);
     if (!desc) return;
 
+    /*
+     (*desc->copy)(result, aBlock); 最终会调用到
+     _Block_object_dispose()方法进行对象的销毁操作
+     */
     (*desc->dispose)(aBlock);
 }
 
@@ -338,7 +355,10 @@ void _Block_release(const void *arg) {
     if (aBlock->flags & BLOCK_IS_GLOBAL) return;
     if (! (aBlock->flags & BLOCK_NEEDS_FREE)) return;
 
+    //更新block 的引用计数，更新后返回是否需要释放
     if (latching_decr_int_should_deallocate(&aBlock->flags)) {
+        //更新block的引用计数后，如果需要释放block，则处理block中的捕获对象
+        
         _Block_call_dispose_helper(aBlock);
         _Block_destructInstance(aBlock);
         free(aBlock);
@@ -539,6 +559,10 @@ void _Block_object_dispose(const void *object, const int flags) {
         _Block_release(object);
         break;
       case BLOCK_FIELD_IS_OBJECT:
+        /*
+         _Block_release_object函数指针在runtime初始化时被初始化为objc_release(object),
+         所以这里最终会变成向对象发送一条release消息
+         */
         _Block_release_object(object);
         break;
       case BLOCK_BYREF_CALLER | BLOCK_FIELD_IS_OBJECT:

@@ -219,6 +219,24 @@ struct Block_descriptor_1 {
 };
 
 #define BLOCK_DESCRIPTOR_2 1
+
+/*
+ static void __main_block_copy_0(struct __main_block_impl_0*dst, struct __main_block_impl_0*src)
+ {
+                                                                //3: BLOCK_FIELD_IS_OBJECT//
+    _Block_object_assign((void*)&dst->array2, (void*)src->array2, 3);
+ }
+
+ static void __main_block_dispose_0(struct __main_block_impl_0*src)
+ {
+                                             /3: BLOCK_FIELD_IS_OBJECT/
+    _Block_object_dispose((void*)src->array2, 3);
+ }
+
+ 编译阶段会BlockCopyFunction copy被赋值 类__main_block_copy_0 的函数指针
+ 同理BlockDisposeFunction dispose被赋值 类__main_block_dispose_0 的函数指针
+ */
+
 struct Block_descriptor_2 {
     // requires BLOCK_HAS_COPY_DISPOSE
     BlockCopyFunction copy;
@@ -238,6 +256,17 @@ struct Block_layout {
     volatile int32_t flags; // contains ref count
     int32_t reserved;
     BlockInvokeFunction invoke;
+    /*
+     Block_descriptor_1 保存了block 的copy，dispose 操作的函数指针，用来对block进行copy，dispose操作
+     其实编译阶段变成了：
+     static struct __main_block_desc_0 {
+       size_t reserved;
+       size_t Block_size;
+       void (*copy)(struct __main_block_impl_0*, struct __main_block_impl_0*);
+       void (*dispose)(struct __main_block_impl_0*);
+     } __main_block_desc_0_DATA = { 0, sizeof(struct __main_block_impl_0), __main_block_copy_0, __main_block_dispose_0};
+
+     */
     struct Block_descriptor_1 *descriptor;
     // imported variables
 };
