@@ -158,9 +158,52 @@ _objc_indexed_classes:
  * END_ENTRY functionName
  ********************************************************************/
 
+// 定义一个汇编宏 ENTRY，表示在 text 段定义一个 32 字节对齐的 global 函数，
+// "$0" 同时生产一个函数入口标签。
+// 上一节中我们分析 GetClassFromIsa_p16 时，说过 $0 表示宏定义的第一个入参
+// (不知道支不支持多个入参例如 $1 $2 啥的...)
+
+/*
+ 
+// .global 关键字用来让一个符号对链接器可见，可以供其他链接对象模块使用，
+// 告诉汇编器后续跟的是一个全局可见的名字（可能是变量，也可以是函数名）
+
+// 这里用来指定 $0，$0 代表入参，
+// 是不是就是表示 ENTRY 标注的函数都是全局可见的函数
+
+// 00001:
+// 00002: .text
+// 00003: .global _start
+// 00004:
+// 00005: _start:
+
+// .global _start 和 _start: 配合，
+// 给代码开始地址定义一个全局标记 _start。
+// _start 是一个函数的起始地址，也是编译、链接后程序的起始地址。
+// 由于程序是通过加载器来加载的，
+// 必须要找到 _start 名字的的函数，因此 _start 必须定义成全局的，
+// 以便存在于编译后的全局符号表中，
+// 供其他程序（如加载器）寻找到。
+
+// .global _start 让 _start 符号成为可见的标示符，
+// 这样链接器就知道跳转到程序中的什么地方并开始执行，
+// Linux 寻找这个 _start 标签作为程序的默认进入点。
+
+// .extern xxx 说明 xxx 为外部函数，
+// 调用的时候可以遍访所有文件找到该函数并且使用它
+                  
+// 在汇编和 C 混合编程中，在 GNU ARM 编译环境下，
+// 汇编程序中要使用 .global 伪操作声明汇编程序为全局的函数，
+// 意即可被外部函数调用，
+// 同时 C 程序中要使用 extern 声明要被汇编调用的函数。
+
+ [原文链接][https://juejin.cn/post/6880503993798230030]
+ 
+ */
+
 .macro ENTRY /* name */
-	.text
-	.align 5
+	.text /* .text 定义一个代码段，处理器开始执行代码的时候，代表后面是代码。这是 GCC 必须的。*/
+	.align 5 // 2^5，32 个字节对齐
 	.globl    $0
 $0:
 .endmacro
@@ -168,18 +211,18 @@ $0:
 .macro STATIC_ENTRY /*name*/
 	.text
 	.align 5
-	.private_extern $0
+	.private_extern $0//// 这里是 private_extern (私有函数)
 $0:
 .endmacro
 
 .macro END_ENTRY /* name */
-LExit$0:
+LExit$0: // 只有一个 LExit$0 标签 （以 L 开头的标签叫本地标签，这些标签只能用于函数内部）
 .endmacro
 
 
 /********************************************************************
  * UNWIND name, flags
- * Unwind info generation	
+ * Unwind info generation	(展开信息生成)
  ********************************************************************/
 .macro UNWIND
 	.section __LD,__compact_unwind,regular,debug
@@ -281,6 +324,8 @@ LExit$0:
 		             // p12 = buckets + ((_cmd & mask) << (1+PTRSHIFT))
 
 	ldp	p17, p9, [x12]		// {imp, sel} = *bucket
+
+//  这前面主要获取缓存中的数据到p9 中
 1:	cmp	p9, p1			// if (bucket->sel != _cmd)
 	b.ne	2f			//     scan more
 	CacheHit $0			// call or return imp
@@ -289,8 +334,11 @@ LExit$0:
 	CheckMiss $0			// miss if bucket->sel == 0
 	cmp	p12, p10		// wrap if bucket == buckets
 	b.eq	3f
-	ldp	p17, p9, [x12, #-BUCKET_SIZE]!	// {imp, sel} = *--bucket
-	b	1b			// loop
+	//从内存中加载一个bucket 到p9 中
+    //Tip1: 64位下，寄存器大小为8bytes
+    //ldp x29, x30, [sp, #0x70] 将内存地址sp+0x70处的数据加载到x29中，再将sp+0x78(Tip1, 在sp+0x70 基础上再偏移8)处的数据加载到x30中。
+    ldp	p17, p9, [x12, #-BUCKET_SIZE]!	// {imp, sel} = *--bucket
+	b	1b			// loop，重新跳到1标签进行比较
 
 3:	// wrap: p12 = first bucket, w11 = mask
 	add	p12, p12, w11, UXTW #(1+PTRSHIFT)
