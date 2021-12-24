@@ -103,16 +103,29 @@ _objc_indexed_classes:
 	.fill ISA_INDEX_COUNT, PTRSIZE, 0
 #endif
 
-//定义宏 GetClassFromIsa_p16
+//定义宏 GetClassFromIsa_p16 函数
 .macro GetClassFromIsa_p16 /* src */
 
 #if SUPPORT_INDEXED_ISA
 	// Indexed isa
-    //$0 为宏GetClassFromIsa_p16 的参数
+    //$0 为宏函数GetClassFromIsa_p16 的参数
 	mov	p16, $0			// optimistically set dst = src
-	//tbz: (test branch zero). 测试位为0，则跳转。
-    tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa
-	// isa in p16 is indexed
+	/*
+     tbz: (test branch zero). 测试位为0，则跳转。
+     如：tbz w24, #0x6, 0x19307005c ; 即w24第6位，若为0，则跳转到0x19307005c执行
+     [指令说明文章][https://www.dongxin.online/assembly/assemblyinstructions.html]
+     */
+    /*
+     #ISA_INDEX_IS_NPI_BIT == #0
+     如果p16 第0位为0 则跳转到下面的1: 标签处继续执行，否则执行接下来的adrp    x10, _objc_indexed_classes@PAGE指令
+     tbz    p16, #ISA_INDEX_IS_NPI_BIT 判断对象地址是否是Tagged Pointer
+     [Tagged Pointer 判断说明好文章][https://www.infoq.cn/article/r5s0budukwyndafrivh4]
+     简单说就是拿取地址的第一位判断是否为1，如：0xb000000000000012
+     b == 1011 第一位为1（从左到右数），所以为Tagged Pointer
+     */
+    tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa，【non-pointer isa：非指针类isa,(地址不是单纯的地址，还有值相关的数据)】
+	
+    // isa in p16 is indexed，接下来就是non-pointer isa（Tagged Pointer） 情况的处理
     /*
      adr: 作用：小范围的地址读取指令。ADR 指令将基于PC 相对偏移的地址值读取到寄存器中。
      adrp: 以页为单位的大范围的地址读取指令，这里的p就是page的意思。
@@ -121,11 +134,13 @@ _objc_indexed_classes:
 	adrp	x10, _objc_indexed_classes@PAGE
 	add	x10, x10, _objc_indexed_classes@PAGEOFF
 	ubfx	p16, p16, #ISA_INDEX_SHIFT, #ISA_INDEX_BITS  // extract index
-	ldr	p16, [x10, p16, UXTP #PTRSHIFT]	// load class from array
+	//将[x10, p16, UXTP #PTRSHIFT] 指定的内存数据加载到p16 寄存器中
+    ldr	p16, [x10, p16, UXTP #PTRSHIFT]	// load class from array
 1:
 
 #elif __LP64__
 	// 64-bit packed isa
+    // 不是 non-pointer isa 的情况下，直接将参数与p16进行与运算并将结果存放在p16中：
 	and	p16, $0, #ISA_MASK
 
 #else
@@ -237,6 +252,11 @@ LExit$0:
 .if $0 == GETIMP
 	b	LGetImpMiss
 .elseif $0 == NORMAL
+/*
+ b
+ branch. 无条件跳转。
+ 例如：b 0x1b6b79cf8 跳转到0x1b6b79cf8处继续执行。
+*/
 	b	__objc_msgSend_uncached
 .elseif $0 == LOOKUP
 	b	__objc_msgLookup_uncached
@@ -245,9 +265,14 @@ LExit$0:
 .endif
 .endmacro
 
+//定义宏 函数CacheLookup，该函数在objc_msgSend()中获取到isa 后被调用
 .macro CacheLookup
 	// p1 = SEL, p16 = isa
-	ldp	p10, p11, [x16, #CACHE]	// p10 = buckets, p11 = occupied|mask
+    /*
+     ldp x29, x30, [sp, #0x70] 将内存地址sp+0x70处的数据加载到x29中，再将sp+0x78(Tip1)处的数据加载到x30中。
+     #define CACHE            (2 * __SIZEOF_POINTER__)
+     */
+    ldp	p10, p11, [x16, #CACHE]	// p10 = buckets, p11 = occupied|mask
 #if !__LP64__
 	and	w11, w11, 0xffff	// p11 = mask
 #endif
@@ -287,6 +312,7 @@ LExit$0:
 	b	1b			// loop
 
 3:	// double wrap
+    // 缓存没命中，则调用宏函数JumpMiss
 	JumpMiss $0
 	
 .endmacro
@@ -404,9 +430,12 @@ _objc_debug_taggedpointer_ext_classes:
      GetClassFromIsa_p16：从 isa 中获取类指针并存放在通用寄存器 p16 中
      and p16, $0, #ISA_MASK
      在 __LP64__ 下通过 p16 = isa(正是 p13) & ISA_MASK，拿出 shiftcls 信息，得到 class 信息
+     GetClassFromIsa_p16 为宏函数，传递的参数为p13
      */
 	GetClassFromIsa_p16 p13		// p16 = class
+//定义跳转标签
 LGetIsaDone:
+    //调用宏函数，传入参数值为NORMAL
 	CacheLookup NORMAL		// calls imp or objc_msgSend_uncached
 
 #if SUPPORT_TAGGED_POINTERS
@@ -548,11 +577,15 @@ LLookup_Nil:
      pc： 保存将要执行的指令的地址（有操作系统决定其值，不能改写）。
 
      */
+    //将 fp, lr 入栈到[sp, #-16]处
 	stp	fp, lr, [sp, #-16]!
+    //保存保存栈顶地址到fp 中，为后面申请栈空间做准备
 	mov	fp, sp
 
 	// save parameter registers: x0..x8, q0..q7
+    //申请栈空间
 	sub	sp, sp, #(10*8 + 8*16)
+    //将r0-r8寄存器中的值进行入栈，保留，以便接下来调用的函数结束后进行复原
 	stp	q0, q1, [sp, #(0*16)]
 	stp	q2, q3, [sp, #(2*16)]
 	stp	q4, q5, [sp, #(4*16)]
@@ -564,17 +597,31 @@ LLookup_Nil:
 	str	x8,     [sp, #(8*16+8*8)]
 
 	// receiver and selector already in x0 and x1
+    // 将x16 应该是isa 存到x2寄存器中，因为x0 and x1 中已经保存了self,cmd 的参数
 	mov	x2, x16
     /*
      如果缓存中未找到，则跳转到 __class_lookupMethodAndLoadCache3（c 函数） 去方法列表中去找函数，
      源码在objc-runtime-new.mm 5024 行 IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)
+     bl
+     branch with link.
+     将下一条指令地址copy到lr中，然后跳转。由于保存了下一条指令地址
+     (相对于pc)，所以可实现子程序的返回，而b只能单纯的实现跳转，不能实现子程序返回。
+     【原文：https://www.dongxin.online/assembly/assemblyinstructions.html】
+     这里是不是将bl    __class_lookupMethodAndLoadCache3 后面的指令 mov    x17, x0 的地址copy到
+     lr 中，这能让__class_lookupMethodAndLoadCache3 结束后获取lr 中的地址，跳回到mov    x17, x0 这里继续执行
+     
      */
 	bl	__class_lookupMethodAndLoadCache3
 
 	// IMP in x0
+    /*
+     此时x0保存的是__class_lookupMethodAndLoadCache3 的返回值
+     mov    x17, x0 将__class_lookupMethodAndLoadCache3 返回值保存到x17 中
+     */
 	mov	x17, x0
 	
 	// restore registers and return
+    // 恢复跳转__class_lookupMethodAndLoadCache3前各寄存器状态，也就是从栈中恢复，跟上面入栈反着来就行了
 	ldp	q0, q1, [sp, #(0*16)]
 	ldp	q2, q3, [sp, #(2*16)]
 	ldp	q4, q5, [sp, #(4*16)]
@@ -591,16 +638,19 @@ LLookup_Nil:
 
 .endmacro
 
-	STATIC_ENTRY __objc_msgSend_uncached
+	STATIC_ENTRY __objc_msgSend_uncached// 进入__objc_msgSend_uncached函数
 	UNWIND __objc_msgSend_uncached, FrameWithNoSaves
 
 	// THIS IS NOT A CALLABLE C FUNCTION
 	// Out-of-band p16 is the class to search
-	
+    /*
+     调用宏函数MethodTableLookup (.macro MethodTableLookup)
+     该宏函数中在方法列表查找
+     */
 	MethodTableLookup
 	TailCallFunctionPointer x17
 
-	END_ENTRY __objc_msgSend_uncached
+	END_ENTRY __objc_msgSend_uncached// 结束__objc_msgSend_uncached函数
 
 
 	STATIC_ENTRY __objc_msgLookup_uncached
