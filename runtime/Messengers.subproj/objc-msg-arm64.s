@@ -116,6 +116,8 @@ _objc_indexed_classes:
      [指令说明文章][https://www.dongxin.online/assembly/assemblyinstructions.html]
      */
     /*
+     .1b 代表的是向回找label定义为1的代码片段起始；1f代表向下找label定义为1的代码片段起始。
+     
      #ISA_INDEX_IS_NPI_BIT == #0
      如果p16 第0位为0 则跳转到下面的1: 标签处继续执行，否则执行接下来的adrp    x10, _objc_indexed_classes@PAGE指令
      tbz    p16, #ISA_INDEX_IS_NPI_BIT 判断对象地址是否是Tagged Pointer
@@ -140,7 +142,9 @@ _objc_indexed_classes:
 
 #elif __LP64__
 	// 64-bit packed isa
-    // 不是 non-pointer isa 的情况下，直接将参数与p16进行与运算并将结果存放在p16中：
+    // 不是 non-pointer isa 的情况下，直接将参数与#ISA_MASK进行与运算并将结果存放在p16中：
+    // 将$0 跟ISA_MASK 进行and 运算把结果存放在p16 中
+    // 为什么在计算isa的时候先要位与一个mask，其原因在于现在的isa是一个兼具多种含义的指针。
 	and	p16, $0, #ISA_MASK
 
 #else

@@ -94,7 +94,7 @@ int main(int argc, char * argv[]) {
 ####autoreleasepool 跟RunLoop有关系，从GNUstep 源码中看，RunLoop在- (BOOL) runMode: (NSString*)mode beforeDate: (NSDate*)date{} 的最前面代码会创建一个NSAutoreleasePool	*arp = [NSAutoreleasePool new];并且在最后面进行[arp drain];(也就是dealloc 掉)
 
 
-###那线程跟autoreleasepool 有关系吗？如果没开启RunLoop，那线程中的autorelease对象是添加到那个autoreleasepool中的呢？（目前没在GNUstep源码中的NSThread 看到相关的创建autoreleasepool 的代码）
+###那线程跟autoreleasepool 有关系吗？如果没开启RunLoop，那线程中的autorelease对象是添加到那个autoreleasepool中的呢？（目前没在GNUstep源码中的NSThread 看到相关的创建autoreleasepool 的代码）其实在没开启runloop的子线程中如果有autorelease对象时，会自动创建一个自动释放池，在创建自动释放池时，会注册线程销毁的回调tls_dealloc，当线程销毁时会回调到tls_deallo函数，tls_deallo中又调用objc_autoreleasePoolPop对自动释放池中的对象进行释放
 
 
 ```
