@@ -278,6 +278,23 @@ _dispatch_group_wake(dispatch_group_t dg, uint64_t dg_state, bool needs_release)
 	if (refs) _dispatch_release_n(dg, refs);
 }
 
+/**
+ 
+ struct dispatch_group_s {
+	 DISPATCH_OBJECT_HEADER(group);
+	 DISPATCH_UNION_LE(uint64_t volatile dg_state,
+			 uint32_t dg_bits,
+			 uint32_t dg_gen
+	 ) DISPATCH_ATOMIC64_ALIGN;
+	 struct dispatch_continuation_s *volatile dg_notify_head;
+	 struct dispatch_continuation_s *volatile dg_notify_tail;
+ };
+
+ 
+ dispatch_group_t 中有一个dg_state 遍历
+ 每次dispatch_group_leave 都会对这个值进行原子+1 操作
+ 每次dispatch_group_enter 都会对这个值进行原子-1 操作
+ */
 void
 dispatch_group_leave(dispatch_group_t dg)
 {
