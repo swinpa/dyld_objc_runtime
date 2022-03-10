@@ -692,7 +692,7 @@ class AutoreleasePoolPage : private AutoreleasePoolPageData
 public:
 	static size_t const SIZE =
 #if PROTECT_AUTORELEASEPOOL
-		PAGE_MAX_SIZE;  // must be multiple of vm page size
+		PAGE_MAX_SIZE;  // must be multiple of vm page size 4096
 #else
 		PAGE_MIN_SIZE;  // size and alignment, power of 2
 #endif
@@ -1034,6 +1034,8 @@ private:
         return EMPTY_POOL_PLACEHOLDER;
     }
 
+    
+    /// 当前的page 保存在了线程缓存tls 中
     static inline AutoreleasePoolPage *hotPage() 
     {
         AutoreleasePoolPage *result = (AutoreleasePoolPage *)
@@ -1066,7 +1068,7 @@ private:
     {
         AutoreleasePoolPage *page = hotPage();
         if (page && !page->full()) {
-            return page->add(obj);
+            return page->add(obj);//还没满就添加到next 中
         } else if (page) {
             return autoreleaseFullPage(obj, page);
         } else {

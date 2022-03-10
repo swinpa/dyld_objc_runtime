@@ -64,6 +64,10 @@ GETSECT(_getObjc2SelectorRefs,        SEL,             "__objc_selrefs");
 GETSECT(_getObjc2MessageRefs,         message_ref_t,   "__objc_msgrefs"); 
 GETSECT(_getObjc2ClassRefs,           Class,           "__objc_classrefs");
 GETSECT(_getObjc2SuperRefs,           Class,           "__objc_superrefs");
+
+/*
+ getDataSection<classref_t>(mhdr, "__objc_classlist", nil, outCount);
+ */
 GETSECT(_getObjc2ClassList,           classref_t,      "__objc_classlist");
 ///获取非懒加载的类，也就是有+load方法的类
 GETSECT(_getObjc2NonlazyClassList,    classref_t,      "__objc_nlclslist");

@@ -647,33 +647,36 @@ static NSOperationQueue *mainQueue = nil;
 
 - (void) addOperation: (NSOperation *)op
 {
-  if (op == nil || NO == [op isKindOfClass: [NSOperation class]])
-    {
+  if (op == nil || NO == [op isKindOfClass: [NSOperation class]]) {
       [NSException raise: NSInvalidArgumentException
 		  format: @"[%@-%@] object is not an NSOperation",
-	NSStringFromClass([self class]), NSStringFromSelector(_cmd)];
-    }
+	
+       NSStringFromClass([self class]), NSStringFromSelector(_cmd)];
+  }
   [internal->lock lock];
-  if (NSNotFound == [internal->operations indexOfObjectIdenticalTo: op]
-    && NO == [op isFinished])
-    {
+  if (NSNotFound == [internal->operations indexOfObjectIdenticalTo: op] && NO == [op isFinished]) {
+      /*
+       NSOperationQueue监听Operation的isReady状态，以便Operation 的isReady状态变更时，能通知NSOperationQueue去获取该Operation 进行执行
+       */
       [op addObserver: self
-	   forKeyPath: @"isReady"
-	      options: NSKeyValueObservingOptionNew
-	      context: isReadyCtxt];
+           forKeyPath: @"isReady"
+              options: NSKeyValueObservingOptionNew
+              context: isReadyCtxt];
       [self willChangeValueForKey: @"operations"];
       [self willChangeValueForKey: @"operationCount"];
+      //internal->operations = [NSMutableArray new]; 在初始化方法（init）中初始化一个array
       [internal->operations addObject: op];
       [self didChangeValueForKey: @"operationCount"];
       [self didChangeValueForKey: @"operations"];
-      if (YES == [op isReady])
-	{
-	  [self observeValueForKeyPath: @"isReady"
-			      ofObject: op
-				change: nil
-			       context: isReadyCtxt];
-	}
-    }
+      if (YES == [op isReady]) {
+          //添加任务后，通知有任务ready
+          [self observeValueForKeyPath: @"isReady"
+                              ofObject: op
+                                change: nil
+                               context: isReadyCtxt];
+	
+      }
+  }
   [internal->lock unlock];
 }
 
@@ -965,6 +968,7 @@ static NSOperationQueue *mainQueue = nil;
         }
       if (context == isReadyCtxt)
         {
+          
           [object removeObserver: self forKeyPath: @"isReady"];
           [object addObserver: self
                    forKeyPath: @"queuePriority"
@@ -986,8 +990,7 @@ static NSOperationQueue *mainQueue = nil;
 
   [[[NSThread currentThread] threadDictionary] setObject: self
                                                   forKey: threadKey];
-  for (;;)
-    {
+  for (;;) {
       NSOperation	*op;
       NSDate		*when;
       BOOL		found;
@@ -1000,51 +1003,46 @@ static NSOperationQueue *mainQueue = nil;
       when = [[NSDate alloc] initWithTimeIntervalSinceNow: 5.0];
       found = [internal->cond lockWhenCondition: 1 beforeDate: when];
       RELEASE(when);
-      if (NO == found)
-	{
-	  break;	// Idle for 5 seconds ... exit thread.
-	}
+      if (NO == found) {
+          break;	// Idle for 5 seconds ... exit thread.
+	
+      }
 
-      if ([internal->starting count] > 0)
-	{
+      //已经operation de isReady 状态为YES的数量 > 0
+      if ([internal->starting count] > 0) {
+          //取operation
           op = RETAIN([internal->starting objectAtIndex: 0]);
-	  [internal->starting removeObjectAtIndex: 0];
-	}
-      else
-	{
-	  op = nil;
-	}
+          [internal->starting removeObjectAtIndex: 0];
+      } else {
+          op = nil;
+      }
 
-      if ([internal->starting count] > 0)
-	{
-	  // Signal any other idle threads,
+      if ([internal->starting count] > 0) {
+          // Signal any other idle threads,
           [internal->cond unlockWithCondition: 1];
-	}
-      else
-	{
-	  // There are no more operations starting.
+      } else {
+          // There are no more operations starting.
           [internal->cond unlockWithCondition: 0];
-	}
+      }
 
-      if (nil != op)
-	{
+      if (nil != op) {
           NS_DURING
-	    {
-	      ENTER_POOL
-              [NSThread setThreadPriority: [op threadPriority]];
-              [op start];
-	      LEAVE_POOL
-	    }
+          {
+              ENTER_POOL
+                  [NSThread setThreadPriority: [op threadPriority]];
+                  //执行operation
+                  [op start];
+              LEAVE_POOL
+          }
           NS_HANDLER
-	    {
-	      NSLog(@"Problem running operation %@ ... %@",
-		op, localException);
-	    }
+          {
+              NSLog(@"Problem running operation %@ ... %@", op, localException);
+          }
           NS_ENDHANDLER
-	  [op _finish];
+          [op _finish];
           RELEASE(op);
-	}
-    }
+      }
+  }
 
   [[[NSThread currentThread] threadDictionary] removeObjectForKey: threadKey];
   [internal->lock lock];
@@ -1069,10 +1067,8 @@ static NSOperationQueue *mainQueue = nil;
     }
 
   NS_DURING
-  while (NO == [self isSuspended]
-    && max > internal->executing
-    && [internal->waiting count] > 0)
-    {
+  //如果当前没有挂起，并且当前执行数量还没达到最大并发数量，并且还有waiting执行的operation
+  while (NO == [self isSuspended] && max > internal->executing && [internal->waiting count] > 0) {
       NSOperation	*op;
 
       /* Take the first operation from the queue and start it executing.
@@ -1080,58 +1076,57 @@ static NSOperationQueue *mainQueue = nil;
        * and we keep track of the count of operations we have started,
        * but the actual startup is left to the NSOperation -start method.
        */
+      //从等待队列中获取operation
       op = [internal->waiting objectAtIndex: 0];
       [internal->waiting removeObjectAtIndex: 0];
       [op removeObserver: self forKeyPath: @"queuePriority"];
       [op addObserver: self
-	   forKeyPath: @"isFinished"
-	      options: NSKeyValueObservingOptionNew
-	      context: isFinishedCtxt];
+           forKeyPath: @"isFinished"
+              options: NSKeyValueObservingOptionNew
+              context: isFinishedCtxt];
       internal->executing++;
       if (YES == [op isConcurrent])
-	{
+      {
           [op start];
-	}
-      else
-	{
-	  NSUInteger	pending;
+      }else{
+          NSUInteger	pending;
 
-	  [internal->cond lock];
-	  pending = [internal->starting count];
-	  [internal->starting addObject: op];
+          [internal->cond lock];
+          pending = [internal->starting count];
+          //将operation添加到队列中
+          [internal->starting addObject: op];
 
-	  /* Create a new thread if all existing threads are busy and
-	   * we haven't reached the pool limit.
-	   */
-	  if (0 == internal->threadCount
-	    || (pending > 0 && internal->threadCount < POOL))
-	    {
-	      internal->threadCount++;
-	      NS_DURING
-		{
-		  [NSThread detachNewThreadSelector: @selector(_thread)
+          /* Create a new thread if all existing threads are busy and
+           * we haven't reached the pool limit.
+           * 开辟线程执行operation
+           */
+          if (0 == internal->threadCount || (pending > 0 && internal->threadCount < POOL)) {
+              internal->threadCount++;
+              NS_DURING
+		
+              {
+                  [NSThread detachNewThreadSelector: @selector(_thread)
 					   toTarget: self
 					 withObject: nil];
-		}
-	      NS_HANDLER
-		{
-		  NSLog(@"Failed to create thread for %@: %@",
-		    self, localException);
-		}
-	      NS_ENDHANDLER
-	    }
-	  /* Tell the thread pool that there is an operation to start.
-	   */
-	  [internal->cond unlockWithCondition: 1];
-	}
+              }
+              NS_HANDLER
+              {
+                  NSLog(@"Failed to create thread for %@: %@", self, localException);
+              }
+              NS_ENDHANDLER
+          }
+          /* Tell the thread pool that there is an operation to start.
+           */
+          [internal->cond unlockWithCondition: 1];
+      }
     }
-  NS_HANDLER
+    NS_HANDLER
     {
       [internal->lock unlock];
       [localException raise];
     }
-  NS_ENDHANDLER
-  [internal->lock unlock];
+    NS_ENDHANDLER
+    [internal->lock unlock];
 }
 
 @end

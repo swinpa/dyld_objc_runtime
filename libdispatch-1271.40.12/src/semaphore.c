@@ -120,9 +120,53 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
 			// dsema->dsema_value
 		case DISPATCH_TIME_NOW:
 			orig = dsema->dsema_value;
+			//死循环比较
 			while (orig < 0) {
+				
+				/*
+				 //参考https://juejin.cn/post/6902346229868019719
+				 os_atomic_cmpxchgv2o 宏定义中 f 是 &(p) 的成员变量，比较 &(p)->f 和 e 的值，如果相等则用 &(p)->f 的值替换 v 的值，如果不相等，则把 &(p)->f 的值存入 e 中。
+				 #define os_atomic_cmpxchgv2o(p, f, e, v, g, m) \
+						 os_atomic_cmpxchgv(&(p)->f, (e), (v), (g), m)
+				 
+				 #define os_atomic_cmpxchgv(p, e, v, g, m) \
+						 ({
+							_os_atomic_basetypeof(p) _r = (e);
+							//参考https://docs.microsoft.com/en-us/cpp/standard-library/atomic-functions?view=msvc-170#atomic_compare_exchange_strong_explicit
+							//https://en.cppreference.com/w/c/atomic/atomic_compare_exchange
+							_Bool _b = atomic_compare_exchange_strong_explicit(_os_atomic_c11_atomic(p),
+																				&_r,
+																				v,
+																				memory_order_##m,
+																				memory_order_relaxed);
+							*(g) = _r;
+							_b;
+						})
+
+				 #define _os_atomic_basetypeof(p) \
+						 __typeof__(atomic_load_explicit(_os_atomic_c11_atomic(p), memory_order_relaxed))
+				 
+				 
+				 //将obj 跟 expected 比较，如果相等，那么将desired的值 内存覆盖obj指向的内存(也就是更新obj的值为desired)
+				 //如果不相等，那么就将obj内存的值加载到expected所指向的内存(也就是expected的值更新为obj的值)
+				 _Bool atomic_compare_exchange_strong_explicit( volatile A* obj,
+																C* expected,
+																C desired,
+																memory_order succ,
+																memory_order fail );
+				 
+				 所以这里的解释就是
+				 比较dsema->dsema_value 跟 orig(也就是dsema->dsema_value)的值
+				 如果相等，那用orig + 1更新dsema->dsema_value的值
+				 如果不相等，那用dsema->dsema_value的值赋值给第5参数&orig
+				 
+				 */
+				//desired == orig + 1
+				//第二个参数(dsema_value)是用来指定第一个参数(dsema) 中的成员变量
+				
 				if (os_atomic_cmpxchgv2o(dsema, dsema_value, orig, orig + 1,
-						&orig, relaxed)) {
+						&orig, relaxed))
+				{
 					return _DSEMA4_TIMEOUT();
 				}
 			}

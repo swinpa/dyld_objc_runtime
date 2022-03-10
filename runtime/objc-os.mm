@@ -303,7 +303,7 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
 #if __OBJC2__
     {
         size_t count = 0;
-        if (_getObjc2ClassList(hi, &count)) {
+        if (_getObjc2ClassList(hi, &count)) {//相当于调用getDataSection<classref_t>(mhdr, "__objc_classlist", nil, outCount);
             totalClasses += (int)count;
             if (!inSharedCache) unoptimizedTotalClasses += count;
         }
@@ -470,12 +470,14 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
 
     // Count classes. Size various table based on the total.
     int totalClasses = 0;
+    //optimized ['ɒptɪmaɪzd] 使最优化；充分利用
     int unoptimizedTotalClasses = 0;
     {
         uint32_t i = mhCount;
         while (i--) {
             const headerType *mhdr = (const headerType *)mhdrs[i];
 
+            //获取image 有多少个class
             auto hi = addHeader(mhdr, mhPaths[i], totalClasses, unoptimizedTotalClasses);
             if (!hi) {
                 // no objc data in this entry

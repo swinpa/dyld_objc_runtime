@@ -110,7 +110,8 @@ public:
      struct _class_ro_t *ro;
  };
 */
-typedef struct classref * classref_t;
+//classref* 重命名为classref_t
+typedef struct classref* classref_t;
 
 /***********************************************************************
 * entsize_list_tt<Element, List, FlagMask>
@@ -617,7 +618,7 @@ struct class_ro_t {
     const char * name;
     method_list_t * baseMethodList;
     protocol_list_t * baseProtocols;
-    /// 存放的是成员变量相对于对象首地址的偏移量
+    /// 存放的是成员变量相对于对象首地址的偏移量，类型往上查找
     const ivar_list_t * ivars;
 
     const uint8_t * weakIvarLayout;// <- 记录了哪些是 weak 的 ivar

@@ -1046,7 +1046,7 @@ class AutoreleasePoolPage
             delete deathptr;
         } while (deathptr != this);
     }
-
+    //线程结束时回调
     static void tls_dealloc(void *p) 
     {
         if (p == (void*)EMPTY_POOL_PLACEHOLDER) {
@@ -1193,7 +1193,7 @@ class AutoreleasePoolPage
         assert(!hotPage());
 
         bool pushExtraBoundary = false;
-        if (haveEmptyPoolPlaceholder()) {
+        if (haveEmptyPoolPlaceholder()) {//线程缓存中有没有空的poolpage
             // We are pushing a second pool over the empty placeholder pool
             // or pushing the first object into the empty placeholder pool.
             // Before doing that, push a pool boundary on behalf of the pool 

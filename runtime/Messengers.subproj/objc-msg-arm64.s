@@ -67,6 +67,7 @@ _objc_exitPoints:
 
 /* Selected field offsets in class structure */
 #define SUPERCLASS       __SIZEOF_POINTER__
+
 #define CACHE            (2 * __SIZEOF_POINTER__)
 
 /* Selected field offsets in method structure */
@@ -114,27 +115,50 @@ _objc_indexed_classes:
      tbz: (test branch zero). 测试位为0，则跳转。
      如：tbz w24, #0x6, 0x19307005c ; 即w24第6位，若为0，则跳转到0x19307005c执行
      [指令说明文章][https://www.dongxin.online/assembly/assemblyinstructions.html]
+     [https://www.jianshu.com/p/d987a4e097a0]
      */
     /*
      .1b 代表的是向回找label定义为1的代码片段起始；1f代表向下找label定义为1的代码片段起始。
      
      #ISA_INDEX_IS_NPI_BIT == #0
+     isa.h 中定义： #   define ISA_INDEX_IS_NPI_BIT  0
      如果p16 第0位为0 则跳转到下面的1: 标签处继续执行，否则执行接下来的adrp    x10, _objc_indexed_classes@PAGE指令
      tbz    p16, #ISA_INDEX_IS_NPI_BIT 判断对象地址是否是Tagged Pointer
      [Tagged Pointer 判断说明好文章][https://www.infoq.cn/article/r5s0budukwyndafrivh4]
      简单说就是拿取地址的第一位判断是否为1，如：0xb000000000000012
      b == 1011 第一位为1（从左到右数），所以为Tagged Pointer
      */
+    /*
+     tbz    p16, #ISA_INDEX_IS_NPI_BIT, 1f
+     指令说明 测试p16 中的第0 位是否为0， 为0 则跳转到1标签处，说明不是Tagged Pointer
+     */
     tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa，【non-pointer isa：非指针类isa,(地址不是单纯的地址，还有值相关的数据)】
 	
     // isa in p16 is indexed，接下来就是non-pointer isa（Tagged Pointer） 情况的处理
     /*
-     adr: 作用：小范围的地址读取指令。ADR 指令将基于PC 相对偏移的地址值读取到寄存器中。
-     adrp: 以页为单位的大范围的地址读取指令，这里的p就是page的意思。
-     通俗来讲，adrp指令就是先进行PC+imm（偏移值）然后找到lable所在的一个4KB的页，然后取得label的基址，再进行偏移去寻址
+     adrp （参考：https://www.dongxin.online/assembly/assemblyinstructions.html）
+     form pc-relative address to 4KB page. 先将操作数左移12位，再将pc的低12位清零 (即3个十六进制位清零，得到一个页对齐地址)，
+     最后两者相加，赋值给寄存器。
+     例如：
+        0x1b703f074 <+44>:  adrp   x20, 270332
+     -> 0x1b703f078 <+48>:  ldr    x0, [x20, #0x7a0]
+     执行adrp时，先将操作数270332 (十六进制为0x41ffc) 左移12位得到0x41ffc000，再将pc (0x1b703f074) 低12清零得到 0x1b703f000，最后两者相加得到0x1f903b000赋值给x20。通过控制台查看x20中的内容：
+
+      x19 = 0x000000016ef25fb0
+      x20 = 0x00000001f903b000
+      x21 = 0x0000000281454380
+     
      */
 	adrp	x10, _objc_indexed_classes@PAGE
 	add	x10, x10, _objc_indexed_classes@PAGEOFF
+    /*
+     从p16寄存器(第二个参数)的第#ISA_INDEX_SHIFT位开始，提取#ISA_INDEX_BITS位到p16寄存器(第一个参数)，剩余高位用0填充
+     isa.h 中的定义：
+     #   define ISA_INDEX_SHIFT       2
+     #   define ISA_INDEX_BITS        15
+     所以这条指令的意思就是：
+     从p16寄存器(第二个参数)的第2位开始，提取15位到p16寄存器(第一个参数)，剩余高位用0填充
+     */
 	ubfx	p16, p16, #ISA_INDEX_SHIFT, #ISA_INDEX_BITS  // extract index
 	//将[x10, p16, UXTP #PTRSHIFT] 指定的内存数据加载到p16 寄存器中
     ldr	p16, [x10, p16, UXTP #PTRSHIFT]	// load class from array
@@ -318,6 +342,9 @@ LExit$0: // 只有一个 LExit$0 标签 （以 L 开头的标签叫本地标签�
     /*
      ldp x29, x30, [sp, #0x70] 将内存地址sp+0x70处的数据加载到x29中，再将sp+0x78(Tip1)处的数据加载到x30中。
      #define CACHE            (2 * __SIZEOF_POINTER__)
+     
+     指令说明：
+     将内存地址 x16 + (2 * __SIZEOF_POINTER__)的数据加载到p10中,再将x16 + (2 * __SIZEOF_POINTER__) + 8 处的数据加载到p11中。
      */
     ldp	p10, p11, [x16, #CACHE]	// p10 = buckets, p11 = occupied|mask
 #if !__LP64__
@@ -416,6 +443,8 @@ _objc_debug_taggedpointer_ext_classes:
      */
     // p0 - 0 = 0。  状态寄存器标识zero: PSTATE.NZCV.Z = 1
 	cmp	p0, #0			// nil check and tagged pointer check
+
+//如果支持tagged pointer
 #if SUPPORT_TAGGED_POINTERS
     /*
      
@@ -443,7 +472,13 @@ _objc_debug_taggedpointer_ext_classes:
     
      p0 小于或等于 0 的话，则跳转到 LNilOrTagged 标签处,执行 Taggend Pointer 对象的函数查找及执行
      因为 tagged pointer 在 arm64 下，最高位为 1，作为有符号数 < 0
-    */
+     
+     以4字节的整型为例，4byte=32bit：
+     32位数一共可以表示2^{32}个数，对于有符号数来说，表示-2^{31}\rightarrow +(2^{31}-1)，
+     
+     其中第一位是符号位。符号为1表示负数；0表示正数。
+    
+     */
     //当判断状态寄存器 NZCV.Z == 0, N==V才跳转
 	b.le	LNilOrTagged		//  (MSB tagged pointer looks negative)
 #else
@@ -492,6 +527,7 @@ LGetIsaDone:
 
 #if SUPPORT_TAGGED_POINTERS
 LNilOrTagged:
+    //判断，如果为0，则直接跳转到LReturnZero 标签处进行返回
 	b.eq	LReturnZero		// nil check
 
 	// tagged

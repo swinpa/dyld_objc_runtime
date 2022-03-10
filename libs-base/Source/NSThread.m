@@ -1310,7 +1310,10 @@ unregisterActiveThread(NSThread *thread)
 
 /**
  * Trampoline function called to launch the thread
- * 线程入口函数，在线程入口函数中，调用NSThread 构造时指定的target对应的selector
+ * 线程入口函数，通过
+ * int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+ * 接口创建线程时指定的线程入口函数参数
+ * 传进来的参数为NSThread对象
  */
 static void *
 nsthreadLauncher(void *thread)

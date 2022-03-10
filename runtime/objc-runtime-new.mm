@@ -2332,6 +2332,9 @@ load_images(const char *path __unused, const struct mach_header *mh)
     /*
      上面将+load的方法都放到全局的列表后，下面就开始调用执行
      先遍历类的loadable_classes 执行，再遍历分类的loadable_categories 执行
+     
+     +load方法执行顺序：
+     父类->当前类->分类
      */
     call_load_methods();
 }
@@ -2731,7 +2734,21 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     for (EACH_HEADER) {// 相当于 for (hIndex = 0;hIndex < hCount && (hi = hList[hIndex]); hIndex++) {}
         /*
          从image的数据段__objc_classlist 中读取所有的类
-         读出来时的类型如下
+         读出来时的类型如下,编译期的类型
+         struct _class_ro_t {
+             unsigned int flags;
+             //-----------确定了成员变量的地址空间----------------
+             unsigned int instanceStart;
+             unsigned int instanceSize;
+             //---------------------------
+             const unsigned char *ivarLayout;
+             const char *name;
+             const struct _method_list_t *baseMethods;
+             const struct _objc_protocol_list *baseProtocols;
+             const struct _ivar_list_t *ivars;
+             const unsigned char *weakIvarLayout;
+             const struct _prop_list_t *properties;
+         };
          struct _class_t {
              struct _class_t *isa;
              struct _class_t *superclass;
@@ -2752,6 +2769,35 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         /*
          因为 通过 xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc -fobjc-arc -fobjc-runtime=ios-8.0.0 main.m
          经过一层编译 将oc代码转化为C++代码 可得 __objc_classlist 如何存入 由此可得以上类型
+         
+         static struct _class_ro_t _OBJC_CLASS_RO_$_Person __attribute__ ((used, section ("__DATA,__objc_const"))) = {
+             0,
+             __OFFSETOFIVAR__(struct Person, father_var_loves),
+             
+              // sizeof() 是一个运算符，并不是一个函数。sizeof() 传进来的是类型，用来计算这个类型占多大内存，
+              // 这个在 编译器编译阶段 就会确定大小并直接转化成 8 、16 、24 这样的常数，而不是在运行时计算。参数可以是数组、指针、类型、对象、结构体、函数等。
+              
+             sizeof(struct Person_IMPL),
+             0,
+             "Person",
+             (const struct _method_list_t *)&_OBJC_$_INSTANCE_METHODS_Person,
+             0,
+             (const struct _ivar_list_t *)&_OBJC_$_INSTANCE_VARIABLES_Person,
+             0,
+             (const struct _prop_list_t *)&_OBJC_$_PROP_LIST_Person,
+         };
+         extern "C" __declspec(dllexport) struct _class_t OBJC_CLASS_$_Person __attribute__ ((used, section ("__DATA,__objc_data"))) = {
+             0, // &OBJC_METACLASS_$_Person,
+             0, // &OBJC_CLASS_$_NSObject,
+             0, // (void *)&_objc_empty_cache,
+             0, // unused, was (void *)&_objc_empty_vtable,
+             &_OBJC_CLASS_RO_$_Person,
+         };
+         static struct _class_t *L_OBJC_LABEL_CLASS_$ [2] __attribute__((used, section ("__DATA, __objc_classlist,regular,no_dead_strip")))= {
+             &OBJC_CLASS_$_Person,
+             &OBJC_CLASS_$_Man,
+         };
+         
          */
         classref_t *classlist = _getObjc2ClassList(hi, &count);
         if (! mustReadClasses(hi)) {
@@ -4995,6 +5041,24 @@ getMethodNoSuper_nolock(Class cls, SEL sel)
     // fixme nil cls? 
     // fixme nil sel?
 
+    /*
+     struct objc_class : objc_object {
+         // Class ISA;
+         Class superclass;
+         cache_t cache;             // formerly cache pointer and vtable
+         class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
+         class_rw_t *data() {
+             return bits.data();
+         }
+     }
+     struct class_rw_t {
+         const class_ro_t *ro;
+         //类realize后(realizeClass()执行后)，所有的实例方法都放在该变量中，包括分类中定义的
+         method_array_t methods;
+         property_array_t properties;
+         protocol_array_t protocols;
+     }
+     */
     for (auto mlists = cls->data()->methods.beginLists(), 
               end = cls->data()->methods.endLists(); 
          mlists != end;
@@ -5125,10 +5189,13 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
     /*
      1. 从当前类的缓存中查找，找到则返回
      2. 当前类的缓存没有，则去当前类的方法列表中查找，找到缓存并返回
-     3. 当前类的方法列表中没有找到则去父类的缓存查找，找到将其缓存到当前类并返回
+        
+        当前类的方法列表在class_rw_t->methods中
+     
+     3. 当前类的方法列表中没有找到则遍历整条继承链中父类的缓存查找，找到将其缓存到当前类并返回
      4. 父类的缓存没有则去父类的方法列表中查找，找到将其缓存到当前类并返回
-     5. 如果遍历完父类的缓存以及方法列表都没找到，则进行动态方法决议
-     6. 如果动态方法决议后也没找到方法imp，则进行消息转发
+     5. 如果遍历完整条继承链的缓存以及方法列表都没找到，则进行动态方法决议，检查有没有resolveInstanceMethod，或者resolveClassMethod,有则执行
+     6. 进行动态方法决议后再重新从缓存开始的地方再跑一遍，再跑一遍也没找到方法imp，则进行消息转发
      7. 消息转发失败则崩溃
      */
     

@@ -308,8 +308,10 @@ NSString *NSLockException = @"NSLockException";
        */
       pthread_mutexattr_init(&attr_normal);
       pthread_mutexattr_settype(&attr_normal, PTHREAD_MUTEX_NORMAL);
+      
       pthread_mutexattr_init(&attr_reporting);
       pthread_mutexattr_settype(&attr_reporting, PTHREAD_MUTEX_ERRORCHECK);
+      
       pthread_mutexattr_init(&attr_recursive);
       pthread_mutexattr_settype(&attr_recursive, PTHREAD_MUTEX_RECURSIVE);
 

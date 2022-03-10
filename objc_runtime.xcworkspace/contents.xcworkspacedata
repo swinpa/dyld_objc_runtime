@@ -2,6 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:libmalloc-master/libmalloc.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "group:libclosure-74/Blocks.xcodeproj">
    </FileRef>
    <FileRef

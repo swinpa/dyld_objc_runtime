@@ -4428,7 +4428,7 @@ static void printAllImages()
 
  调用image的link方法
  image的link方法主要做的事情是：
- 旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个随机地址偏移量？？？》
+ 旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个ASLR随机地址偏移量？？？》
  this->recursiveRebase(context);
  
  《占位地址》转成《实际地址》，
@@ -5113,11 +5113,13 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 	 注册回调
 	 */
 	stateToHandlers(dyld_image_state_dependents_mapped, sBatchHandlers)->push_back(notifyGDB);
+	
 	/*
 	 当收到dyld_image_state_mapped 这个通知时，会执行updateAllImages 这个回调方法
 	 sSingleHandlers 为全局的存放回调函数指针的二维数组
 	 */
 	stateToHandlers(dyld_image_state_mapped, sSingleHandlers)->push_back(updateAllImages);
+	
 	/*
 	 make initial allocations large enough that it is unlikely to need to be re-alloced
 	 尽可能大的初始化一堆容器

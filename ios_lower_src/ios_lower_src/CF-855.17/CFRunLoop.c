@@ -2791,6 +2791,12 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
              */
             if (__CFRunLoopServiceMachPort(dispatchPort, &msg, sizeof(msg_buffer), &livePort, 0)) {
                 // 如果接收到了消息的话，前往 handle_msg 开始处理 msg
+                /*
+                 触发执行GCD dispatch main queue 的 block
+                 在这可以看到在kCFRunLoopBeforeWaiting 也就是在刷新界面前主线程执行了一次dispatch main queue 的 block
+                 而在kCFRunLoopAfterWaiting后又执行了一次GCD dispatch main queue 的 block，所以在一次RunLoop有两个机会执行GCD dispatch main queue中的任务，分别在休眠前和被唤醒后。
+                 而 在睡眠前，刷新界面前执行了一次，所以通过两次GCD dispatch main queue 的 block 可以知道界面是否刷新完成
+                 */
                 goto handle_msg;
             }
         }
@@ -2803,6 +2809,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
          */
         if (!poll && (rlm->_observerMask & kCFRunLoopBeforeWaiting)) {
             /// 此处有Observer释放并新建AutoreleasePool: _objc_autoreleasePoolPop(); _objc_autoreleasePoolPush();
+            /// 即将进入休眠，会重绘一次界面
             __CFRunLoopDoObservers(rl, rlm, kCFRunLoopBeforeWaiting);
         }
 	
@@ -2939,7 +2946,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 #if DEPLOYMENT_TARGET_WINDOWS
             void *msg = 0;
 #endif
-            // 执行block
+            // 执行GCD dispatch main queue 的 block
             __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__(msg);
             _CFSetTSD(__CFTSDKeyIsInGCDMainQ, (void *)0, NULL);
 	        __CFRunLoopLock(rl);
@@ -3019,7 +3026,9 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
      在RunLoop rl的 _modes（rl->_modes） 中 查找有没有名字为modeName 的mode,如果有则返回该mode
      如果没有，则创建一个mode,然后添加到 rl->_modes 中并返回创建的mode
      */
+    //根据名字查找mode
     CFRunLoopModeRef currentMode = __CFRunLoopFindMode(rl, modeName, false);
+    // 如果mode里没有source/timer/observer, 直接返回。
     if (NULL == currentMode || __CFRunLoopModeIsEmpty(rl, currentMode, rl->_currentMode)) {
         Boolean did = false;
         if (currentMode){
@@ -3042,7 +3051,7 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
     //调用__CFRunLoopRun()跑RunLoop
 	result = __CFRunLoopRun(rl, currentMode, seconds, returnAfterSourceHandled, previousMode);
     
-    // 通知Observer即将进入Loop
+    // 通知Observer即将退出Loop
     if (currentMode->_observerMask & kCFRunLoopExit ){
         /// 此处有Observer释放AutoreleasePool: _objc_autoreleasePoolPop();
         __CFRunLoopDoObservers(rl, currentMode, kCFRunLoopExit);

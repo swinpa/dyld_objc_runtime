@@ -1806,7 +1806,8 @@ _dispatch_queue_push_item(dispatch_lane_class_t dqu, dispatch_object_t dou)
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_root_queue_push_inline(dispatch_queue_global_t dq,
-		dispatch_object_t _head, dispatch_object_t _tail, int n)
+								 dispatch_object_t _head,
+								 dispatch_object_t _tail, int n)
 {
 	struct dispatch_object_s *hd = _head._do, *tl = _tail._do;
 	/*
@@ -2693,15 +2694,18 @@ _dispatch_continuation_priority_set(dispatch_continuation_t dc,
 DISPATCH_ALWAYS_INLINE
 static inline dispatch_qos_t
 _dispatch_continuation_init_f(dispatch_continuation_t dc,
-		dispatch_queue_class_t dqu, void *ctxt, dispatch_function_t f,
-		dispatch_block_flags_t flags, uintptr_t dc_flags)
+							  dispatch_queue_class_t dqu,
+							  void *ctxt,
+							  dispatch_function_t f,
+							  dispatch_block_flags_t flags,
+							  uintptr_t dc_flags)
 {
 	pthread_priority_t pp = 0;
 	dc->dc_flags = dc_flags | DC_FLAG_ALLOCATED;
-	dc->dc_func = f;//dispatch_async()传进来的block中的函数指针
+	dc->dc_func = f;//dispatch_async()传进来的block中的函数指针，或者_dispatch_call_block_and_release 这个函数指针
 	dc->dc_ctxt = ctxt;//dispatch_async()传进来的block，block中保存有上下文
 	// in this context DISPATCH_BLOCK_HAS_PRIORITY means that the priority
-	// should not be propagated, only taken from the handler if it has one
+	// should not be propagated(传播), only taken from the handler if it has one
 	if (!(flags & DISPATCH_BLOCK_HAS_PRIORITY)) {
 		pp = _dispatch_priority_propagate();
 	}
@@ -2712,8 +2716,10 @@ _dispatch_continuation_init_f(dispatch_continuation_t dc,
 DISPATCH_ALWAYS_INLINE
 static inline dispatch_qos_t
 _dispatch_continuation_init(dispatch_continuation_t dc,
-		dispatch_queue_class_t dqu, dispatch_block_t work,
-		dispatch_block_flags_t flags, uintptr_t dc_flags)
+							dispatch_queue_class_t dqu,//queue
+							dispatch_block_t work,//block
+							dispatch_block_flags_t flags,
+							uintptr_t dc_flags)
 {
 	//
 	void *ctxt = _dispatch_Block_copy(work);
@@ -2721,6 +2727,7 @@ _dispatch_continuation_init(dispatch_continuation_t dc,
 	dc_flags |= DC_FLAG_BLOCK | DC_FLAG_ALLOCATED;
 	//判断当前的block 是否是内部的私有block
 	if (unlikely(_dispatch_block_has_private_data(work))) {
+		//内部私有block
 		dc->dc_flags = dc_flags;
 		dc->dc_ctxt = ctxt;
 		// will initialize all fields but requires dc_flags & dc_ctxt to be set
@@ -2728,7 +2735,12 @@ _dispatch_continuation_init(dispatch_continuation_t dc,
 	}
 
 	dispatch_function_t func = _dispatch_Block_invoke(work);
+	
+	// continuation resources are freed on run
+	// this is set on async or for non event_handler source handlers
+	// #define DC_FLAG_CONSUME					0x004ul
 	if (dc_flags & DC_FLAG_CONSUME) {
+		//调用完block后释放block
 		func = _dispatch_call_block_and_release;
 	}
 	return _dispatch_continuation_init_f(dc, dqu, ctxt, func, flags, dc_flags);
@@ -2756,8 +2768,10 @@ DISPATCH_ALWAYS_INLINE
  } dispatch_queue_class_t DISPATCH_TRANSPARENT_UNION;
 
  */
-static inline void _dispatch_continuation_async(dispatch_queue_class_t dqu,
-		dispatch_continuation_t dc, dispatch_qos_t qos, uintptr_t dc_flags)
+static inline void _dispatch_continuation_async(dispatch_queue_class_t dqu,//queue
+												dispatch_continuation_t dc,//封装了block
+												dispatch_qos_t qos,
+												uintptr_t dc_flags)
 {
 #if DISPATCH_INTROSPECTION
 	if (!(dc_flags & DC_FLAG_NO_INTROSPECTION)) {

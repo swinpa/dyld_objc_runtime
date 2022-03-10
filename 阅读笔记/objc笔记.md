@@ -8,6 +8,57 @@
 
 	* 普通对象在对象创建时(也就是alloc时)将isa 指向类
 	*  类是一个对象，那类这个对象又是什么时候创建的呢？ 而类的初始化，在编译期间，编译器将类声明一个静态的
+		
+		
+			extern "C" __declspec(dllimport) struct _class_t OBJC_METACLASS_$_NSObject;
+			extern "C" __declspec(dllexport) struct _class_t OBJC_CLASS_$_Person __attribute__ ((used, section 
+			("__DATA,__objc_data"))) = {
+				0, // &OBJC_METACLASS_$_Person,
+				0, // &OBJC_CLASS_$_NSObject,
+				0, // (void *)&_objc_empty_cache,
+				0, // unused, was (void *)&_objc_empty_vtable,
+				&_OBJC_CLASS_RO_$_Person,
+			};
+			
+			static struct _class_ro_t _OBJC_CLASS_RO_$_Man __attribute__ ((used, section ("__DATA,__objc_const"))) = {
+				0, __OFFSETOFIVAR__(struct Man, private_Money),
+			    sizeof(struct Man_IMPL), 
+				0, 
+				"Man",
+				(const struct _method_list_t *)&_OBJC_$_INSTANCE_METHODS_Man,
+				0, 
+				(const struct _ivar_list_t *)&_OBJC_$_INSTANCE_VARIABLES_Man,
+				0, 
+				(const struct _prop_list_t *)&_OBJC_$_PROP_LIST_Man,
+			};
+
+			extern "C" __declspec(dllexport) struct _class_t OBJC_METACLASS_$_Man __attribute__ ((used, section 
+			("__DATA,__objc_data"))) = {
+				0, // &OBJC_METACLASS_$_NSObject,
+				0, // &OBJC_METACLASS_$_Person,
+				0, // (void *)&_objc_empty_cache,
+				0, // unused, was (void *)&_objc_empty_vtable,
+				&_OBJC_METACLASS_RO_$_Man,
+			};
+
+
+			extern "C" __declspec(dllexport) struct _class_t OBJC_CLASS_$_Man __attribute__ ((used, section 
+			("__DATA,__objc_data"))) = {
+				0, // &OBJC_METACLASS_$_Man,
+				0, // &OBJC_CLASS_$_Person,
+				0, // (void *)&_objc_empty_cache,
+				0, // unused, was (void *)&_objc_empty_vtable,
+				&_OBJC_CLASS_RO_$_Man,
+			};
+			
+			static void OBJC_CLASS_SETUP_$_Man(void ) {
+				OBJC_METACLASS_$_Man.isa = &OBJC_METACLASS_$_NSObject;
+				OBJC_METACLASS_$_Man.superclass = &OBJC_METACLASS_$_Person;
+				OBJC_METACLASS_$_Man.cache = &_objc_empty_cache;
+				OBJC_CLASS_$_Man.isa = &OBJC_METACLASS_$_Man;
+				OBJC_CLASS_$_Man.superclass = &OBJC_CLASS_$_Person;
+				OBJC_CLASS_$_Man.cache = &_objc_empty_cache;
+			}
 
 Objective-C 是一门动态语音，他的动态特性之一就是对象在发送消息时，最终确定调用哪个方法体的是通过判断对象是属于什么类（class），然后去
 去对应的方法列表中查找对应的方法实现，也就是对象的方法列表存储在类中
@@ -58,6 +109,7 @@ Objective-C 是一门动态语音，他的动态特性之一就是对象在发�
 @implementation Man
 -(void)m_instanceFunc {
     NSLog(@"hello Man instance");
+    [super m_instanceFunc];
 }
 +(void)m_clsFunc {
     NSLog(@"hello Man class");
@@ -119,6 +171,7 @@ struct Man_IMPL {
 
 static void _I_Man_m_instanceFunc(Man * self, SEL _cmd) {
     NSLog((NSString *)&__NSConstantStringImpl__var_folders_2c_54s_9yqd2ts63jncfvr4k10c0000gn_T_main_812e86_mi_2);
+        ((void (*)(__rw_objc_super *, SEL))(void *)objc_msgSendSuper)((__rw_objc_super){(id)self, (id)class_getSuperclass(objc_getClass("Man"))}, sel_registerName("instanceFunc"));
 }
 static void _C_Man_m_clsFunc(Class self, SEL _cmd) {
     NSLog((NSString *)&__NSConstantStringImpl__var_folders_2c_54s_9yqd2ts63jncfvr4k10c0000gn_T_main_812e86_mi_3);
@@ -417,6 +470,8 @@ static struct _class_t *L_OBJC_LABEL_CLASS_$ [2] __attribute__((used, section ("
 static struct IMAGE_INFO { unsigned version; unsigned flag; } _OBJC_IMAGE_INFO = { 0, 2 };
 
 ```
+
+从上面可以看出[super xx] 在编译阶段会变成了调用objc_msgSendSuper(self,cmd,xxx)
 
 __declspec(allocate("segname")) 告诉编译器分配一个名字为segname的段
 在实际使用时，还需要#pragma section事先告诉编译器，我们要使用的段名

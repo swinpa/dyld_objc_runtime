@@ -111,6 +111,10 @@ void _destroySyncCache(struct SyncCache *cache)
 //别人的解释 https://www.jianshu.com/p/5e1ebfed266a
 static SyncData* id2data(id object, enum usage why)
 {
+    /*
+     有一个全局的hash表（StripedMap<SyncList> sDataLists），保存着SyncData类型的数据
+     &LOCK_FOR_OBJ(object); 通过传进来的object 进行hash计算，得到SyncData一个数据
+     */
     spinlock_t *lockp = &LOCK_FOR_OBJ(object);
     SyncData **listp = &LIST_FOR_OBJ(object);
     SyncData* result = NULL;
@@ -120,6 +124,18 @@ static SyncData* id2data(id object, enum usage why)
     bool fastCacheOccupied = NO;
     /*
      既然是多线程访问才需要加锁，这里为什么将锁相关的数据存放在tls 中呢？
+     可能因为同一线程，不同代码段加锁，例如下;
+     func threadEnter(){
+        lock()
+        abc...
+        unlock()
+        
+        xxx
+        xxx
+        lock()
+        xyz...
+        unlock()
+     }
      */
     /*
      从线程私有的全局数据中查找存放对象锁相关的数据，该数据是一个链表，保存了所有对象的锁信息
@@ -131,7 +147,10 @@ static SyncData* id2data(id object, enum usage why)
     SyncData *data = (SyncData *)tls_get_direct(SYNC_DATA_DIRECT_KEY);
     if (data) {
         fastCacheOccupied = YES;
-
+        /*
+         如果tls 中获取到的锁相关信息，并且锁的对象(object)跟当前对象id2data(id object, enum usage why) 一致
+         那么就进行如下操作，操作完返回
+        */
         if (data->object == object) {
             // Found a match in fast cache.
             uintptr_t lockCount;
@@ -141,7 +160,11 @@ static SyncData* id2data(id object, enum usage why)
             if (result->threadCount <= 0  ||  lockCount <= 0) {
                 _objc_fatal("id2data fastcache is buggy");
             }
-
+            /*
+             ACQUIRE
+             英  [əˈkwaɪə(r)]   美  [əˈkwaɪər]
+             v. 获得，得到；学到
+             */
             switch(why) {
             case ACQUIRE: {
                 lockCount++;
@@ -169,6 +192,10 @@ static SyncData* id2data(id object, enum usage why)
 #endif
 
     // Check per-thread cache of already-owned locks for matching object
+    /*
+     还是查询线程的缓存
+     因为不支持SUPPORT_DIRECT_THREAD_KEYS 的情况下是缓存到线程缓存的，而不是线程的快速缓存，所以下面从线程缓存中查询
+     */
     SyncCache *cache = fetch_cache(NO);
     if (cache) {
         unsigned int i;
@@ -216,7 +243,9 @@ static SyncData* id2data(id object, enum usage why)
     /*
      因为sDataLists 是一个全局的，当线程A以对象obj1 加锁时，会把obj1 关联的锁保存在这个链表中，
      所以，即使线程B刚进来，在线程全局缓存中还没对应的锁，那从sDataLists也能获取到与obj1 对应的同一个锁
-     相当于
+     因为获取锁的方法是通过hash算法对传进来的object进行计算，所以多个线程传进来的object是相同的话，得到的
+     SyncData 是相同的
+     
      线程A： @synchronized (obj1) {}
      线程B： @synchronized (obj1) {}
      线程C： @synchronized (obj1) {}
@@ -228,7 +257,7 @@ static SyncData* id2data(id object, enum usage why)
         SyncData* p;
         SyncData* firstUnused = NULL;
         for (p = *listp; p != NULL; p = p->nextData) {
-            if ( p->object == object ) {
+            if ( p->object == object ) {//SyncData 对应的锁就是传进来object需要的锁，这样设计避免hash冲突
                 result = p;
                 // atomic because may collide with concurrent RELEASE
                 OSAtomicIncrement32Barrier(&result->threadCount);
@@ -250,7 +279,7 @@ static SyncData* id2data(id object, enum usage why)
             result = firstUnused;
             result->object = (objc_object *)object;
             result->threadCount = 1;
-            goto done;
+            goto done;//在全局hash表中找到对应的锁数据
         }
     }
 
@@ -259,6 +288,7 @@ static SyncData* id2data(id object, enum usage why)
     // might be worth releasing the lock, allocating, and searching again.
     // But since we never free these guys we won't be stuck in allocation very often.
     // 申请内存空间，result 指向这块内存地址
+    // 全局的hash表中没找到锁数据，则new 一个
     posix_memalign((void **)&result, alignof(SyncData), sizeof(SyncData));
     result->object = (objc_object *)object;
     result->threadCount = 1;
@@ -273,7 +303,7 @@ static SyncData* id2data(id object, enum usage why)
         // Only new ACQUIRE should get here.
         // All RELEASE and CHECK and recursive ACQUIRE are 
         // handled by the per-thread caches above.
-        if (why == RELEASE) {
+        if (why == RELEASE) {//首次获取锁相关数据不能是释放锁
             // Probably some thread is incorrectly exiting 
             // while the object is held by another thread.
             return nil;
@@ -281,15 +311,16 @@ static SyncData* id2data(id object, enum usage why)
         if (why != ACQUIRE) _objc_fatal("id2data is buggy");
         if (result->object != object) _objc_fatal("id2data is buggy");
 
+        //将锁相关的数据SyncData 缓存到线程空间中
 #if SUPPORT_DIRECT_THREAD_KEYS
         if (!fastCacheOccupied) {
-            // Save in fast thread cache
+            // Save in fast thread cache 保存到快速缓存中
             tls_set_direct(SYNC_DATA_DIRECT_KEY, result);
             tls_set_direct(SYNC_COUNT_DIRECT_KEY, (void*)1);
         } else 
 #endif
         {
-            // Save in thread cache
+            // Save in thread cache 保存到线程缓存中
             if (!cache) cache = fetch_cache(YES);
             cache->list[cache->used].data = result;
             cache->list[cache->used].lockCount = 1;

@@ -660,7 +660,8 @@ dispatch_block_notify(dispatch_block_t db, dispatch_queue_t queue,
 DISPATCH_NOINLINE
 dispatch_qos_t
 _dispatch_continuation_init_slow(dispatch_continuation_t dc,
-		dispatch_queue_t dq, dispatch_block_flags_t flags)
+								 dispatch_queue_t dq,
+								 dispatch_block_flags_t flags)
 {
 	dispatch_block_private_data_t dbpd = _dispatch_block_get_data(dc->dc_ctxt);
 	dispatch_block_flags_t block_flags = dbpd->dbpd_flags;
@@ -898,7 +899,7 @@ dispatch_async(dispatch_queue_t dq, dispatch_block_t work)
 
 	qos = _dispatch_continuation_init(dc, dq, work, 0, dc_flags);
 	
-	
+	//将work push 到queue的_os_obj_vtable 中
 	_dispatch_continuation_async(dq, dc, qos, dc->dc_flags);
 }
 #endif
@@ -6390,6 +6391,8 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 	int can_request, t_count;
 	// seq_cst with atomic store to tail <rdar://problem/16932833>
 	// t_count表示现有的线程个数
+	// dgq_thread_pool_size 为dq中的成员变量
+	// 宏展开变成 os_atomic_load(&dq->dgq_thread_pool_size, m)
 	t_count = os_atomic_load2o(dq, dgq_thread_pool_size, ordered);
 	do {
 		// 如果现有的线程个数小于线程池的大小

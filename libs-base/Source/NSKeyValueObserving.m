@@ -465,10 +465,12 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
 
   /*
    * Create subclass of the original, and override some methods
+   * 创建子类
    * with implementations from our abstract base class.
    */
   superName = NSStringFromClass(original);
   name = [@"GSKVO" stringByAppendingString: superName];
+  // 创建子类
   template = GSObjCMakeClass(name, superName, nil);
   GSObjCAddClasses([NSArray arrayWithObject: template]);
   replacement = NSClassFromString(name);
@@ -483,202 +485,166 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
 
 - (void) overrideSetterFor: (NSString*)aKey
 {
-  if ([keys member: aKey] == nil)
-    {
-      NSMethodSignature	*sig;
-      SEL		sel;
-      IMP		imp;
-      const char	*type;
-      NSString          *suffix;
-      NSString          *a[2];
-      unsigned          i;
-      BOOL              found = NO;
-      NSString		*tmp;
-      unichar u;
-
-      suffix = [aKey substringFromIndex: 1];
-      u = uni_toupper([aKey characterAtIndex: 0]);
-      tmp = [[NSString alloc] initWithCharacters: &u length: 1];
-      a[0] = [NSString stringWithFormat: @"set%@%@:", tmp, suffix];
-      a[1] = [NSString stringWithFormat: @"_set%@%@:", tmp, suffix];
-      [tmp release];
-      for (i = 0; i < 2; i++)
-        {
-          /*
-           * Replace original setter with our own version which does KVO
-           * notifications.
-           */
-          sel = NSSelectorFromString(a[i]);
-          if (sel == 0)
-            {
-              continue;
+    if ([keys member: aKey] == nil) {
+        NSMethodSignature	*sig;
+        SEL		sel;
+        IMP		imp;
+        const char	*type;
+        NSString          *suffix;
+        NSString          *a[2];
+        unsigned          i;
+        BOOL              found = NO;
+        NSString		*tmp;
+        unichar u;
+        // 比如man.name, 那么此时的suffix == ame, u == N， tmp == N
+        suffix = [aKey substringFromIndex: 1];
+        u = uni_toupper([aKey characterAtIndex: 0]);
+        tmp = [[NSString alloc] initWithCharacters: &u length: 1];
+        /* 所以
+        a[0] == setName:
+        a[1] == _setName:
+        */
+        a[0] = [NSString stringWithFormat: @"set%@%@:", tmp, suffix];
+        a[1] = [NSString stringWithFormat: @"_set%@%@:", tmp, suffix];
+        [tmp release];
+        for (i = 0; i < 2; i++) {
+            /*
+            * Replace original setter with our own version which does KVO
+            * notifications.
+            */
+            sel = NSSelectorFromString(a[i]);
+            if (sel == 0) {
+                continue;
             }
-          sig = [original instanceMethodSignatureForSelector: sel];
-          if (sig == 0)
-            {
-              continue;
-            }
-
-          /*
-           * A setter must take three arguments (self, _cmd, value).
-           * The return value (if any) is ignored.
-           */
-          if ([sig numberOfArguments] != 3)
-            {
-              continue;	// Not a valid setter method.
+            //获取函数签名
+            sig = [original instanceMethodSignatureForSelector: sel];
+            if (sig == 0) {
+                continue;
             }
 
-          /*
-           * Since the compiler passes different argument types
-           * differently, we must use a different setter method
-           * for each argument type.
-           * FIXME ... support structures
-           * Unsupported types are quietly ignored ... is that right?
-           */
-          type = [sig getArgumentTypeAtIndex: 2];
-          switch (*type)
-            {
-              case _C_CHR:
-              case _C_UCHR:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterChar:)];
-                break;
-              case _C_SHT:
-              case _C_USHT:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterShort:)];
-                break;
-              case _C_INT:
-              case _C_UINT:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterInt:)];
-                break;
-              case _C_LNG:
-              case _C_ULNG:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterLong:)];
-                break;
-#ifdef  _C_LNG_LNG
-              case _C_LNG_LNG:
-              case _C_ULNG_LNG:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterLongLong:)];
-                break;
-#endif
-              case _C_FLT:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterFloat:)];
-                break;
-              case _C_DBL:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterDouble:)];
-                break;
-#if __GNUC__ > 2 && defined(_C_BOOL)
-              case _C_BOOL:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setterChar:)];
-                break;
-#endif
-              case _C_ID:
-              case _C_CLASS:
-              case _C_PTR:
-                imp = [[GSKVOSetter class]
-                  instanceMethodForSelector: @selector(setter:)];
-                break;
-              case _C_STRUCT_B:
-                if (GSSelectorTypesMatch(@encode(NSRange), type))
-                  {
-                    imp = [[GSKVOSetter class]
-                      instanceMethodForSelector: @selector(setterRange:)];
-                  }
-                else if (GSSelectorTypesMatch(@encode(NSPoint), type))
-                  {
-                    imp = [[GSKVOSetter class]
-                      instanceMethodForSelector: @selector(setterPoint:)];
-                  }
-                else if (GSSelectorTypesMatch(@encode(NSSize), type))
-                  {
-                    imp = [[GSKVOSetter class]
-                      instanceMethodForSelector: @selector(setterSize:)];
-                  }
-                else if (GSSelectorTypesMatch(@encode(NSRect), type))
-                  {
-                    imp = [[GSKVOSetter class]
-                      instanceMethodForSelector: @selector(setterRect:)];
-                  }
-                else
-                  {
-#if defined(USE_LIBFFI)
-                    GSCodeBuffer    *b;
-
-                    b = cifframe_closure(sig, cifframe_callback);
-                    [b retain];
-                    imp = [b executable];
-#else
+            /*
+            * A setter must take three arguments (self, _cmd, value).
+            * The return value (if any) is ignored.
+            */
+            if ([sig numberOfArguments] != 3) {
+                continue;	// Not a valid setter method.
+            }
+            /*
+            * Since the compiler passes different argument types
+            * differently, we must use a different setter method
+            * for each argument type.
+            * FIXME ... support structures
+            * Unsupported types are quietly ignored ... is that right?
+            */
+            //获取setter的参数类型
+            type = [sig getArgumentTypeAtIndex: 2];
+            //获取函数指针
+            switch (*type) {
+                case _C_CHR:
+                case _C_UCHR:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterChar:)];
+                    break;
+                case _C_SHT:
+                case _C_USHT:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterShort:)];
+                    break;
+                case _C_INT:
+                case _C_UINT:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterInt:)];
+                    break;
+                case _C_LNG:
+                case _C_ULNG:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterLong:)];
+                    break;
+                #ifdef  _C_LNG_LNG
+                case _C_LNG_LNG:
+                case _C_ULNG_LNG:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterLongLong:)];
+                    break;
+                #endif
+                case _C_FLT:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterFloat:)];
+                    break;
+                case _C_DBL:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterDouble:)];
+                    break;
+                #if __GNUC__ > 2 && defined(_C_BOOL)
+                case _C_BOOL:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterChar:)];
+                    break;
+                #endif
+                case _C_ID:
+                case _C_CLASS:
+                case _C_PTR:
+                    imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setter:)];
+                    break;
+                case _C_STRUCT_B:
+                    if (GSSelectorTypesMatch(@encode(NSRange), type)) {
+                        imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterRange:)];
+                    }
+                    else if (GSSelectorTypesMatch(@encode(NSPoint), type)) {
+                        imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterPoint:)];
+                    }
+                    else if (GSSelectorTypesMatch(@encode(NSSize), type)) {
+                        imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterSize:)];
+                    }
+                    else if (GSSelectorTypesMatch(@encode(NSRect), type)) {
+                        imp = [[GSKVOSetter class] instanceMethodForSelector: @selector(setterRect:)];
+                    } else {
+                    #if defined(USE_LIBFFI)
+                            GSCodeBuffer    *b;
+                            b = cifframe_closure(sig, cifframe_callback);
+                            [b retain];
+                            imp = [b executable];
+                    #else
+                            imp = 0;
+                    #endif
+                        
+                    }
+                    break;
+                default:
                     imp = 0;
-#endif
-                  }
-                break;
-              default:
-                imp = 0;
-                break;
+                    break;
             }
 
-          if (imp != 0)
-            {
-	      if (class_addMethod(replacement, sel, imp, [sig methodType]))
-		{
-                  found = YES;
-		}
-	      else
-		{
-		  NSLog(@"Failed to add setter method for %s to %s",
-		    sel_getName(sel), class_getName(original));
-		}
+            if (imp != 0) {
+                if (class_addMethod(replacement, sel, imp, [sig methodType])) {
+                    found = YES;
+                } else {
+                  NSLog(@"Failed to add setter method for %s to %s", sel_getName(sel), class_getName(original));
+                }
             }
+            
         }
-      if (found == YES)
-        {
-          [keys addObject: aKey];
-        }
-      else
-        {
-          NSMapTable *depKeys = NSMapGet(dependentKeyTable, original);
+        if (found == YES) {
+            [keys addObject: aKey];
+        } else {
+            NSMapTable *depKeys = NSMapGet(dependentKeyTable, original);
+            if (depKeys) {
+                NSMapEnumerator enumerator = NSEnumerateMapTable(depKeys);
+                NSString *mainKey;
+                NSHashTable *dependents;
 
-          if (depKeys)
-            {
-              NSMapEnumerator enumerator = NSEnumerateMapTable(depKeys);
-              NSString *mainKey;
-              NSHashTable *dependents;
+                while (NSNextMapEnumeratorPair(&enumerator, (void **)(&mainKey), (void**)&dependents)) {
+                    NSHashEnumerator dependentKeyEnum;
+                    NSString *dependentKey;
 
-              while (NSNextMapEnumeratorPair(&enumerator, (void **)(&mainKey),
-                (void**)&dependents))
-                {
-                  NSHashEnumerator dependentKeyEnum;
-                  NSString *dependentKey;
-
-                  if (!dependents) continue;
-                  dependentKeyEnum = NSEnumerateHashTable(dependents);
-                  while ((dependentKey
-                    = NSNextHashEnumeratorItem(&dependentKeyEnum)))
-                    {
-                      if ([dependentKey isEqual: aKey])
-                        {
-                          [self overrideSetterFor: mainKey];
-                          // Mark the key as used
-                          [keys addObject: aKey];
-                          found = YES;
+                    if (!dependents) continue;
+                    dependentKeyEnum = NSEnumerateHashTable(dependents);
+                    while ((dependentKey = NSNextHashEnumeratorItem(&dependentKeyEnum))) {
+                        if ([dependentKey isEqual: aKey]) {
+                            [self overrideSetterFor: mainKey];
+                            // Mark the key as used
+                            [keys addObject: aKey];
+                            found = YES;
                         }
                     }
-                  NSEndHashTableEnumeration(&dependentKeyEnum);
-               }
-              NSEndMapTableEnumeration(&enumerator);
+                    NSEndHashTableEnumeration(&dependentKeyEnum);
+                }
+                NSEndMapTableEnumeration(&enumerator);
             }
-
-          if (!found)
-            {
-              NSDebugLLog(@"KVC", @"class %@ not KVC compliant for %@",
-		original, aKey);
+            if (!found) {
+              NSDebugLLog(@"KVC", @"class %@ not KVC compliant for %@", original, aKey);
               /*
               [NSException raise: NSInvalidArgumentException
                            format: @"class not KVC complient for %@", aKey];
@@ -749,12 +715,30 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
 - (void) setterDouble: (double)val
 {
   NSString	*key;
-  Class		c = [self class];
+  /*
+   因为子类NSKVONotifying_Person重写了class方法，重写的方法返回Person这个类
+   这里的self == NSKVONotifying_Person
+   [self class] == Person
+   */
+  Class		c = [self class];//这里得到的是Person 这个类，而不是NSKVONotifying_Person
   void		(*imp)(id,SEL,double);
 
+  /*
+   所以这里返回了Person中对应的setter 如setName:
+   */
   imp = (void (*)(id,SEL,double))[c instanceMethodForSelector: _cmd];
 
+  /*
+   这里的_cmd 其实是setName 而不是setterDouble
+   因为是setName 这个SEL 跟 setterDouble 这个IMP关联了
+   通过class_addMethod(replacement, sel, imp, [sig methodType])关联
+   
+   当通过NSKVONotifying_Person.age = 20 赋值时，会调用到setterDouble:这个IMP，但此时的sel 仍然是setAge:
+   
+   
+   */
   key = newKey(_cmd);
+    //这里判断是否自动触发kvo
   if ([c automaticallyNotifiesObserversForKey: key] == YES)
     {
       // pre setting code here
@@ -1482,7 +1466,7 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
 
   /*
    Use the original class
-   获取KVO 的类
+   获取KVO 的类KVOxxx,如果不存在则创建
    */
   r = replacementForClass([self class]);
 
@@ -1493,21 +1477,19 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
    * info 是一个链表，一个存储着对象self 的所有Observer信息的链表，节点是GSKVOInfo
    */
   info = (GSKVOInfo*)[self observationInfo];
-  if (info == nil)
-    {
+  if (info == nil){
       info = [[GSKVOInfo alloc] initWithInstance: self];
       [self setObservationInfo: info];
-    
-      // 将当前类的isa 指向新建的类KVOxxx
+      // 将当前类的isa 指向新建的类KVOxxx，[r replacement] 为KVOxxx
       object_setClass(self, [r replacement]);
-    }
+  }
 
   /*
    * Now add the observer.
    */
   dot = [aPath rangeOfString:@"."];
-  if (dot.location != NSNotFound)
-    {
+  if (dot.location != NSNotFound) {
+      
       forwarder = [[NSKeyValueObservationForwarder alloc]
         initWithKeyPath: aPath
 	       ofObject: self
@@ -1518,15 +1500,14 @@ cifframe_callback(ffi_cif *cif, void *retp, void **args, void *user)
              forKeyPath: aPath
                 options: options
                 context: forwarder];
-    }
-  else
-    {
+    
+  } else {
       [r overrideSetterFor: aPath];
       [info addObserver: anObserver
              forKeyPath: aPath
                 options: options
                 context: aContext];
-    }
+  }
 
   [kvoLock unlock];
 }

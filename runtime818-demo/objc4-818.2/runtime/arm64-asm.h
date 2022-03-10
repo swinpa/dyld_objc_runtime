@@ -30,6 +30,12 @@
 
 #include "objc-config.h"
 
+/*
+ 在64位机器上，如果int是32位，long是64位，pointer也是64位，那么该机器就是LP64的，其中的L表示Long，P表示Pointer，
+ 64表示Long和Pointer都是64位的。
+ 由于LP64位下int是32位，因此LP64也叫I32LP64。类似的还有LLP64(Microsoft Window专用)，表示int是32位，long是32位，long long是64位，pointer是64位；ILP64表示int，long，pointer都是64位；SILP64表示short，int，long，pointer都是64位。
+
+ */
 #if __LP64__
 // true arm64
 

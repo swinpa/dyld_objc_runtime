@@ -5,6 +5,7 @@
 3. 检查环境变量（checkEnvironmentVariables）(依赖的动态库数量在这阶段得知)
 	
 		该阶段获取DYLD_FRAMEWORK_PATH，DYLD_INSERT_LIBRARIES(所有依赖的动态库的数量)
+
 4. 初始化一些容器（sAllImages，sImageRoots）用来存放应用的image 以及所依赖的动态库的image
 5. 根据应用的mach-o实例化成ImageLoader对象sMainExecutable（其实就是获取mach-o文件中的load command中的内容，
 	然后用这些内容实例化ImageLoader），并添加到sAllImages中
@@ -23,6 +24,7 @@
 	```
 7. 开始主程序sMainExecutable链接（link） 
 
+
 		实际做的事情是如下两点：
 		
 		1. rebase
@@ -33,6 +35,11 @@
 		《占位地址》转成《实际地址》，
 		（编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，在加载的时候才能确定地址）
 		this->recursiveBind(context, forceLazysBound, neverUnload);
+		
+		
+		ASLR(Address Space Layout Randomization)地址空间布局随机化，其实就
+		是当Mach-O文件载入虚拟内存的时候，起始地址不从0x00000000开始了，而是随
+		机增加一段，例如从0x50000开始，后面的函数地址都会增加0x50000
 
 8. 动态库链接
 	
@@ -71,7 +78,10 @@ Binding 是处理那些指向 dylib 外部的指针，它们实际上被符号�
 * 编译期间，模块内使用模块外部的符号(函数，变量)时是不知道它的地址的，此时只有先用占位符，等到链接时才确定
 
 ##dyld在项目中的应用场景
-* 通过_dyld_register_func_for_add_image添加监听回调，监听所有的image ，从而判断是否有未知的第三方动态库被加载进来，破坏应用的完整性
+* 通过_dyld_register_func_for_add_image添加监听回调，监听所有的image ，从而判断是否有未知的第三方动态库被加载进来，破坏应用的完整性 
+* 根据ImageLoader 中的bool ImageLoader::containsAddress(const void* addr) const方法可以判断指定地址是不是在某个动态库上
+	
+		1. 通过获取image的开始地址与结束地址，然后将当前地址跟开始地址与结束地址比较，看它在不在他们之间
 
 * 越狱检测
 

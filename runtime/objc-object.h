@@ -1193,6 +1193,7 @@ prepareOptimizedReturn(ReturnDisposition disposition)
 {
     assert(getReturnDisposition() == ReturnAtPlus0);
 
+    //__builtin_return_address 使用说明： https://www.zhaixue.cc/c-arm/c-arm-builtin.html
     if (callerAcceptsOptimizedReturn(__builtin_return_address(0))) {
         if (disposition) setReturnDisposition(disposition);
         return true;

@@ -134,6 +134,10 @@ struct objc_class : objc_object {
 	   }
      */
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
+    
+    class_rw_t *data() { 
+        return bits.data();
+    }
 };
 
 ```
@@ -147,9 +151,12 @@ struct objc_class : objc_object {
 
 * NSObject 中只有一个objc_class 类型的指针变量isa
 * objc_class又是objc_object的子类，而在objc_class中有一个objc_class类型的用来指向父类的 指针变量superclass，还有一个cache变量以及一个class_data_bits_t bits变量
-### 其中的 class_data_bits_t bits 成员变量很重要，存放了类信息相关的数据如class_rw_t，class_ro_t
+### 其中的 class_data_bits_t bits 成员变量很重要，存放了类信息相关的数据如class_rw_t，class_rw_t保存了class_ro_t *ro; method_array_t methods;
+    property_array_t properties;
+    protocol_array_t protocols;等 其中中class_ro_t保存了原始类信息(保留了编译期的类的成员变量以及方法，属性，协议等信息)
 
 ```
+objc-runtime-new.h
 struct class_rw_t {
     // Be warned that Symbolication knows the layout of this structure.
     /*
@@ -171,6 +178,7 @@ struct class_rw_t {
  };
 ```
 ```
+objc-runtime-new.h
 struct class_ro_t {
     /*
      标志位，根据该变量与不同的标志位进行 & 操作判断 是否为元类，是否为跟类，是否为ARC

@@ -74,6 +74,7 @@ GS_EXPORT_CLASS
 {
 #if	GS_EXPOSE(NSLock)
 @protected
+  //#define    gs_mutex_t    pthread_mutex_t
   gs_mutex_t	_mutex;
   NSString	*_name;
 #endif

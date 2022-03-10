@@ -97,6 +97,10 @@ int main(int argc, char * argv[]) {
 ###那线程跟autoreleasepool 有关系吗？如果没开启RunLoop，那线程中的autorelease对象是添加到那个autoreleasepool中的呢？（目前没在GNUstep源码中的NSThread 看到相关的创建autoreleasepool 的代码）其实在没开启runloop的子线程中如果有autorelease对象时，会自动创建一个自动释放池，在创建自动释放池时，会注册线程销毁的回调tls_dealloc，当线程销毁时会回调到tls_deallo函数，tls_deallo中又调用objc_autoreleasePoolPop对自动释放池中的对象进行释放
 
 
+###对象发送多条autorelease消息，比如多次执行[obj autorelease] 会有问题不？
+    
+    不会有问题，只是多次添加到autoreleasepool中，当autoreleasepool 释放时同样也能多次拿到进行多次发送release消息
+
 ```
 
 App启动后，系统在主线程RunLoop 里注册两个Observser,其回调都是_wrapRunLoopWithAutoreleasePoolHandler()。
