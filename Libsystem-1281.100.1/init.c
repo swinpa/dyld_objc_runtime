@@ -114,7 +114,19 @@ const char *__asan_default_options(void);
 static inline void
 _libSystem_ktrace4(uint32_t code, uint64_t a, uint64_t b, uint64_t c, uint64_t d)
 {
-	if (__builtin_expect(*(volatile uint32_t *)_COMM_PAGE_KDEBUG_ENABLE == 0, 1)) return;
+	/*
+	 https://www.jianshu.com/p/2684613a300f
+	 这个指令是gcc引入的，作用是允许程序员将最有可能执行的分支告诉编译器。这个指令的写法为：__builtin_expect(EXP, N)。
+	 意思是：EXP==N的概率很大。
+	 
+	 一般的使用方法是将__builtin_expect指令封装为likely和unlikely宏。这两个宏的写法如下.
+	 #define likely(x) __builtin_expect(!!(x), 1) //x很可能为真
+	 #define unlikely(x) __builtin_expect(!!(x), 0) //x很可能为假
+	 */
+	if ( __builtin_expect(*(volatile uint32_t *)_COMM_PAGE_KDEBUG_ENABLE == 0, 1) ) {
+		//意思是 *(volatile uint32_t *)_COMM_PAGE_KDEBUG_ENABLE == 0 这个比较很大概率是YES, 也就是 1
+		return;
+	}
 	kdebug_trace(code, a, b, c, d);
 }
 #define _libSystem_ktrace3(code, a, b, c) _libSystem_ktrace4(code, a, b, c, 0)
@@ -240,6 +252,10 @@ libSystem_initializer(int argc,
 	_dyld_initializer();
 	_libSystem_ktrace_init_func(DYLD);
 
+	/*
+	 内部能调用到objc_init进行dyld回调注册
+	 _os_object_init()
+	 */
 	libdispatch_init();
 	_libSystem_ktrace_init_func(LIBDISPATCH);
 

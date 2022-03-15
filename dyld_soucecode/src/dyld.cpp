@@ -217,7 +217,15 @@ struct EnvironmentVariables {
 };
 
 
-
+/*
+ //
+ // Callback that provides a bottom-up array of images
+ // For dyld_image_state_[dependents_]mapped state only, returning non-NULL will cause dyld to abort loading all those images
+ // and append the returned string to its load failure error message. dyld does not free the string, so
+ // it should be a literal string or a static buffer
+ //
+ typedef const char* (*dyld_image_state_change_handler)(enum dyld_image_states state, uint32_t infoCount, const struct dyld_image_info info[]);
+ */
 typedef std::vector<dyld_image_state_change_handler> StateHandlers;
 
 
@@ -692,7 +700,14 @@ static void notifySingle(dyld_image_states state, const ImageLoader* image)
 		info.imageFilePath		= image->getRealPath();
 		info.imageFileModDate	= image->lastModified();
 		for (std::vector<dyld_image_state_change_handler>::iterator it = handlers->begin(); it != handlers->end(); ++it) {
-			const char* result = (*it)(state, 1, &info);
+			/*
+			 执行函数
+			 typedef const char* (*dyld_image_state_change_handler)(enum dyld_image_states state, uint32_t infoCount, const struct dyld_image_info info[]);
+			 
+			 it 是dyld_image_state_change_handler 类型的函数指针
+			 
+			 */
+			const char* result = (*it)(state, 1, &info);//执行函数
 			if ( (result != NULL) && (state == dyld_image_state_mapped) ) {
 				//fprintf(stderr, "  image rejected by handler=%p\n", *it);
 				// make copy of thrown string so that later catch clauses can free it
@@ -5328,7 +5343,9 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		initializeMainExecutable(); 
 	#endif
 		// find entry point for main executable
-		// 找到函数的入口点
+		/*
+		 找到main函数的入口点，在mach-o 的load command 中有指定
+		 */
 		result = (uintptr_t)sMainExecutable->getThreadPC();
 		if ( result != 0 ) {
 			// main executable uses LC_MAIN, needs to return to glue in libdyld.dylib

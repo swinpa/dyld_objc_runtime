@@ -1137,6 +1137,7 @@ uint32_t ImageLoaderMachO::minOSVersion() const
 }
 
 
+/// 获取程序main 函数 入口地址，用来返回给内核执行
 void* ImageLoaderMachO::getThreadPC() const
 {
 	const uint32_t cmd_count = ((macho_header*)fMachOData)->ncmds;

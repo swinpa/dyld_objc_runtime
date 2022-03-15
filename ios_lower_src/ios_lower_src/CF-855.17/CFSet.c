@@ -400,6 +400,7 @@ Boolean CFSetContainsValue(CFHashRef hc, const_any_pointer_t key) {
 
 const_any_pointer_t CFSetGetValue(CFHashRef hc, const_any_pointer_t key) {
     if (CFDictionary) CF_OBJC_FUNCDISPATCHV(__kCFSetTypeID, const_any_pointer_t, (NSDictionary *)hc, objectForKey:(id)key);
+    
     if (CFSet) CF_OBJC_FUNCDISPATCHV(__kCFSetTypeID, const_any_pointer_t, (NSSet *)hc, member:(id)key);
     __CFGenericValidateType(hc, __kCFSetTypeID);
     CFBasicHashBucket bkt = CFBasicHashFindBucket((CFBasicHashRef)hc, (uintptr_t)key);

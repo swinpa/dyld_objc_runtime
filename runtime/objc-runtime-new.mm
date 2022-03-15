@@ -4864,8 +4864,28 @@ objc_class::nameForLogging()
 **********************************************************************/
 mutex_t DemangleCacheLock;
 static NXHashTable *DemangleCache;
-const char *
-objc_class::demangledName(bool realize)
+
+/*
+ mangle [ˈmæŋɡl] v. 压碎，撕烂；严重损坏；使变形
+ demangled: 符号重组(demangle) 动态链接(Dynamic link) ...
+ https://www.mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
+ 理解思路：
+     int foo(int a) {
+        return a * 2;
+     }
+     int foo(double a) {
+        return a * 2.0;
+     }
+     int main() {
+        return foo(1) + foo(1.0);
+     }
+ 
+    C++，Swift中相同类中存在相同名字的方法（重载：相同作用域中存在函数名字相同，但参数不同的多个方法,或者参数个数不同）
+    it is impossible to simply generate two _foo symbols; the linker would not know which was which.
+    As a result, the C++ compiler "mangles" the symbols, using a strict set of encoding rules.
+ */
+
+const char *objc_class::demangledName(bool realize)
 {
     // Return previously demangled name if available.
     if (isRealized()  ||  isFuture()) {

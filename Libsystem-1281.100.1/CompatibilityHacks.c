@@ -33,7 +33,31 @@
 #include <TargetConditionals.h>
 
 #if (defined(__i386__) || defined(__x86_64__)) && !TARGET_OS_DRIVERKIT
+/*
+ 内联汇编
+ gcc提供了一种扩展语法可以在C代码中使用内联汇编（Inline Assembly）。
+ 最简单的格式是__asm__("assembly code");，
+ 例如__asm__("nop"); ，nop 这条指令什么都不做，只是让CPU空转一个指令执行周期。
+ 如果需要执行多条汇编指令，则应该用\n\t将各条指令分隔开
+ 
+ //参考https://akaedu.github.io/book/ch19s05.html
+ #include <stdio.h>
+ int main()
+ {
+         int a = 10, b;
 
+     __asm__("movl %1, %%eax\n\t"
+         "movl %%eax, %0\n\t"
+         :"=r"(b)        //output
+         :"r"(a)         // input
+         :"%eax"         // clobbered register
+     );
+     printf("Result: %d, %d\n", a, b);
+     return 0;
+ }
+
+ 
+ */
 #define SYM(sym) \
   __asm__(".globl R8289209$_" #sym "; R8289209$_" #sym ": jmp _" #sym)
 

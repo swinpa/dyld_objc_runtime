@@ -8014,6 +8014,7 @@ libdispatch_init(void)
 	_dispatch_hw_config_init();
 	_dispatch_time_init();
 	_dispatch_vtable_init();
+	//libdispatch->object.m->_os_object_init()
 	_os_object_init();
 	_voucher_init();
 	_dispatch_introspection_init();

@@ -137,7 +137,7 @@ static void (*_Block_destructInstance) (const void *aBlock) = _Block_destructIns
 
 /**************************************************************************
 Callback registration from ObjC runtime and CoreFoundation
- 在 runtime初始化过程中的libdispatch - _os_object_init()阶段调用该方法进行
+ 在 runtime初始化过程中的libdispatch object.m  - _os_object_init()阶段调用该方法进行
  block 回调初始化
 ***************************************************************************/
 

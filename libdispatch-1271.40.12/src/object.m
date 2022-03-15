@@ -72,6 +72,7 @@ static bool _os_object_debug_missing_pools;
 void
 _os_object_init(void)
 {
+	//runtime 初始化，进行dyld回调注册
 	_objc_init();
 	Block_callbacks_RR callbacks = {
 		sizeof(Block_callbacks_RR),

@@ -217,23 +217,20 @@ static void foo() {
     uint32_t pcnt = __CFGetProcessPortCount();
     if (__CF_last_warned_port_count + 1000 < pcnt) {
         CFArrayRef threads = __CFStopAllThreads();
-
-
-// do stuff here
-CFOptionFlags responseFlags = 0;
-SInt32 result = CFUserNotificationDisplayAlert(0.0, kCFUserNotificationCautionAlertLevel, NULL, NULL, NULL, CFSTR("High Mach Port Usage"), CFSTR("This application is using a lot of Mach ports."), CFSTR("Default"), CFSTR("Altern"), CFSTR("Other b"), &responseFlags);
-if (0 != result) {
-    CFLog(3, CFSTR("ERROR"));
-} else {
-    switch (responseFlags) {
-    case kCFUserNotificationDefaultResponse: CFLog(3, CFSTR("DefaultR")); break;
-    case kCFUserNotificationAlternateResponse: CFLog(3, CFSTR("AltR")); break;
-    case kCFUserNotificationOtherResponse: CFLog(3, CFSTR("OtherR")); break;
-    case kCFUserNotificationCancelResponse: CFLog(3, CFSTR("CancelR")); break;
-    }
-}
-
-
+        // do stuff here
+        CFOptionFlags responseFlags = 0;
+        SInt32 result = CFUserNotificationDisplayAlert(0.0, kCFUserNotificationCautionAlertLevel, NULL, NULL, NULL, CFSTR("High Mach Port Usage"), CFSTR("This application is using a lot of Mach ports."), CFSTR("Default"), CFSTR("Altern"), CFSTR("Other b"), &responseFlags);
+        
+        if (0 != result) {
+            CFLog(3, CFSTR("ERROR"));
+        } else {
+            switch (responseFlags) {
+                case kCFUserNotificationDefaultResponse: CFLog(3, CFSTR("DefaultR")); break;
+                case kCFUserNotificationAlternateResponse: CFLog(3, CFSTR("AltR")); break;
+                case kCFUserNotificationOtherResponse: CFLog(3, CFSTR("OtherR")); break;
+                case kCFUserNotificationCancelResponse: CFLog(3, CFSTR("CancelR")); break;
+            }
+        }
         __CFRestartAllThreads(threads);
         CFRelease(threads);
         __CF_last_warned_port_count = pcnt;
@@ -942,7 +939,8 @@ static CFRunLoopModeRef __CFRunLoopFindMode(CFRunLoopRef rl, CFStringRef modeNam
     memset(&srlm, 0, sizeof(srlm));
     _CFRuntimeSetInstanceTypeIDAndIsa(&srlm, __kCFRunLoopModeTypeID);
     srlm._name = modeName;
-                            // 在rl->_modes这个集合中，查找srlm指定中的数据（比如根据srlm._name查找）
+                            
+    // 在rl->_modes这个集合中，查找srlm指定中的数据（比如根据srlm._name查找）
     rlm = (CFRunLoopModeRef)CFSetGetValue(rl->_modes, &srlm);
     //找到就返回
     if (NULL != rlm) {
@@ -1561,7 +1559,7 @@ static CFSpinLock_t loopsLock = CFSpinLockInit;
 
 //获取线程对应的RunLoop
 CF_EXPORT CFRunLoopRef _CFRunLoopGet0(pthread_t t) {
-    if (pthread_equal(t, kNilPthreadT)) {
+    if (pthread_equal(t, kNilPthreadT)) {//如果参数传nil,则获取主线程ID
         t = pthread_main_thread_np();
     }
     __CFSpinLock(&loopsLock);
@@ -1707,19 +1705,19 @@ CFRunLoopRef CFRunLoopGetMain(void) {
 /**
  * 先在当前线程的STD 数据中查找当前有没有runloop 对象，有就返回
  * 如果没有，则调用_CFRunLoopGet0(pthread_t t) 接口创建一runloop对象并返回，创建的runloop的对象会在
- * 创建的过程中保存在线程的STD中
- *  runloop 会存储在两个地方，一个是线程的STD中，一个是全局的__RunLoop 这个全局字典中，
+ * 创建的过程中保存在线程的TSD中
+ *  runloop 会存储在两个地方，一个是线程的TSD中，一个是全局的__RunLoop 这个全局字典中，
  *  __RunLoop 以线程的指针为key ，runloop 对象为value存储
  */
 CFRunLoopRef CFRunLoopGetCurrent(void) {
     CHECK_FOR_FORK();
-    //先在当前线程的STD 数据中查找当前有没有runloop 对象
+    //先在当前线程的TSD 数据中查找当前有没有runloop 对象
     CFRunLoopRef rl = (CFRunLoopRef)_CFGetTSD(__CFTSDKeyRunLoop);
     if (rl) return rl;
     /*
      当前线程的STD 数据中查找不到runloop 对象，那么就通过获取runloop对象，
      _CFRunLoopGet0(pthread_t t) 接口会从全局的字典中查询线程对应的runloop，如果有则返回，没有则创建
-     并且存在STD 中
+     并且存在TSD 中
      */
     return _CFRunLoopGet0(pthread_self());
 }
@@ -3028,7 +3026,10 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
      */
     //根据名字查找mode
     CFRunLoopModeRef currentMode = __CFRunLoopFindMode(rl, modeName, false);
-    // 如果mode里没有source/timer/observer, 直接返回。
+    /*
+     如果mode里没有source/timer/observer, 直接返回。
+     如果observer 没有block也马上返回
+     */
     if (NULL == currentMode || __CFRunLoopModeIsEmpty(rl, currentMode, rl->_currentMode)) {
         Boolean did = false;
         if (currentMode){
