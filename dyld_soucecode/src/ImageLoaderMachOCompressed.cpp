@@ -1233,6 +1233,7 @@ uintptr_t ImageLoaderMachOCompressed::doBindFastLazySymbol(uint32_t lazyBindingI
 	const uint8_t* p = &start[lazyBindingInfoOffset];
 	while ( !done && (p < end) ) {
 		uint8_t immediate = *p & BIND_IMMEDIATE_MASK;
+		//opcode 是啥
 		uint8_t opcode = *p & BIND_OPCODE_MASK;
 		++p;
 		switch (opcode) {

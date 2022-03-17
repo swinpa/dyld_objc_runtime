@@ -106,3 +106,5 @@ Binding 是处理那些指向 dylib 外部的指针，它们实际上被符号�
 ###关于安全的一点参考文章[应用安全检测](https://hello-sherlock.github.io/2017/03/22/eight-Blog/)
 
 https://blog.csdn.net/A1553225534/article/details/104187054
+
+###[关于DYLD,以及一些mach-o中的一些section的说明](http://www.newosxbook.com/articles/DYLD.html#footnote)

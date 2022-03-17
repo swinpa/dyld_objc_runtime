@@ -119,6 +119,10 @@ dyld_stub_binder_:
  * sp+16 return address
  * sp+8  lazy binding info offset
  * sp+0	 address of ImageLoader cache
+ * stub：桩代码（存根, 占位代码，粘合代码，残存代码, 指满足形式要求但没有实现实际功能的占坑/代理代码。）
+ * 摘一段使用“桩代码”的场景，来自《程序员的自我修养》第一版第264页：
+ * 当延迟载入的API第一次被调用时，由链接器添加的特殊的桩代码就会启动，这个桩代码负责对DLL的装载工作。
+ * 然后这个桩代码通过调用GetProcAddress来找到被调用API的地址。
  */
     .align 2,0x90
     .globl dyld_stub_binder
@@ -197,6 +201,7 @@ Lz:	movq		%rcx, (%r8)
 	xsave		(%rsp)
 
 Lbind:
+	//调用fastBindLazySymbol进行符号绑定
 	movq		MH_PARAM_RBP(%rbp),%rdi	# call fastBindLazySymbol(loadercache, lazyinfo)
 	movq		LP_PARAM_RBP(%rbp),%rsi
 	call		__Z21_dyld_fast_stub_entryPvl
