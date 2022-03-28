@@ -56,10 +56,17 @@ public:
 };
 
 
+/// 具体实现在objc_cache.mm 中
+/// 详细参考https://blog.csdn.net/u011132324/article/details/104500924
+/// 1、OC 中实例方法缓存在类上面，类方法缓存在元类上面。
+/// 2、cache_t 缓存会提前进行扩容防止溢出。
+/// 3、方法缓存是为了最大化的提高程序的执行效率。
+/// 4、苹果在方法缓存这里用的是开放寻址法来解决哈希冲突。
+/// 5、通过 cache_t 我们可以进一步延伸去探究 objc_msgSend，因为查找方法缓存是属于 objc_msgSend 查找方法实现的快速流程。
 struct cache_t {
     struct bucket_t *_buckets;
-    mask_t _mask;
-    mask_t _occupied;
+    mask_t _mask;//mask 的值对于 bucket 来说，主要是用来在缓存查找时的哈希算法。
+    mask_t _occupied;//占用占领 ,capacity 可以获取到 cache_t 中 bucket 的数量
 
 public:
     struct bucket_t *buckets();
@@ -78,7 +85,7 @@ public:
 
     void expand();
     void reallocate(mask_t oldCapacity, mask_t newCapacity);
-    struct bucket_t * find(cache_key_t key, id receiver);
+    struct bucket_t * find(cache_key_t key, id receiver);//具体实现咋
 
     static void bad_cache(id receiver, SEL sel, Class isa) __attribute__((noreturn));
 };

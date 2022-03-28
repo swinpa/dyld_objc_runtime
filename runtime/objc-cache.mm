@@ -527,13 +527,24 @@ bucket_t * cache_t::find(cache_key_t k, id receiver)
 
     bucket_t *b = buckets();
     mask_t m = mask();
+    // 根据key 跟 mask 进行hash计算得到下标
     mask_t begin = cache_hash(k, m);
     mask_t i = begin;
     do {
+        /*
+         b[i].key() == 0 说明在hash表中[i]下标处的bucket中还《没缓存》有IMP
+         b[i].key() == k 说明在hash表中[i]下标处的bucket中已经《缓存》有cmd的IMP
+         */
         if (b[i].key() == 0  ||  b[i].key() == k) {
             return &b[i];
         }
-    } while ((i = cache_next(i, m)) != begin);
+    } while ((i = cache_next(i, m)) != begin);/* 开放定址法进行下一个hash值的计算，用来解决hash冲突
+                                               解决hash冲突的方案之一：开放定址法
+                                               从发生冲突的那个单元起，按照一定的次序，从哈希表中找到一个空闲的单元。然后把发生冲突的元素存入到该单元的一种方法
+                                               又细分为线性探查法:
+                                                    它从发生冲突的单元起，依次判断下一个单元是否为空，当达到最后一个单元时，再从表首依次判断。直到碰到空闲的单元或者探查完全部单元为止。
+                                               
+    */
 
     // hack
     Class cls = (Class)((uintptr_t)this - offsetof(objc_class, cache));

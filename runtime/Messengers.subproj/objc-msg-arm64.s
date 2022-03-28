@@ -110,7 +110,7 @@ _objc_indexed_classes:
 #if SUPPORT_INDEXED_ISA
 	// Indexed isa
     //$0 为宏函数GetClassFromIsa_p16 的参数
-	mov	p16, $0			// optimistically set dst = src
+	mov	p16, $0			// optimistically set dst = src，此时$0 中就是对象内存数据，将对象的内存数据搞一份到p16中
 	/*
      tbz: (test branch zero). 测试位为0，则跳转。
      如：tbz w24, #0x6, 0x19307005c ; 即w24第6位，若为0，则跳转到0x19307005c执行
@@ -127,12 +127,13 @@ _objc_indexed_classes:
      [Tagged Pointer 判断说明好文章][https://www.infoq.cn/article/r5s0budukwyndafrivh4]
      简单说就是拿取地址的第一位判断是否为1，如：0xb000000000000012
      b == 1011 第一位为1（从左到右数），所以为Tagged Pointer
+     1011 中的011这3位表示类型
      */
     /*
      tbz    p16, #ISA_INDEX_IS_NPI_BIT, 1f
      指令说明 测试p16 中的第0 位是否为0， 为0 则跳转到1标签处，说明不是Tagged Pointer
      */
-    tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa，【non-pointer isa：非指针类isa,(地址不是单纯的地址，还有值相关的数据)】
+    tbz	p16, #ISA_INDEX_IS_NPI_BIT, 1f	// done if not non-pointer isa，【non-pointer isa：非指针类isa,(地址不是单纯的地址，还有值相关的数据),NPI 可能就是None Pointer ISA的缩写】
 	
     // isa in p16 is indexed，接下来就是non-pointer isa（Tagged Pointer） 情况的处理
     /*
@@ -162,7 +163,7 @@ _objc_indexed_classes:
 	ubfx	p16, p16, #ISA_INDEX_SHIFT, #ISA_INDEX_BITS  // extract index
 	//将[x10, p16, UXTP #PTRSHIFT] 指定的内存数据加载到p16 寄存器中
     ldr	p16, [x10, p16, UXTP #PTRSHIFT]	// load class from array
-1:
+1: //这里就是tbz    p16, #ISA_INDEX_IS_NPI_BIT, 1f 中的1f
 
 #elif __LP64__
 	// 64-bit packed isa
@@ -327,6 +328,21 @@ LExit$0: // 只有一个 LExit$0 标签 （以 L 开头的标签叫本地标签�
  b
  branch. 无条件跳转。
  例如：b 0x1b6b79cf8 跳转到0x1b6b79cf8处继续执行。
+ struct objc_object {
+ private:
+     isa_t isa;
+ };
+ struct objc_class : objc_object {
+     // Class ISA;
+     Class superclass; // 相当于 objc_class * superclass;
+     cache_t cache;             // formerly cache pointer and vtable
+     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
+     
+     class_rw_t *data() {
+         return bits.data();
+     }
+ };
+ 
 */
 	b	__objc_msgSend_uncached
 .elseif $0 == LOOKUP
@@ -336,7 +352,7 @@ LExit$0: // 只有一个 LExit$0 标签 （以 L 开头的标签叫本地标签�
 .endif
 .endmacro
 
-//定义宏 函数CacheLookup，该函数在objc_msgSend()中获取到isa 后被调用
+//定义宏 函数CacheLookup，该函数在objc_msgSend()中获取到isa （把ISA保存到p16中）后被调用
 .macro CacheLookup
 	// p1 = SEL, p16 = isa
     /*
@@ -345,12 +361,26 @@ LExit$0: // 只有一个 LExit$0 标签 （以 L 开头的标签叫本地标签�
      
      指令说明：
      将内存地址 x16 + (2 * __SIZEOF_POINTER__)的数据加载到p10中,再将x16 + (2 * __SIZEOF_POINTER__) + 8 处的数据加载到p11中。
+     因为class 布局如下
+     objc_class {
+        isa,
+        superclass,
+        cache,
+        class_data_bit
+     }，所以偏移(2 * __SIZEOF_POINTER__) 刚好到cache字段
+     x16 + (2 * __SIZEOF_POINTER__) + 8 那么就是cache + 8 == mask
+     cache 布局如下：
+     struct cache_t {
+         struct bucket_t *_buckets;
+         mask_t _mask;
+         mask_t _occupied;//占用，占领，
+     }
      */
-    ldp	p10, p11, [x16, #CACHE]	// p10 = buckets, p11 = occupied|mask
+    ldp	p10, p11, [x16, #CACHE]	// p10 = buckets, p11 = occupied|mask   -> 也就是将缓存列表加载到p10 中，将mask数据加载到p11中
 #if !__LP64__
 	and	w11, w11, 0xffff	// p11 = mask
 #endif
-	and	w12, w1, w11		// x12 = _cmd & mask
+	and	w12, w1, w11		// x12 = _cmd & mask  -> w1 是objc_msgSend(self,cmd)第二个参数也就是cmd
 	add	p12, p10, p12, LSL #(1+PTRSHIFT)
 		             // p12 = buckets + ((_cmd & mask) << (1+PTRSHIFT))
 
@@ -414,6 +444,14 @@ LExit$0: // 只有一个 LExit$0 标签 （以 L 开头的标签叫本地标签�
 #if SUPPORT_TAGGED_POINTERS
 	.data   // 数据内容
 	.align 3   // 2^3 = 8 字节对齐
+
+/*
+ 初始化系统时，会生成两个全局的数组变量，一个用来存储系统内置的Tagged Pointer类型，而另一个数组用来存储自定义扩展的Tagged Pointer类型。这两个数组的定义如下(objc-object.h 45行)：
+ extern "C" {
+     extern Class objc_debug_taggedpointer_classes[_OBJC_TAG_SLOT_COUNT];
+     extern Class objc_debug_taggedpointer_ext_classes[_OBJC_TAG_EXT_SLOT_COUNT];
+ }
+ */
 	.globl _objc_debug_taggedpointer_classes  // 定义一个全局的标记 _objc_debug_taggedpointer_classes
 _objc_debug_taggedpointer_classes:
 /*
@@ -436,7 +474,7 @@ _objc_debug_taggedpointer_ext_classes:
      对比p0寄存器是否为空，其中x0-x7是参数，x0可能会是返回值
      按照ARM64的Calling Convention，整形的参数前8个会按顺序放到'x0-x7'寄存器里，超过八个的放到栈上传递
      
-     p0 和 空 对比，即判断接收者是否存在，
+     p0 和 0 对比，即判断第一个参数self是否存在，
      其中 p0 是 objc_msgSend 的第一个参数(消息接收者 receiver)
      p0 定义在objc-818/Project Headers/arm64-asm.h
      p0-p15  等同于x0-x15, x0 ~ x31 是通用寄存器
@@ -502,7 +540,7 @@ _objc_debug_taggedpointer_ext_classes:
      以 str w0,[sp,#12] 为例，w是4字节的寄存器（word），这个指令代表将w0寄存器的值存储在sp+12这个地址上
      
      ldr 是 Load Register 的缩写，[] 为间接寻址。它表示从 x0 所表示的地址中取出 8 字节数据，放到 x13 中。
-     x0 中是 self 的地址，所以这里取出来的数据其实是 isa 的值
+     x0 中是 self 的地址，所以这里是将self指向的那块内存中的数据读取到p13 寄存器中
      
      */
 	ldr	p13, [x0]		/* p13 = isa，根据对象拿出 isa，即从 x0 寄存器指向的地址取出 isa，存入 p13 寄存器  [x0]为第一个参数self这个对象，
@@ -530,22 +568,70 @@ LNilOrTagged:
     //判断，如果为0，则直接跳转到LReturnZero 标签处进行返回
 	b.eq	LReturnZero		// nil check
 
+    // 小于0说明是tagged point, 则进行taggedpoint 处理
 	// tagged
+    /*
+     
+     初始化系统时，会生成两个全局的数组变量，一个用来存储系统内置的Tagged Pointer类型，而另一个数组用来存储自定义扩展的Tagged Pointer类型。这两个数组的定义如下(objc-object.h 45行)：
+
+     extern "C" {
+         extern Class objc_debug_taggedpointer_classes[_OBJC_TAG_SLOT_COUNT];
+         extern Class objc_debug_taggedpointer_ext_classes[_OBJC_TAG_EXT_SLOT_COUNT];
+     }
+     
+     ADR指令
+     这是一条小范围的地址读取指令，它将基于PC的相对偏移的地址读到目标寄存器中；
+     使用格式：ADR register exper
+     编译时，首先会计算出当前PC到exper的偏移量#offset_to_exper
+     然后会用ADD或SUB指令，来替换这条指令；例如ADD register,PC,#offset_to_exper
+     register就是exper的地址；
+     
+     ADRP指令
+     编译时，首先会计算出当前PC到exper的偏移量#offset_to_exper
+     pc的低12位清零，然后加上偏移量，给register
+     得到的地址，是含有label的4KB对齐内存区域的base地址；
+
+     得到一个大小为4KB的页的基址，而且在该页中有全局变量_objc_debug_taggedpointer_classes的地址； ADRP就是将该页的基址存到寄存器x10中；
+     */
+    /*
+     执行adrp时，先将操作数_objc_debug_taggedpointer_classes@PAGE  左移12位得到的值姑且叫 X ，再将pc 低12清零得到的值姑且叫Y ，最后两者相加（X+Y）得到的值赋值给x10。
+     */
 	adrp	x10, _objc_debug_taggedpointer_classes@PAGE
+
+    /*
+     ADD指令会算出_objc_debug_taggedpointer_classes的地址，x10+#_objc_debug_taggedpointer_classes@PAGEOFF，
+     #_objc_debug_taggedpointer_classes@PAGEOFF是一个偏移量；这样就得到了_objc_debug_taggedpointer_classes的地址X10;
+     */
 	add	x10, x10, _objc_debug_taggedpointer_classes@PAGEOFF
+    /*
+     ubfx    wd, wn, #lsb, #width    --> 32位
+     ubfx    xd, xn, #lsb, #width    --> 64位
+     意思是从wn寄存器的第lsb位开始，提取width位到wd寄存器，剩余高位用0填充
+     
+     所以下面的指令就是从x0寄存器中从第60位开始提取4位到x11寄存器中，此时的x10
+     也就是将self 地址的高4位提取到x11 中，
+     比如 self = 0xb000000000000012, 转为二进制就是
+     1011000000000000000000000000000000000000000000000000000000010010
+     那么就会提取前面的1011到x11中
+     */
 	ubfx	x11, x0, #60, #4
-	ldr	x16, [x10, x11, LSL #3]
+	
+    /*
+     LSL #3 应该是指低3位，比如1011，那么低3位就是011
+     那么这里的意思大概就是
+     */
+    ldr	x16, [x10, x11, LSL #3] //
 	adrp	x10, _OBJC_CLASS_$___NSUnrecognizedTaggedPointer@PAGE
 	add	x10, x10, _OBJC_CLASS_$___NSUnrecognizedTaggedPointer@PAGEOFF
 	cmp	x10, x16
-	b.ne	LGetIsaDone
+	b.ne	LGetIsaDone//获取到ISA后跳转到LGetIsaDone进行后续的消息查找流程
 
-	// ext tagged
+	// ext tagged// 自定义（扩展的）Tagged Pointer类型
 	adrp	x10, _objc_debug_taggedpointer_ext_classes@PAGE
 	add	x10, x10, _objc_debug_taggedpointer_ext_classes@PAGEOFF
 	ubfx	x11, x0, #52, #8
 	ldr	x16, [x10, x11, LSL #3]
-	b	LGetIsaDone
+	b	LGetIsaDone//获取到ISA后跳转到LGetIsaDone进行后续的消息查找流程
 // SUPPORT_TAGGED_POINTERS
 #endif
 
