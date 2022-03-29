@@ -230,6 +230,7 @@ objc_copyClassNamesForImageHeader(const struct mach_header * _Nonnull mh,
 // Tag index 7 is reserved.
 // Tag indexes 8..<264 have a 52-bit payload.
 // Tag index 264 is reserved.
+// 根据不同的数据类型，payload占用的长度不一样，
 
 #if __has_feature(objc_fixed_enum)  ||  __cplusplus >= 201103L
 enum objc_tag_index_t : uint16_t

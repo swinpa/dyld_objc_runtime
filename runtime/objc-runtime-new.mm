@@ -2689,9 +2689,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
 #endif
 
-        if (DisableTaggedPointers) {
+        if (DisableTaggedPointers) {//禁用 Tagged Pointer，与环境变量 OBJC_DISABLE_TAGGED_POINTERS 相关
             /*
              参考文章：https://www.jianshu.com/p/3176e30c040b
+             【参考文章】(https://www.infoq.cn/article/r5s0budukwyndafrivh4)
              如果环境变量设置了禁止Tagged Pointer，则调用Tagged Pointer禁用函数
              禁用NSNumber等的 Tagged Pointer 指针优化
              
@@ -7079,30 +7080,30 @@ Class _objc_getFreedObjectClass (void)
 
 
 /***********************************************************************
-* Tagged pointer objects.
+* Tagged pointer objects.  【参考文章】(https://www.infoq.cn/article/r5s0budukwyndafrivh4)
 *
 * Tagged pointer objects store the class and the object value in the 
-* object pointer; the "pointer" does not actually point to anything.
+* object pointer; the "pointer" does not actually point to anything.                                    ////  Tagged pointer 指针对象将 class 和对象数据存储在对象指针中；指针实际上不指向任何东西。
 * 
-* Tagged pointer objects currently use this representation:
-* (LSB)
-*  1 bit   set if tagged, clear if ordinary object pointer
-*  3 bits  tag index
-* 60 bits  payload
-* (MSB)
-* The tag index defines the object's class. 
-* The payload format is defined by the object's class.
+* Tagged pointer objects currently use this representation:                                             ////  Tagged pointer 当前使用此表示形式：
+* (LSB)                                                                                                                             ////  (macOS)64 位分布如下：
+*  1 bit   set if tagged, clear if ordinary object pointer                                                      ////  1 bit 标记是 Tagged Pointer
+*  3 bits  tag index                                                                                                           ////  3 bits 标记类型
+* 60 bits  payload                                                                                                            ////  60 bits 负载数据容量，（存储对象数据）
+* (MSB)                                                                                                                           ////  (iOS)64 位分布如下：
+* The tag index defines the object's class.                                                                     ////  tag index 表示对象所属的 class
+* The payload format is defined by the object's class.                                                   ////  负载格式由对象的 class 定义
 *
-* If the tag index is 0b111, the tagged pointer object uses an 
-* "extended" representation, allowing more classes but with smaller payloads:
-* (LSB)
-*  1 bit   set if tagged, clear if ordinary object pointer
-*  3 bits  0b111
-*  8 bits  extended tag index
-* 52 bits  payload
+* If the tag index is 0b111, the tagged pointer object uses an                                       ////  如果 tag index 是 0b111(7)， tagged pointer 对象使用 “扩展” 表示形式
+* "extended" representation, allowing more classes but with smaller payloads:           ////  允许更多类，但 有效载荷 更小
+* (LSB)                                                                                                                           ////  (macOS)(带有扩展内容)64 位分布如下：
+*  1 bit   set if tagged, clear if ordinary object pointer                                                    ////  1 bit 标记是 Tagged Pointer
+*  3 bits  0b111                                                                                                               ////  3 bits 是 0b111
+*  8 bits  extended tag index                                                                                          ////  8 bits 扩展标记格式
+* 52 bits  payload                                                                                                           ////  52 bits 负载数据容量，（存储对象数据）
 * (MSB)
 *
-* Some architectures reverse the MSB and LSB in these representations.
+* Some architectures reverse the MSB and LSB in these representations.                  ////  在这些表示中，某些体系结构反转了 MSB 和 LSB。
 *
 * This representation is subject to change. Representation-agnostic SPI is:
 * objc-internal.h for class implementers.
