@@ -110,7 +110,7 @@ _objc_indexed_classes:
 #if SUPPORT_INDEXED_ISA
 	// Indexed isa
     //$0 为宏函数GetClassFromIsa_p16 的参数
-	mov	p16, $0			// optimistically set dst = src，此时$0 中就是对象内存数据，将对象的内存数据搞一份到p16中
+	mov	p16, $0			// optimistically set dst = src，此时$0 中就是 isa
 	/*
      tbz: (test branch zero). 测试位为0，则跳转。
      如：tbz w24, #0x6, 0x19307005c ; 即w24第6位，若为0，则跳转到0x19307005c执行

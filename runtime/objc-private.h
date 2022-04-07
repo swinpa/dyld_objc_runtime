@@ -76,9 +76,9 @@ union isa_t {
          uintptr_t has_assoc         : 1;                                         \
          //是否有C++析构函数
          uintptr_t has_cxx_dtor      : 1;                                         \
-         //存储着class对象的内存地址信息
+         //存储着class对象的内存地址信息 （存储在第3-35字节）存储类的指针，其实就是优化之前 isa 指向的内容。在arm64架构中有33位用来存储类指针。x86_64架构有44位。
          uintptr_t shiftcls          : 44;                                        \
-         //用于在调试时分辨对象释放未完成初始化
+         //用于在调试时分辨对象释放未完成初始化（存储在第36-41字节）：判断对象是否初始化完成， 是调试器判断当前对象是真的对象还是没有初始化的空间
          uintptr_t magic             : 6;                                         \
          //是否有被弱引用指向过
          uintptr_t weakly_referenced : 1;                                         \

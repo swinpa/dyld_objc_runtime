@@ -72,6 +72,13 @@
 #   define RC_HALF  (1ULL<<18)
 
 # elif __x86_64__
+/*
+ define ISA_MASK        0x00007ffffffffff8ULL
+ 转成二进制
+ 0000 0000 0000 0000 0000 0000 0000 1111
+ 1111 1111 1111 1111 1111 1111 1111 1000
+ 也就是用来取第3位到35位的值
+ */
 #   define ISA_MASK        0x00007ffffffffff8ULL
 #   define ISA_MAGIC_MASK  0x001f800000000001ULL
 #   define ISA_MAGIC_VALUE 0x001d800000000001ULL
