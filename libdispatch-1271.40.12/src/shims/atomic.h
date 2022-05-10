@@ -106,15 +106,33 @@
 		atomic_compare_exchange_weak_explicit(_os_atomic_c11_atomic(p), \
 		&_r, v, memory_order_##m, memory_order_relaxed); *(g) = _r;  _b; })
 
+
 #define _os_atomic_c11_op(p, v, m, o, op) \
-		({ _os_atomic_basetypeof(p) _v = (v), _r = \
-		atomic_fetch_##o##_explicit(_os_atomic_c11_atomic(p), _v, \
-		memory_order_##m); (__typeof__(_r))(_r op _v); })
+		({\
+			_os_atomic_basetypeof(p) _v = (v),\
+			_r = atomic_fetch_##o##_explicit(_os_atomic_c11_atomic(p), _v, \
+			memory_order_##m); (__typeof__(_r))(_r op _v);\
+		})
+
 #define _os_atomic_c11_op_orig(p, v, m, o, op) \
 		atomic_fetch_##o##_explicit(_os_atomic_c11_atomic(p), v, \
 		memory_order_##m)
+
+/*
+ 最终os_atomic_add(p, v, m) -> _os_atomic_c11_op((p), (v), m, add, +)
+ ->
+ 其中_r = atomic_fetch_##o##_explicit(_os_atomic_c11_atomic(p), _v,memory_order_##m) ⇒
+ _r = atomic_fetch_add_explicit(_os_atomic_c11_atomic(&(dsema)->dsema_value), 1, memory_order_release)
+ 其中atomic_fetch_add_explicit（volatile A * obj，M arg，memory_order order）是原子相加操作，
+ obj = obj+arg（用obj+arg的值替换obj旧值）然后返回obj新值
+ [说明文档](https://en.cppreference.com/w/c/atomic/atomic_fetch_add)
+ [中文文档](https://cloud.tencent.com/developer/section/1008918)
+ 
+ */
 #define os_atomic_add(p, v, m) \
 		_os_atomic_c11_op((p), (v), m, add, +)
+
+
 #define os_atomic_add_orig(p, v, m) \
 		_os_atomic_c11_op_orig((p), (v), m, add, +)
 #define os_atomic_sub(p, v, m) \

@@ -620,6 +620,11 @@ struct class_ro_t {
     uint32_t reserved;
 #endif
 
+    /*
+     这里存放了一份strong类型的成员变量
+     也就是说如果成员变量是strong类型，那么会在这里存储一份
+     ivars 列表中存储了所有的变量，包括普通的，weak的，strong的？
+     */
     const uint8_t * ivarLayout;// <- 记录了哪些是 strong 的 ivar
     
     const char * name;

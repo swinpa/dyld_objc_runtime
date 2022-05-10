@@ -127,3 +127,28 @@ _Exit(即将退出Loop) 时 _
 
 
 ```
+
+####内存
+!(ARC 文档1)[https://developer.apple.com/library/archive/releasenotes/ObjectiveC/RN-TransitioningToARC/Introduction/Introduction.html]
+!(ARC 文档2)[https://docs.swift.org/swift-book/LanguageGuide/AutomaticReferenceCounting.html]
+
+iOS 内存分栈内存，堆内存
+	
+	栈内存：
+		栈内存由系统管理，生命周期在代码块结束时结束，也就是在代码块内申请的栈空间在代码块结束后，通过出栈的方式，释放栈内存
+	堆内存：
+		堆内存由用户自己管理，谁申请，谁就负责释放（具体表现在alloc/free）
+		为了管理堆内存，iOS引入了引用计数器来统计当前有多少对象在使用指定的某块堆内存，当引用计数为0
+		(也就是没人再使用那块堆内存)时，那么就调用free进行释放
+		在过去的年代，这个引用计数器的值仍然由开发者自己管理（MRC），在需要使用内存时，使用retain表明使用该
+		内存，不再使用时需要使用release来减持引用计数
+		这样的方式非常不友好，所有后来就出现了ARC（Automatic Reference Counting）自动引用计数，通
+		过编译器与运行时一起管理堆内存，（意思是编译器在合适的地方插入内存管理的方法（其实是插入了__strong 修饰），通过clang 
+		查看ARC 多了__strong修饰）在运行阶段，通过_object_setIvar()赋值时，会先通过_class_lookUpIvar()
+		获取当前属性的内存管理方式，如果是objc_ivar_memoryStrong，那么会调用objc_storeStrong()进行赋值，那么在
+		objc_storeStrong()中就会通过objc_retain(obj);像内存添加引用计数相关的方法
+		
+		AutoreleasePool 管理内存也是基于对引用计数的管理，它把引用计数的释放release延迟到了AutoreleasePool对象释放的时机统一释放
+        
+        
+    

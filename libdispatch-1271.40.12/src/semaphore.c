@@ -84,6 +84,7 @@ DISPATCH_NOINLINE
 intptr_t
 _dispatch_semaphore_signal_slow(dispatch_semaphore_t dsema)
 {
+	//调用内核接口
 	_dispatch_sema4_create(&dsema->dsema_sema, _DSEMA4_POLICY_FIFO);
 	_dispatch_sema4_signal(&dsema->dsema_sema, 1);
 	return 1;
@@ -92,8 +93,14 @@ _dispatch_semaphore_signal_slow(dispatch_semaphore_t dsema)
 intptr_t
 dispatch_semaphore_signal(dispatch_semaphore_t dsema)
 {
+	/*
+	 dsema->dsema_value = dsema->dsema_value + 1
+	 return dsema->dsema_value
+	 也就是对信号量dispatch_semaphore_t 中的计数器属性dsema_value进行+1 操作，返回+1后的结果
+	 */
 	long value = os_atomic_inc2o(dsema, dsema_value, release);
 	if (likely(value > 0)) {
+		//如果dsema->dsema_value进行+1后的值大于0 则直接返回
 		return 0;
 	}
 	if (unlikely(value == LONG_MIN)) {
