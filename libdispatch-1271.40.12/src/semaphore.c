@@ -32,16 +32,23 @@ dispatch_semaphore_create(intptr_t value)
 	dispatch_semaphore_t dsema;
 
 	// If the internal value is negative, then the absolute of the value is
+	// 如果内部值为负，则绝对值为
 	// equal to the number of waiting threads. Therefore it is bogus to
+	// 等于等待线程的数量。因此，它是虚假的
 	// initialize the semaphore with a negative value.
+	// 用负值初始化信号量。
+	
 	if (value < 0) {
 		return DISPATCH_BAD_INPUT;
 	}
 
 	dsema = _dispatch_object_alloc(DISPATCH_VTABLE(semaphore),
 			sizeof(struct dispatch_semaphore_s));
+	//可以理解为链表的结尾标记
 	dsema->do_next = DISPATCH_OBJECT_LISTLESS;
+	// 目标队列
 	dsema->do_targetq = _dispatch_get_default_queue(false);
+	// 信号值
 	dsema->dsema_value = value;
 	_dispatch_sema4_init(&dsema->dsema_sema, _DSEMA4_POLICY_FIFO);
 	dsema->dsema_orig = value;
@@ -112,9 +119,9 @@ dispatch_semaphore_signal(dispatch_semaphore_t dsema)
 
 DISPATCH_NOINLINE
 static intptr_t
-_dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
-		dispatch_time_t timeout)
+_dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema, dispatch_time_t timeout)
 {
+	//等到FIFO队列中信号量的到来，直到timeout为止。
 	long orig;
 
 	_dispatch_sema4_create(&dsema->dsema_sema, _DSEMA4_POLICY_FIFO);
@@ -189,13 +196,36 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
 	return 0;
 }
 
+/*
+ [参考](http://lingyuncxb.com/2018/02/08/GCD%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%905%20%E2%80%94%E2%80%94%20dispatch-semaphore%E7%AF%87/)
+ DISPATCH_DECL(dispatch_semaphore);
+
+ #define DISPATCH_DECL(name) typedef struct name##_s *name##_t;
+
+ struct dispatch_semaphore_s {
+	 DISPATCH_STRUCT_HEADER(dispatch_semaphore_s, dispatch_semaphore_vtable_s);
+	 long dsema_value;   // 当前信号值，当这个值小于0时无法访问加锁资源
+	 long dsema_orig;    // 初始化信号值，限制了同时访问资源的线程数量
+	 
+	 size_t dsema_sent_ksignals; //由于mach信号可能会被意外唤醒，通过原子操作来避免虚假信号
+	 
+	 semaphore_t dsema_port;
+	 semaphore_t dsema_waiter_port;
+	 size_t dsema_group_waiters;
+	 struct dispatch_sema_notify_s *dsema_notify_head;
+	 struct dispatch_sema_notify_s *dsema_notify_tail;
+ };
+ */
+
 intptr_t
 dispatch_semaphore_wait(dispatch_semaphore_t dsema, dispatch_time_t timeout)
 {
-	/*
-	 对dispatch_semaphore_t 进行原子减 1 操作
-	 如果减后的值 >= 0 则直接返回，也可就是不加锁等待操作
-	 */
+	 /*
+	  dsema->dsema_value = dsema->dsema_value - 1
+	  return dsema->dsema_value
+	  也就是对信号量dispatch_semaphore_t 中的计数器属性dsema_value进行-1 操作，返回-1后的结果
+	  */
+	 
 	long value = os_atomic_dec2o(dsema, dsema_value, acquire);
 	if (likely(value >= 0)) {
 		return 0;

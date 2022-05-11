@@ -33,6 +33,7 @@ DISPATCH_ASSUME_NONNULL_BEGIN
  *
  * @abstract
  * A counting semaphore.
+ * #define DISPATCH_DECL(name) typedef struct name##_s *name##_t // Dispatch Public Headers -> object.h
  */
 DISPATCH_DECL(dispatch_semaphore);
 
