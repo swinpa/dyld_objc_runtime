@@ -142,6 +142,8 @@ _dispatch_sema4_wait(_dispatch_sema4_t *sema)
 		 对否自行判断
 		 
 		 调用系统的semaphore_wait方法，直到收到signal调用。()  -- 这对吗，会不会是直到sema 的值大于等于0
+		 semaphore_wait()中调用 semaphore_wait_internal()
+		 semaphore_wait_internal()在xnu-7195/osfmk/kerm/sync_sema.c
 		 */
 		kr = semaphore_wait(*sema);
 	} while (kr == KERN_ABORTED);
