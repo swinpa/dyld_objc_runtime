@@ -228,6 +228,10 @@ dispatch_semaphore_wait(dispatch_semaphore_t dsema, dispatch_time_t timeout)
 	 
 	long value = os_atomic_dec2o(dsema, dsema_value, acquire);
 	if (likely(value >= 0)) {
+		/*
+		 如果结果 >= 0 那么就可以马上返回，不会进入等待状态
+		 这也许就是信号量的性能比pthread_mutex 高的原因
+		*/
 		return 0;
 	}
 	return _dispatch_semaphore_wait_slow(dsema, timeout);
