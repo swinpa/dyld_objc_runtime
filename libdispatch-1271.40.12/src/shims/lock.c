@@ -131,8 +131,8 @@ _dispatch_sema4_signal(_dispatch_sema4_t *sema, long count)
 	} while (--count);
 }
 
-void
-_dispatch_sema4_wait(_dispatch_sema4_t *sema)
+void _dispatch_sema4_wait(_dispatch_sema4_t *sema)
+//该方法有两种实现
 {
 	kern_return_t kr;
 	do {
@@ -199,9 +199,21 @@ _dispatch_sema4_signal(_dispatch_sema4_t *sema, long count)
 	} while (--count);
 }
 
-void
-_dispatch_sema4_wait(_dispatch_sema4_t *sema)
+/*
+  sem_wait 方法，在 glibc 中被实现如下:
+
+ int sem_wait (sem_t *sem) {
+   int *futex = (int *) sem;
+   if (atomic_decrement_if_positive (futex) > 0)
+	 return 0;
+   int err = lll_futex_wait (futex, 0);
+	 return -1;
+ )
+ 首先会把信号量的值减一，并判断是否大于零。如果大于零，说明不用等待，所以立刻返回。具体的等待操作在 lll_futex_wait 函数中实现，lll 是 low level lock 的简称。这个函数通过汇编代码实现，调用到 SYS_futex 这个系统调用，使线程进入睡眠状态，主动让出时间片，这个函数在互斥锁的实现中，也有可能被用到。
+ */
+void _dispatch_sema4_wait(_dispatch_sema4_t *sema)
 {
+	//该方法有两种实现
 	int ret = 0;
 	do {
 		ret = sem_wait(sema);

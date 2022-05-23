@@ -1834,8 +1834,14 @@ dispatch_barrier_sync_f(dispatch_queue_t dq, void *ctxt,
 }
 
 DISPATCH_ALWAYS_INLINE
-static inline void
-_dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
+/*
+ typedef struct dispatch_queue_s *dispatch_queue_t;
+ struct dispatch_queue_s {//queue_internal.h
+	 DISPATCH_QUEUE_CLASS_HEADER(queue, void *__dq_opaque1);
+	 //32bit hole on LP64
+ } DISPATCH_ATOMIC64_ALIGN;
+ */
+static inline void _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 		dispatch_function_t func, uintptr_t dc_flags)
 {
 	if (likely(dq->dq_width == 1)) {
@@ -1893,8 +1899,13 @@ _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 }
 
 DISPATCH_NOINLINE
-static void
-_dispatch_sync_f(dispatch_queue_t dq, void *ctxt, dispatch_function_t func,
+
+/// <#Description#>
+/// @param dq 队列
+/// @param ctxt block 参数
+/// @param func block对象中的函数指针
+/// @param dc_flags 用来标识func参数的来源(是来自于block对象中的函数指针还是其他地方)
+static void _dispatch_sync_f(dispatch_queue_t dq, void *ctxt, dispatch_function_t func,
 		uintptr_t dc_flags)
 {
 	_dispatch_sync_f_inline(dq, ctxt, func, dc_flags);
@@ -1961,6 +1972,10 @@ void
 dispatch_sync(dispatch_queue_t dq, dispatch_block_t work)
 {
 	uintptr_t dc_flags = DC_FLAG_BLOCK;
+	/*
+	 判断block类型 是否为_dispatch_block_special_invoke？
+	 通过获取block内存布局（Block_layout），也就是block对象中的函数指针来判断
+	 */
 	if (unlikely(_dispatch_block_has_private_data(work))) {
 		return _dispatch_sync_block_with_privdata(dq, work, dc_flags);
 	}
