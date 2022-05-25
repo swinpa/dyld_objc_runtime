@@ -2743,8 +2743,10 @@ _dispatch_queue_priority_inherit_from_target(dispatch_lane_class_t dq,
 
 DISPATCH_NOINLINE
 static dispatch_queue_t
-_dispatch_lane_create_with_target(const char *label, dispatch_queue_attr_t dqa,
-		dispatch_queue_t tq, bool legacy)
+_dispatch_lane_create_with_target(const char *label,
+								  dispatch_queue_attr_t dqa,
+								  dispatch_queue_t tq,
+								  bool legacy)
 {
 	dispatch_queue_attr_info_t dqai = _dispatch_queue_attr_to_info(dqa);
 
@@ -2841,12 +2843,14 @@ _dispatch_lane_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 		}
 	}
 
+	//创建queue对象
 	dispatch_lane_t dq = _dispatch_object_alloc(vtable,
 			sizeof(struct dispatch_lane_s));
 	_dispatch_queue_init(dq, dqf, dqai.dqai_concurrent ?
 			DISPATCH_QUEUE_WIDTH_MAX : 1, DISPATCH_QUEUE_ROLE_INNER |
 			(dqai.dqai_inactive ? DISPATCH_QUEUE_INACTIVE : 0));
 
+	//设置queuelabel
 	dq->dq_label = label;
 	dq->dq_priority = _dispatch_priority_make((dispatch_qos_t)dqai.dqai_qos,
 			dqai.dqai_relpri);
@@ -2858,7 +2862,7 @@ _dispatch_lane_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 		_dispatch_lane_inherit_wlh_from_target(dq, tq);
 	}
 	_dispatch_retain(tq);
-	dq->do_targetq = tq;
+	dq->do_targetq = tq;// 目标队列，GCD允许我们将一个队列放在另一个队列里执行任务
 	_dispatch_object_debug(dq, "%s", __func__);
 	return _dispatch_trace_queue_create(dq)._dq;
 }
@@ -2870,8 +2874,17 @@ dispatch_queue_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 	return _dispatch_lane_create_with_target(label, dqa, tq, false);
 }
 
-dispatch_queue_t
-dispatch_queue_create(const char *label, dispatch_queue_attr_t attr)
+/*
+ #pragma mark -
+ #pragma mark dispatch_queue_attr_t
+
+ DISPATCH_CLASS_DECL(queue_attr, OBJECT);
+ struct dispatch_queue_attr_s {
+	 OS_OBJECT_STRUCT_HEADER(dispatch_queue_attr);
+ };
+
+ */
+dispatch_queue_t dispatch_queue_create(const char *label, dispatch_queue_attr_t attr)
 {
 	return _dispatch_lane_create_with_target(label, attr,
 			DISPATCH_TARGET_QUEUE_DEFAULT, true);

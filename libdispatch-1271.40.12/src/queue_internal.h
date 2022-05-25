@@ -605,30 +605,31 @@ typedef struct dispatch_workloop_attr_s {
 	int volatile dq_sref_cnt
 
 /*
+ // 【注释参考】(https://juejin.cn/post/6844903783810465800)
  struct dispatch_queue_s {
 
 	 struct dispatch_object_s _as_do[0];
 	 struct _os_object_s _as_os_obj[0];
-	 const struct dispatch_queue_vtable_s *do_vtable;
-	 int volatile do_ref_cnt;
-	 int volatile do_xref_cnt;
-	 struct dispatch_queue_s *volatile do_next;
+	 const struct dispatch_queue_vtable_s *do_vtable;// 该类型的结构体包含了对dispatch_queue_s的操作函数
+	 int volatile do_ref_cnt;// 引用计数
+	 int volatile do_xref_cnt;// 外部引用计数
+	 struct dispatch_queue_s *volatile do_next;//链表的next
 	 struct dispatch_queue_s *do_targetq;
-	 void *do_ctxt;
+	 void *do_ctxt;// 上下文，用来存储线程池相关数据，比如用于线程挂起和唤醒的信号量、线程池尺寸等
 	 union {
 		 dispatch_function_t DISPATCH_FUNCTION_POINTER do_finalizer;
 		 void *do_introspection_ctxt;
 	 }
-	 void *__dq_opaque1);
+	 void *__dq_opaque1;
 	 DISPATCH_UNION_LE(uint64_t volatile dq_state,
 			 dispatch_lock dq_state_lock,
 			 uint32_t dq_state_bits
 	 )
 	 //* LP64 global queue cacheline boundary
-	 unsigned long dq_serialnum;
-	 const char *dq_label;
+	 unsigned long dq_serialnum;// 队列序列号
+	 const char *dq_label;// 队列名，队列名要少于64个字符
 	 DISPATCH_UNION_LE(uint32_t volatile dq_atomic_flags,
-		 const uint16_t dq_width,
+		 const uint16_t dq_width,// 最大并发数：主队列/串行队列的最大并发数为1
 		 const uint16_t __dq_opaque2
 	 );
 	 dispatch_priority_t dq_priority;

@@ -370,6 +370,7 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 	/*
 	 _dispatch_root_queues[6]
 	 dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0) 返回的就是该节点
+	 nslog 打印<OS_dispatch_queue_global: com.apple.root.default-qos>
 	 */
 	_DISPATCH_ROOT_QUEUE_ENTRY(DEFAULT, DISPATCH_PRIORITY_FLAG_FALLBACK,
 		.dq_label = "com.apple.root.default-qos",
