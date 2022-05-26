@@ -1782,17 +1782,27 @@ _dispatch_sync_recurse(dispatch_lane_t dq, void *ctxt,
 }
 
 DISPATCH_ALWAYS_INLINE
-static inline void
-_dispatch_barrier_sync_f_inline(dispatch_queue_t dq, void *ctxt,
-		dispatch_function_t func, uintptr_t dc_flags)
+
+/// <#Description#>
+/// @param dq 队列 dispatch_queue_t
+/// @param ctxt block 参数
+/// @param func block 中的函数指针
+/// @param dc_flags 用来标识func参数的来源(是来自于block对象中的函数指针还是其他地方)
+static inline void _dispatch_barrier_sync_f_inline(dispatch_queue_t dq,
+												   void *ctxt,
+												   dispatch_function_t func,
+												   uintptr_t dc_flags)
 {
+	//#define _dispatch_tid_self()		((dispatch_tid)(_dispatch_get_tsd_base()->tid << 2))
+
 	dispatch_tid tid = _dispatch_tid_self();
 
 	if (unlikely(dx_metatype(dq) != _DISPATCH_LANE_TYPE)) {
 		DISPATCH_CLIENT_CRASH(0, "Queue type doesn't support dispatch_sync");
 	}
 
-	dispatch_lane_t dl = upcast(dq)._dl;
+	
+	dispatch_lane_t dl = upcast(dq)._dl;//struct dispatch_lane_s *_dl;
 	// The more correct thing to do would be to merge the qos of the thread
 	// that just acquired the barrier lock into the queue state.
 	//
@@ -1818,8 +1828,13 @@ _dispatch_barrier_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 }
 
 DISPATCH_NOINLINE
-static void
-_dispatch_barrier_sync_f(dispatch_queue_t dq, void *ctxt,
+
+/// <#Description#>
+/// @param dq 队列
+/// @param ctxt block
+/// @param func block 对象中的函数指针
+/// @param dc_flags 用来标识func参数的来源(是来自于block对象中的函数指针还是其他地方)
+static void _dispatch_barrier_sync_f(dispatch_queue_t dq, void *ctxt,
 		dispatch_function_t func, uintptr_t dc_flags)
 {
 	_dispatch_barrier_sync_f_inline(dq, ctxt, func, dc_flags);
@@ -2846,9 +2861,10 @@ _dispatch_lane_create_with_target(const char *label,
 	//创建queue对象
 	dispatch_lane_t dq = _dispatch_object_alloc(vtable,
 			sizeof(struct dispatch_lane_s));
-	_dispatch_queue_init(dq, dqf, dqai.dqai_concurrent ?
-			DISPATCH_QUEUE_WIDTH_MAX : 1, DISPATCH_QUEUE_ROLE_INNER |
-			(dqai.dqai_inactive ? DISPATCH_QUEUE_INACTIVE : 0));
+	_dispatch_queue_init(dq, dqf,
+						 //如果是并行队列，那么width = DISPATCH_QUEUE_WIDTH_MAX ，否则 width = 1
+						 dqai.dqai_concurrent ? DISPATCH_QUEUE_WIDTH_MAX : 1,
+						 DISPATCH_QUEUE_ROLE_INNER | (dqai.dqai_inactive ? DISPATCH_QUEUE_INACTIVE : 0));
 
 	//设置queuelabel
 	dq->dq_label = label;
