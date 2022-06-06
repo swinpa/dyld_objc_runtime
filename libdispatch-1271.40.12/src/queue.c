@@ -1847,7 +1847,7 @@ static inline void _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 	if (likely(dq->dq_width == 1)) {
 		/*
 		 串型队列和并行队列是通过 width 区分的，串型为1，并行为32766；
-		 主线程会从这里走
+		 主队列（串行队列）会从这里走
 		 */
 		return _dispatch_barrier_sync_f(dq, ctxt, func, dc_flags);
 	}

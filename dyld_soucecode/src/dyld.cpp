@@ -5131,7 +5131,10 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 	
 	/*
 	 当收到dyld_image_state_mapped 这个通知时，会执行updateAllImages 这个回调方法
-	 sSingleHandlers 为全局的存放回调函数指针的二维数组
+	 sSingleHandlers 为全局的存放回调函数指针的二维数组,类似这样
+	 [dyld_image_state_mapped][0] = updateAllImages
+	 [dyld_image_state_dependents_mapped][0] = funcxx
+	 也就是每一种state对应一个数组进行存放回调
 	 */
 	stateToHandlers(dyld_image_state_mapped, sSingleHandlers)->push_back(updateAllImages);
 	

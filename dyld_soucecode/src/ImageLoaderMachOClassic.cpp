@@ -1951,11 +1951,27 @@ void ImageLoaderMachOClassic::doBind(const LinkContext& context, bool forceLazys
 			this->makeTextSegmentWritable(context, true);
 	#endif
 
-		// 1) external relocations are used for data initialized to external symbols
+		
+		/*
+		 因为模块间的数据访问很少（模块间还提供很多全局变量给其它模块用，那耦合度太大了，所以这样的情况很少见），所以外部数据地址，
+		 都是放到got（也称Non-Lazy Symbol Pointers）数据段，非惰性的，动态链接阶段，就寻找好所有数据符号的地址；而模块间函数
+		 调用就太频繁了，就用了延迟绑定技术，将外部函数地址都放在la_symbol_ptr(Lasy Symbol Pointers)数据段，惰性的，程序第
+		 一次调用到这个函数，才寻址函数地址，然后将地址写入到这个数据段
+		 */
+		
+		/*
+		 1) external relocations are used for data initialized to external symbols
+		 外部重定位用于将数据初始化为外部符号
+		 模块间的函数调用和数据访问，都是通过got间接寻址
+		 */
 		this->doBindExternalRelocations(context);
 		
-		// 2) "indirect symbols" are used for code references to external symbols
-		// if this image is in the shared cache, there is no way to reset the lazy pointers, so bind them now
+		/*
+		 2) "indirect symbols" are used for code references to external symbols
+		 if this image is in the shared cache, there is no way to reset the lazy pointers, so bind them now
+		 间接符号用于对外部符号的代码引用，如果当前image是shared cache，没办法重置这lazy pointer, 所以现在就bind 它
+		 
+		 */
 		this->bindIndirectSymbolPointers(context, true, forceLazysBound || fInSharedCache);
 
 	#if TEXT_RELOC_SUPPORT
