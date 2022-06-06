@@ -131,8 +131,10 @@ void
 _dispatch_introspection_target_queue_changed(dispatch_queue_t dq);
 
 DISPATCH_ALWAYS_INLINE
-static inline void
-_dispatch_introspection_sync_begin(dispatch_queue_class_t dq)
+
+/// introspection   n. 内省；反省
+/// @param dq <#dq description#>
+static inline void _dispatch_introspection_sync_begin(dispatch_queue_class_t dq)
 {
 	if (!_dispatch_introspection.debug_queue_inversions) return;
 	_dispatch_introspection_order_record(dq._dq);

@@ -209,8 +209,37 @@ typedef union {
 } dispatch_object_t DISPATCH_TRANSPARENT_UNION;
 
 DISPATCH_ALWAYS_INLINE
-static inline dispatch_object_t
-upcast(dispatch_object_t dou)
+/*
+ typedef union {
+	 struct _os_object_s *_os_obj;
+	 struct dispatch_object_s *_do;
+	 struct dispatch_queue_s *_dq;
+	 struct dispatch_queue_attr_s *_dqa;
+	 struct dispatch_group_s *_dg;
+	 struct dispatch_source_s *_ds;
+	 struct dispatch_channel_s *_dch;
+	 struct dispatch_mach_s *_dm;
+	 struct dispatch_mach_msg_s *_dmsg;
+	 struct dispatch_semaphore_s *_dsema;
+	 struct dispatch_data_s *_ddata;
+	 struct dispatch_io_s *_dchannel;
+
+	 struct dispatch_continuation_s *_dc;
+	 struct dispatch_sync_context_s *_dsc;
+	 struct dispatch_operation_s *_doperation;
+	 struct dispatch_disk_s *_ddisk;
+	 struct dispatch_workloop_s *_dwl;
+	 struct dispatch_lane_s *_dl;
+	 struct dispatch_queue_static_s *_dsq;
+	 struct dispatch_queue_global_s *_dgq;
+	 struct dispatch_queue_pthread_root_s *_dpq;
+	 dispatch_queue_class_t _dqu;
+	 dispatch_lane_class_t _dlu;
+	 uintptr_t _do_value;
+ } dispatch_object_t DISPATCH_TRANSPARENT_UNION;
+
+ */
+static inline dispatch_object_t upcast(dispatch_object_t dou)
 {
 	return dou;
 }
