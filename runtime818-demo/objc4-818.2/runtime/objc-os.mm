@@ -219,15 +219,22 @@ bool bad_magic(const headerType *mhdr)
 }
 
 
+/// <#Description#>
+/// @param mhdr image 的mach_header，也就是mach-o 的header
+/// @param path <#path description#>
+/// @param totalClasses <#totalClasses description#>
+/// @param unoptimizedTotalClasses <#unoptimizedTotalClasses description#>
 static header_info * addHeader(const headerType *mhdr, const char *path, int &totalClasses, int &unoptimizedTotalClasses)
 {
     header_info *hi;
 
+    //魔数判断
     if (bad_magic(mhdr)) return NULL;
 
     bool inSharedCache = false;
 
     // Look for hinfo from the dyld shared cache.
+    // 从dyld的共享缓存中获取，在objc_headeropt_ro_t结构体中通过一个header_info数组保存了所有的mach-o 的header 信息
     hi = preoptimizedHinfoForHeader(mhdr);
     if (hi) {
         // Found an hinfo in the dyld shared cache.
@@ -291,6 +298,11 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
 #if __OBJC2__
     {
         size_t count = 0;
+        /*
+         _getObjc2ClassList()最终通过getsectiondata获取到"__objc_classlist"段内容，并通过引用参数返回了段数据大小
+         unsigned long byteCount = 0;
+         T* data = (T*)getsectiondata(mhdr, "__DATA", "__objc_classlist", &byteCount);
+         */
         if (_getObjc2ClassList(hi, &count)) {
             totalClasses += (int)count;
             if (!inSharedCache) unoptimizedTotalClasses += count;
@@ -473,16 +485,26 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
 
 
     // Find all images with Objective-C metadata.
+    //有效的image数量(通过image头部魔数判断)
     hCount = 0;
 
     // Count classes. Size various table based on the total.
+    //所有image中所有的class数量
     int totalClasses = 0;
+    //所有不在dyld共享缓存中的image中的class数量
     int unoptimizedTotalClasses = 0;
+    
+    // 1. 通过遍历方式获取有效的image数量以及所有的类数量，以及不在dyld共享缓存的类数量
     {
         uint32_t i = mhCount;
+        
         while (i--) {
             const headerType *mhdr = (const headerType *)mhdrs[i];
 
+            /*
+             header_info *FirstHeader = 0;
+             根据mach-o header 创建一个header_info 并添加到全局列表FirstHeader 中
+             */
             auto hi = addHeader(mhdr, mhPaths[i], totalClasses, unoptimizedTotalClasses);
             if (!hi) {
                 // no objc data in this entry
@@ -537,6 +559,8 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
     // (The executable may not be present in this infoList if the 
     // executable does not contain Objective-C code but Objective-C 
     // is dynamically loaded later.
+    
+    // 2. 首次进入时需要初始化一些容器
     if (firstTime) {
         sel_init(selrefCount);
         arr_init();

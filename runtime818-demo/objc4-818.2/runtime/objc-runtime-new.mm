@@ -1816,6 +1816,9 @@ static void removeNamedClass(Class cls, const char *name)
 * futureNamedClasses
 * Returns the classname => future class map for unrealized future classes.
 * Locking: runtimeLock must be held by the caller
+* 这是运行时才创建的类吗？？？？
+* 因为是在objc_getFutureClass() 中进行look_up_class(name, YES, NO);查询后，没查询到对应的类
+* 才会调用_objc_allocateFutureClass 创建一个类（objc_class）对象添加到该map（future_named_class_map）中
 **********************************************************************/
 static NXMapTable *future_named_class_map = nil;
 static NXMapTable *futureNamedClasses()
@@ -1859,6 +1862,7 @@ static void addFutureNamedClass(const char *name, Class cls)
     cls->setData(rw);
     cls->data()->flags = RO_FUTURE;
 
+    // futureNamedClasses() === future_named_class_map
     old = NXMapKeyCopyingInsert(futureNamedClasses(), name, cls);
     ASSERT(!old);
 }
@@ -1878,8 +1882,10 @@ static Class popFutureNamedClass(const char *name)
     Class cls = nil;
 
     if (future_named_class_map) {
+        //移除future_named_class_map 中类名字为name的节点，并返回
         cls = (Class)NXMapKeyFreeingRemove(future_named_class_map, name);
         if (cls && NXCountMapTable(future_named_class_map) == 0) {
+            //最终future_named_class_map为空了，将其赋值为nil
             NXFreeMapTable(future_named_class_map);
             future_named_class_map = nil;
         }
@@ -2462,6 +2468,7 @@ static void moveIvars(class_ro_t *ro, uint32_t superSize)
         diff = (diff + alignMask) & ~alignMask;
 
         // Slide all of this class's ivars en masse
+        // 每个var的offset 需要添加父类的占用内存大小
         for (const auto& ivar : *ro->ivars) {
             if (!ivar.offset) continue;  // anonymous bitfield
 
@@ -2709,8 +2716,12 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
     cls->initClassIsa(metacls);
 
     // Reconcile instance variable offsets / layout.
+    // Reconcile v. 调和，使协调一致；（使）和解，（使）恢复友好关系；调停，调解（争吵）；使顺从于，使接受；核对，查核（账目）
     // This may reallocate class_ro_t, updating our ro variable.
-    if (supercls  &&  !isMeta) reconcileInstanceVariables(cls, supercls, ro);
+    if (supercls  &&  !isMeta) {
+        // 调整class的内存布局（instanceStart 与 instancesize）
+        reconcileInstanceVariables(cls, supercls, ro);
+    }
 
     // Set fastInstanceSize if it wasn't set already.
     cls->setInstanceSize(ro->instanceSize);
@@ -3322,6 +3333,11 @@ bool mustReadClasses(header_info *hi, bool hasDyldRoots)
 *
 * Locking: runtimeLock acquired by map_images or objc_readClassPair
 **********************************************************************/
+
+/// <#Description#>
+/// @param cls <#cls description#>
+/// @param headerIsBundle <#headerIsBundle description#>
+/// @param headerIsPreoptimized cls 是否在dyld 的共享缓存中
 Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
 {
     const char *mangledName = cls->nonlazyMangledName();
@@ -3343,7 +3359,23 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
 
     Class replacing = nil;
     if (mangledName != nullptr) {
+        /*
+         从 unrealized future class list 中获取指定名字的 class_t 进行处理
+         获取后将其从unrealized future class list中移除
+         其实就是从future_named_class_map这个map中获取，这个map中存储的都是objc_class类对象，该map中的所有类对象都仅仅是进行了
+         _calloc_class(sizeof(objc_class));
+             Class _calloc_class(size_t size)
+             {
+                 return (Class) calloc(1, size);
+             }
+         没做任何处理，没有任何的属性相关数据，相当于一个空的类对象，没有任何的属性跟方法
+         
+         然而这个future_named_class_map添加元素是在运行时，在objc_getFutureClass->_objc_allocateFutureClass->addFutureNamedClass时才添加
+         所以runtime初始化时，这里popFutureNamedClass 出来的都是nil, 不进入if条件中
+         
+         */
         if (Class newCls = popFutureNamedClass(mangledName)) {
+            // 运行时初始化进行map_image时不会进入这里
             // This name was previously allocated as a future class.
             // Copy objc_class to future class's struct.
             // Preserve future's rw data block.
@@ -3354,15 +3386,32 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
                             cls->nameForLogging());
             }
 
+            /*
+             class_rw_t *rw = newCls->data();
+             const class_ro_t *old_ro = rw->ro();
+             这里的目的不是获取newCls->data()中的数据，而是获取newCls->data()起始位置（数据对应的指针地址）
+             
+             此时的newCls 只是通过cls = _calloc_class(sizeof(objc_class)); calloc 出来的空对象（一块从虚拟内存申请的内存空间，
+             还没填充数据）
+             
+             */
             class_rw_t *rw = newCls->data();
             const class_ro_t *old_ro = rw->ro();
+            
+            /*
+             内存拷贝，将编译期间确定的cls(_class_t类型)数据拷贝到newCls指向的内存块
+             此时objc_class->bits 字段会被覆盖成新值
+             */
             memcpy(newCls, cls, sizeof(objc_class));
 
             // Manually set address-discriminated ptrauthed fields
             // so that newCls gets the correct signatures.
+            // 设置superclass 字段的值
             newCls->setSuperclass(cls->getSuperclass());
+            // 设置isa 字段的值
             newCls->initIsa(cls->getIsa());
 
+            // 设置类内存布局信息
             rw->set_ro((class_ro_t *)newCls->data());
             newCls->setData(rw);
             freeIfMutable((char *)old_ro->getName());
@@ -3382,6 +3431,11 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
         ASSERT(mangledName == nullptr || getClassExceptSomeSwift(mangledName));
     } else {
         if (mangledName) { //some Swift generic classes can lazily generate their names
+            /*
+             将从mach-o 读取到的Class 插入到 gdb_objc_realized_classes 中
+             在运行时首次通过objc_getClass("Person") 方式从gdb_objc_realized_classes查询到对应的Class时
+             才进行realizeClass
+             */
             addNamedClass(cls, mangledName, replacing);
         } else {
             Class meta = cls->ISA();
@@ -3616,21 +3670,57 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // Discover classes. Fix up unresolved future classes. Mark bundle classes.
     bool hasDyldRoots = dyld_shared_cache_some_image_overridden();
 
+    /*
+     遍历所有image中的所有class，并将其放入到gdb_objc_realized_classes，后续运行时需要用到类都会从这个列表中获取
+     并且在首次从该列表查询对应的类时会对类进行realizeClass操作
+     */
     for (EACH_HEADER) {
+        // 判断该image是否需要readClasses, 基本上都需要
         if (! mustReadClasses(hi, hasDyldRoots)) {
             // Image is sufficiently optimized that we need not call readClass()
             continue;
         }
 
+        /*
+         _getObjc2ClassList(hi, &count)最终通过
+         T* data = getsectiondata(mhdr, "__DATA", "__objc_classlist", &byteCount);
+         if (!data) {
+             data = getsectiondata(mhdr, "__DATA_CONST", "__objc_classlist", &byteCount);
+         }
+         if (!data) {
+             data = getsectiondata(mhdr, "__DATA_DIRTY", "__objc_classlist", &byteCount);
+         }
+         读取mach-o中数据段内“__objc_classlist”section数据，返回section起始地址以及通过引用参数方式返回classref_t类型数据量大小
+         也就是有多少个classref_t
+         
+         struct _class_t {
+             struct _class_t *isa;
+             struct _class_t *superclass;
+             void *cache;
+             void *vtable;
+             struct _class_ro_t *ro;
+         };这是编译阶段写入到mach-o 数据段的类型
+         
+         classref_t = _class_t
+         */
+        // 读取mach-o中类信息数据（存在"__objc_classlist"section中），并返回_class_t类数量
         classref_t const *classlist = _getObjc2ClassList(hi, &count);
 
         bool headerIsBundle = hi->isBundle();
         bool headerIsPreoptimized = hi->hasPreoptimizedClasses();
 
         for (i = 0; i < count; i++) {
+            /*
+             typedef struct objc_class *Class;
+             
+             objc_class 基本等同于_class_t
+             objc_class 定义如下：struct objc_class : objc_object {
+             */
+            
             Class cls = (Class)classlist[i];
             Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
 
+            // runtime初始化进行map_image时，这里 newCls === cls，所以不进入if语句
             if (newCls != cls  &&  newCls) {
                 // Class was moved but not deleted. Currently this occurs 
                 // only when the new class resolved a future class.
@@ -3754,6 +3844,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // +load handled by prepare_load_methods()
 
     // Realize non-lazy classes (for +load methods and static instances)
+    // Realize 非懒加载的类（带+load方法的类）
     for (EACH_HEADER) {
         classref_t const *classlist = hi->nlclslist(&count);
         for (i = 0; i < count; i++) {

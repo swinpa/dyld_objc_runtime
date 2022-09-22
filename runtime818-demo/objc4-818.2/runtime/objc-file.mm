@@ -34,6 +34,7 @@ T* getDataSection(const headerType *mhdr, const char *sectname,
                   size_t *outBytes, size_t *outCount)
 {
     unsigned long byteCount = 0;
+    //获取数据段中指定的section的数据，并通过第四个引用参数返回了数据的大小
     T* data = (T*)getsectiondata(mhdr, "__DATA", sectname, &byteCount);
     if (!data) {
         data = (T*)getsectiondata(mhdr, "__DATA_CONST", sectname, &byteCount);
@@ -59,6 +60,12 @@ GETSECT(_getObjc2SelectorRefs,        SEL,             "__objc_selrefs");
 GETSECT(_getObjc2MessageRefs,         message_ref_t,   "__objc_msgrefs"); 
 GETSECT(_getObjc2ClassRefs,           Class,           "__objc_classrefs");
 GETSECT(_getObjc2SuperRefs,           Class,           "__objc_superrefs");
+/*
+ 这里是通过宏的方式定义了_getObjc2ClassList 方法,那么这里展开就变成了
+ classref_t const *_getObjc2ClassList(const headerType *mhdr, size_t *outCount) {
+    return getDataSection<classref_t>(mhdr, "__objc_classlist", nil, outCount);
+ }
+ */
 GETSECT(_getObjc2ClassList,           classref_t const,      "__objc_classlist");
 GETSECT(_getObjc2NonlazyClassList,    classref_t const,      "__objc_nlclslist");
 GETSECT(_getObjc2CategoryList,        category_t * const,    "__objc_catlist");

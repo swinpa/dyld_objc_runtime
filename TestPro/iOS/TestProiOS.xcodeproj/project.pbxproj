@@ -67,6 +67,7 @@
 		84DBEE2722002D4100EECB30 /* runtime_test_proj_iOSUITests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = runtime_test_proj_iOSUITests.m; sourceTree = "<group>"; };
 		84DBEE2922002D4100EECB30 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F731240125C4654F007533FD /* libobjc.A.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libobjc.A.dylib; path = ../../objc_runtime_products/Debug/libobjc.A.dylib; sourceTree = "<group>"; };
+		F785F4BA28DC99F8001E25B1 /* libmalloc.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libmalloc.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		F788C491267F90AF00A4E770 /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -154,6 +155,7 @@
 		F788C490267F90AE00A4E770 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				F785F4BA28DC99F8001E25B1 /* libmalloc.a */,
 				F788C491267F90AF00A4E770 /* JavaScriptCore.framework */,
 			);
 			name = Frameworks;

@@ -1927,6 +1927,7 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 {
 #if __OBJC2__
     if (slowpath(checkNil && !cls)) return nil;
+    // 这里判断当前类有没有hasCustomAWZ，也就是自定义的allocWithZone（AWZ 应该就是allocWithZone首字母）
     if (fastpath(!cls->ISA()->hasCustomAWZ())) {
         return _objc_rootAllocWithZone(cls, nil);
     }
@@ -1934,6 +1935,10 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 
     // No shortcuts available.
     if (allocWithZone) {
+        /*
+         这里发送一条allocWithZone 消息，
+         而allocWithZone 这里面其实最用还是调用了_objc_rootAllocWithZoon接口
+         */
         return ((id(*)(id, SEL, struct _NSZone *))objc_msgSend)(cls, @selector(allocWithZone:), nil);
     }
     return ((id(*)(id, SEL))objc_msgSend)(cls, @selector(alloc));
@@ -2556,6 +2561,13 @@ __attribute__((objc_nonlazy_class))
     return (id)self;
 }
 
+/**
+ *在这里直接调用_objc_rootInit()接口，而在_objc_rootInit()接口中什么也没做
+ *直接返回了对象本身
+ *既然什么都没做，那为什么还要init呢？？？？
+ *个人理解为：这是为上层提供了一统一的init接口，那么在继承链中就可以在init中就可以对自己的属性进行初始化工作
+ *
+ */
 - (id)init {
     return _objc_rootInit(self);
 }

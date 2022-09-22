@@ -550,7 +550,16 @@ public:
 };
 
 
-// classref_t is unremapped class_t*
+/**
+ *classref_t is unremapped class_t*
+ *struct _class_t {
+     struct _class_t *isa;
+     struct _class_t *superclass;
+     void *cache;
+     void *vtable;
+     struct _class_ro_t *ro;
+ };
+ */
 typedef struct classref * classref_t;
 
 
@@ -1069,6 +1078,19 @@ struct class_ro_t {
     }
 
     const char *getName() const {
+        /*
+         从C++11开始，就支持以下几种内存模型：
+
+         enum memory_order {
+             memory_order_relaxed,
+             memory_order_consume,
+             // 用来修饰一个读操作，表示在本线程中，所有后续的关于此变量的内存操作都必须在本条原子操作完成后执行。
+             memory_order_acquire,
+             memory_order_release,
+             memory_order_acq_rel,
+             memory_order_seq_cst
+         };
+         */
         return name.load(std::memory_order_acquire);
     }
 
@@ -2092,6 +2114,13 @@ struct objc_class : objc_object {
     // If this class does not have a name already, we can ask Swift to construct one for us.
     const char *installMangledNameForLazilyNamedClass();
 
+    /*
+     mangled 英  [ˈmæŋɡld]   美  [ˈmæŋɡld]
+     v. 严重损毁；轧平；糟蹋；在（榨干机中）榨干（mangle 的过去式及过去分词）
+     adj. 严重损毁的；没有逻辑的
+     
+     mangled name 重整名称
+     */
     // Get the class's mangled name, or NULL if the class has a lazy
     // name that hasn't been created yet.
     const char *nonlazyMangledName() const {

@@ -1459,13 +1459,13 @@ struct objc_class : objc_object {
     bit:位
     在计算机中，数据的最小单位是位，表示一个二进制数码0或1
     
-    byte:字节
+    byte:字节  == 8bit
     8个二进制位构成1个字节（B），1个字节可以储存1个英文字母或半个汉字
     
     word:字
-    8位的CPU字长为8位，一个字等于一个字节，一次只能处理一个字节，
-    32位的CPU字长为32位，一个字等于4个字节，一次就能处理4个字节，
-    64位的CPU一次可以处理8个字节，一个字等于8个字节。
+    8位的CPU字长为8位，一个字等于一个字节，一次只能处理一个字节，         1 word = 1 byte
+    32位的CPU字长为32位，一个字等于4个字节，一次就能处理4个字节，        1 word = 4 byte
+    64位的CPU一次可以处理8个字节，一个字等于8个字节。                  1 word = 8 byte
     
     word_align - 字对齐，也就是字的倍数（32位系统中是4字节的倍数，64位系统中是8字节的倍数）
     
@@ -1484,7 +1484,13 @@ struct objc_class : objc_object {
     size_t instanceSize(size_t extraBytes) {
         size_t size = alignedInstanceSize() + extraBytes;
         // CF requires all objects be at least 16 bytes.
-        //从这里可以看出，一个对象的最小占用的内存空间为16字节
+        /*
+         从这里可以看出，一个对象的最小占用的内存空间为16字节
+         为什么是16字节？？
+         可能是因为iOS中虚拟内存是按页分配内存的，而一页的大小是16K
+         而每次分配的最小内存为16字节是尽量让分配的内存在同一内存页当中，可以提高访问效率
+         */
+        
         if (size < 16) {
             size = 16;
         }

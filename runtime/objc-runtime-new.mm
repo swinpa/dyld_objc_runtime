@@ -1977,11 +1977,13 @@ static Class realizeClass(Class cls)
      */
     ro = (const class_ro_t *)cls->data();//编译器已确定的ro 在之前只有ro
     if (ro->flags & RO_FUTURE) {
+        // 这可能是运行时动态生成的类
         // This was a future class. rw data is already allocated.
         rw = cls->data();
         ro = cls->data()->ro;
         cls->changeInfo(RW_REALIZED|RW_REALIZING, RW_FUTURE);
     } else {
+        // 编译期间确定的用户声明的类
         // Normal class. Allocate writeable class data.
         //为class 申请rw 的空间
         rw = (class_rw_t *)calloc(sizeof(class_rw_t), 1);
@@ -2471,7 +2473,7 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
         class_rw_t *rw = newCls->data();
         const class_ro_t *old_ro = rw->ro;
         /*
-         通过内存拷贝，将需要readClass 的cls 的数据覆盖在旧的Class上
+         通过内存拷贝，将需要readClass 的cls 的数据覆盖在newCls上
          */
         memcpy(newCls, cls, sizeof(objc_class));
         
@@ -6402,6 +6404,15 @@ look_up_class(const char *name,
     bool unrealized;
     {
         mutex_locker_t lock(runtimeLock);
+        /*
+         从gdb_objc_realized_classes 表中获取类名对应的Class
+         插入时机是在runtime初始化过程中map_images -> _read_images ->readClass 中调用
+         addNamedClass(cls, mangledName, replacing);进行插入的，懒加载的类（没有+load方法的类）在runtime初始化时还没
+         进行realize，延迟到运行时首次调用通过look_up_class()方法查询时才进行realize
+         
+         目的是为了加快应用启动
+         
+         */
         result = getClass(name);
         unrealized = result  &&  !result->isRealized();
     }

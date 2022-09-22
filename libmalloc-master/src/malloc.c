@@ -321,6 +321,16 @@ default_zone_size(malloc_zone_t *zone, const void *ptr)
 static void *
 default_zone_malloc(malloc_zone_t *zone, size_t size)
 {
+	/*
+	 猜想runtime_default_zone()会调用inline_malloc_default_zone()拿到malloc_zones[0]
+	 而malloc_zones[0]在_malloc_initialize(void *context __unused)进行了初始化赋值
+	 
+	 malloc_zone_t 的创建通过如下接口创建
+	 create_scalable_zone(size_t initial_size, unsigned debug_flags) -> create_scalable_szone(size_t initial_size, unsigned debug_flags)
+	 在create_scalable_szone(size_t initial_size, unsigned debug_flags)中设置了函数指针
+	 zone->malloc = szone_malloc
+	 也就是内存分配都在szone_malloc(szone_t *szone, size_t size) 这个方法内进行
+	 */
 	zone = runtime_default_zone();
 	
 	return zone->malloc(zone, size);
@@ -521,13 +531,16 @@ typedef struct {
 	uint8_t pad[PAGE_MAX_SIZE - sizeof(malloc_zone_t)];
 } virtual_default_zone_t;
 
+// 编译阶段写入到__DATA数据段__v_zone section 中
 static virtual_default_zone_t virtual_default_zone
 __attribute__((section("__DATA,__v_zone")))
 __attribute__((aligned(PAGE_MAX_SIZE))) = {
 	NULL,
 	NULL,
 	default_zone_size,
+	// 默认的 malloc 函数指针
 	default_zone_malloc,
+	// 默认的 calloc 函数指针
 	default_zone_calloc,
 	default_zone_valloc,
 	default_zone_free,
@@ -811,7 +824,7 @@ _malloc_initialize(void *context __unused)
 	}
 
 	set_flags_from_environment(); // will only set flags up to two times
-	n = malloc_num_zones;
+	n = malloc_num_zones;// malloc_num_zones == 0
 
 #if CONFIG_NANOZONE
 	nano_common_configure();
@@ -876,6 +889,7 @@ inline_malloc_default_zone(void)
 {
 	_malloc_initialize_once();
 	// malloc_report(ASL_LEVEL_INFO, "In inline_malloc_default_zone with %d %d\n", malloc_num_zones, malloc_has_debug_zone);
+	// malloc_zones[0] 好像在 _malloc_initialize 进行了一次初始化
 	return malloc_zones[0];
 }
 
@@ -1400,8 +1414,8 @@ malloc_zone_malloc(malloc_zone_t *zone, size_t size)
 	return ptr;
 }
 
-void *
-malloc_zone_calloc(malloc_zone_t *zone, size_t num_items, size_t size)
+// OC 申请对象内存时，在_class_createInstanceFromZone 方法中会调用该方法申请内存
+void * malloc_zone_calloc(malloc_zone_t *zone, size_t num_items, size_t size)
 {
 	MALLOC_TRACE(TRACE_calloc | DBG_FUNC_START, (uintptr_t)zone, num_items, size, 0);
 
@@ -1678,8 +1692,10 @@ aligned_alloc(size_t alignment, size_t size)
 	return retval;
 }
 
-void *
-calloc(size_t num_items, size_t size)
+/**
+ * OC 申请对象内存时，在_class_createInstanceFromZone 方法中会调用该方法申请内存
+ */
+void * calloc(size_t num_items, size_t size)
 {
 	void *retval;
 	retval = malloc_zone_calloc(default_zone, num_items, size);
