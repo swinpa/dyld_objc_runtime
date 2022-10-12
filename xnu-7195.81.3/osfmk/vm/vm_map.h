@@ -274,7 +274,7 @@ struct vm_map_entry {
 	/* boolean_t */ needs_copy:1,   /* object need to be copied? */
 
 	/* Only in task maps: */
-	/* vm_prot_t */ protection:3,   /* protection code */
+	/* vm_prot_t */ protection:3,   /* protection code 保护权限，是否可读写*/
 	/* vm_prot_t */ max_protection:3, /* maximum protection */
 	/* vm_inherit_t */ inheritance:2, /* inheritance */
 	/* boolean_t */ use_pmap:1,     /*

@@ -8070,8 +8070,15 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
 
     id obj;
     if (zone) {
+        /*
+         * 从指定zone中申请内存
+         * zone创建是通过底层接口szone_t * create_scalable_szone(size_t initial_size, unsigned debug_flags)创建的
+         * 在create_scalable_szone中通过mvm_allocate_pages --> mach_vm_map 调用mach 接口从task中申请对应的内存，
+         * 并设置zone->calloc函数指针，后续通过zone->calloc调用从zone中获取zone内的内存
+         */
         obj = (id)malloc_zone_calloc((malloc_zone_t *)zone, 1, size);
     } else {
+        // 从default zone 中申请内存,OC 好像基本跑这分支，因为传进来的zone 参数都是nil
         obj = (id)calloc(1, size);
     }
     if (slowpath(!obj)) {

@@ -517,6 +517,7 @@ large_malloc(szone_t *szone, size_t num_kernel_pages, unsigned char alignment, b
 	range_to_deallocate.address = 0;
 #endif /* CONFIG_LARGE_CACHE */
 
+	//这里底层才调用mach内核接口
 	addr = mvm_allocate_pages(size, alignment, szone->debug_flags, VM_MEMORY_MALLOC_LARGE);
 	if (addr == NULL) {
 		return NULL;

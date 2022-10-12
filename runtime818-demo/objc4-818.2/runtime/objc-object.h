@@ -656,8 +656,11 @@ objc_object::rootRetain(bool tryRetain, objc_object::RRVariant variant)
         newisa = oldisa;
         if (slowpath(!newisa.nonpointer)) {
             ClearExclusive(&isa.bits);
-            if (tryRetain) return sidetable_tryRetain() ? (id)this : nil;
-            else return sidetable_retain(sideTableLocked);
+            if (tryRetain) {
+                return sidetable_tryRetain() ? (id)this : nil;
+            }else {
+                return sidetable_retain(sideTableLocked);
+            }
         }
         // don't check newisa.fast_rr; we already called any RR overrides
         if (slowpath(newisa.isDeallocating())) {
@@ -673,6 +676,7 @@ objc_object::rootRetain(bool tryRetain, objc_object::RRVariant variant)
             }
         }
         uintptr_t carry;
+        //操作56位，正好是extra_rc的内容
         newisa.bits = addc(newisa.bits, RC_ONE, 0, &carry);  // extra_rc++
 
         if (slowpath(carry)) {
@@ -739,8 +743,10 @@ objc_object::rootReleaseShouldDealloc()
     return rootRelease(false, RRVariant::Fast);
 }
 
-ALWAYS_INLINE bool
-objc_object::rootRelease(bool performDealloc, objc_object::RRVariant variant)
+/// <#Description#>
+/// @param performDealloc 这个值传入true
+/// @param variant <#variant description#>
+ALWAYS_INLINE bool objc_object::rootRelease(bool performDealloc, objc_object::RRVariant variant)
 {
     if (slowpath(isTaggedPointer())) return false;
 
@@ -778,6 +784,7 @@ retry:
         newisa = oldisa;
         if (slowpath(!newisa.nonpointer)) {
             ClearExclusive(&isa.bits);
+            //这是在sidetable 记录引用计数的情况
             return sidetable_release(sideTableLocked, performDealloc);
         }
         if (slowpath(newisa.isDeallocating())) {
@@ -791,6 +798,7 @@ retry:
 
         // don't check newisa.fast_rr; we already called any RR overrides
         uintptr_t carry;
+        //这是在newisa.bits 记录引用计数的情况
         newisa.bits = subc(newisa.bits, RC_ONE, 0, &carry);  // extra_rc--
         if (slowpath(carry)) {
             // don't ClearExclusive()
@@ -806,7 +814,7 @@ retry:
     } else {
         ASSERT(!sideTableLocked);
     }
-    return false;
+    return false;// 走到这里说明newisa.bits引用计数减一成功？？
 
  underflow:
     // newisa.extra_rc-- underflowed: borrow from side table or deallocate

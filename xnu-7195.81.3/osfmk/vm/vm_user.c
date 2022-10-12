@@ -130,7 +130,7 @@ vm_size_t        upl_offset_to_pagelist = 0;
 #include <vm/cpm.h>
 #endif  /* VM_CPM */
 
-/*
+/**
  *	mach_vm_allocate allocates "zero fill" memory in the specfied
  *	map.
  */

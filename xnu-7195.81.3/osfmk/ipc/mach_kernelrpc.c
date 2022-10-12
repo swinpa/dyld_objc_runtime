@@ -53,6 +53,10 @@ _kernelrpc_mach_vm_allocate_trap(struct _kernelrpc_mach_vm_allocate_trap_args *a
 	task_t task = port_name_to_task(args->target);
 	int rv = MACH_SEND_INVALID_DEST;
 
+    /*
+     task 定义在osfmk/kern/task.h
+     task->map定义了task的地址空间
+     */
 	if (task != current_task()) {
 		goto done;
 	}
@@ -61,6 +65,15 @@ _kernelrpc_mach_vm_allocate_trap(struct _kernelrpc_mach_vm_allocate_trap_args *a
 		goto done;
 	}
 
+    /*
+     定义在osfmk/vm/vm_user.c
+     kern_return_t
+     mach_vm_allocate_external(
+         vm_map_t                map,
+         mach_vm_offset_t        *addr,
+         mach_vm_size_t  size,
+         int                     flags)
+     */
 	rv = mach_vm_allocate_external(task->map, &addr, args->size, args->flags);
 	if (rv == KERN_SUCCESS) {
 		rv = copyout(&addr, args->addr, sizeof(addr));

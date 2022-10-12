@@ -109,8 +109,25 @@ mvm_allocate_pages(size_t size, unsigned char align, unsigned debug_flags, int v
 	if (allocation_size < size) { // size_t arithmetic wrapped!
 		return NULL;
 	}
-
+	
 	vm_addr = vm_page_quanta_size;
+	/*
+	 调用mach 内核的接口申请内存
+	 mach_vm_map 定义在xnu libsyscall->mach->mach_vm.c
+	 kern_return_t mach_vm_map(
+		 mach_port_name_t target,
+		 mach_vm_address_t *address,
+		 mach_vm_size_t size,
+		 mach_vm_offset_t mask,
+		 int flags,
+		 mem_entry_name_port_t object,
+		 memory_object_offset_t offset,
+		 boolean_t copy,
+		 vm_prot_t cur_protection,
+		 vm_prot_t max_protection,
+		 vm_inherit_t inheritance)
+	 {
+	 */
 	kr = mach_vm_map(mach_task_self(), &vm_addr, allocation_size, allocation_mask, alloc_flags, MEMORY_OBJECT_NULL, 0, FALSE,
 					 VM_PROT_DEFAULT, VM_PROT_ALL, VM_INHERIT_DEFAULT);
 	if (kr) {

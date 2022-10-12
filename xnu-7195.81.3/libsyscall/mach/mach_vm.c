@@ -43,6 +43,7 @@
 
 malloc_logger_t *__syscall_logger = NULL;   // This may get set by Libc's malloc stack logging initialization code.
 
+///从target 对应的虚拟内存中分配size个字节的内存，分配到的虚拟内存地址通过address返回
 kern_return_t
 mach_vm_allocate(
 	mach_port_name_t target,
@@ -157,8 +158,7 @@ vm_protect(
 	return rv;
 }
 
-kern_return_t
-mach_vm_map(
+kern_return_t mach_vm_map(
 	mach_port_name_t target,
 	mach_vm_address_t *address,
 	mach_vm_size_t size,

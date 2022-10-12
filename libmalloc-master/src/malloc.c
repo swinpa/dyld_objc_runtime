@@ -261,9 +261,14 @@ __malloc_init_from_bootargs(const char *bootargs)
 #endif // CONFIG_MEDIUM_ALLOCATOR
 }
 
-/* TODO: Investigate adding _malloc_initialize() into this libSystem initializer */
-void
-__malloc_init(const char *apple[])
+/*
+ TODO: Investigate adding _malloc_initialize() into this libSystem initializer
+ 研究一下将_malloc_initialize()添加到这个libSystem初始化器中
+ */
+/**
+ * libSystem 初始化过程中调用该方法进行初始化
+ */
+void __malloc_init(const char *apple[])
 {
 	// We could try to be clever and cater for arbitrary length bootarg
 	// strings, but it's probably not worth it, especially as we would need
@@ -535,14 +540,12 @@ typedef struct {
 static virtual_default_zone_t virtual_default_zone
 __attribute__((section("__DATA,__v_zone")))
 __attribute__((aligned(PAGE_MAX_SIZE))) = {
-	NULL,
-	NULL,
-	default_zone_size,
-	// 默认的 malloc 函数指针
-	default_zone_malloc,
-	// 默认的 calloc 函数指针
-	default_zone_calloc,
-	default_zone_valloc,
+	NULL, //这里对应malloc_zone_t -> reserved1 保留字段
+	NULL, //这里对应malloc_zone_t -> reserved2 保留字段
+	default_zone_size, //这里对应malloc_zone_t -> size 保留字段
+	default_zone_malloc, //这里对应malloc_zone_t -> malloc 字段
+	default_zone_calloc, //这里对应malloc_zone_t -> calloc 字段
+	default_zone_valloc, //后面字段依次类推
 	default_zone_free,
 	default_zone_realloc,
 	default_zone_destroy,
@@ -772,8 +775,7 @@ malloc_zone_register_while_locked(malloc_zone_t *zone)
 }
 
 // To be used in _malloc_initialize_once() only, call that function instead.
-static void
-_malloc_initialize(void *context __unused)
+static void _malloc_initialize(void *context __unused)
 {
 	MALLOC_LOCK();
 	unsigned n;
@@ -828,7 +830,11 @@ _malloc_initialize(void *context __unused)
 
 #if CONFIG_NANOZONE
 	nano_common_configure();
-	
+	/*
+	 创建 malloc_zone_t， 在创建zone中调用mach底层接口从task的虚拟内存空间中分配虚拟内存
+	 并设置szone->basic_zone.malloc = (void *)szone_malloc;
+	 后续通过malloc_zone_t-->malloc申请内存时从这片zone中分配
+	 */
 	malloc_zone_t *helper_zone = create_scalable_zone(0, malloc_debug_flags);
 
 	if (_malloc_engaged_nano == NANO_V2) {
@@ -850,6 +856,11 @@ _malloc_initialize(void *context __unused)
 		malloc_set_zone_name(zone, DEFAULT_MALLOC_ZONE_STRING);
 	}
 #else
+	/*
+	 创建 malloc_zone_t， 在创建zone中调用mach底层接口从task的虚拟内存空间中分配虚拟内存
+	 并设置szone->basic_zone.malloc = (void *)szone_malloc;
+	 后续通过malloc_zone_t-->malloc申请内存时从这片zone中分配
+	 */
 	zone = create_scalable_zone(0, malloc_debug_flags);
 	malloc_zone_register_while_locked(zone);
 	malloc_set_zone_name(zone, DEFAULT_MALLOC_ZONE_STRING);
@@ -1414,7 +1425,13 @@ malloc_zone_malloc(malloc_zone_t *zone, size_t size)
 	return ptr;
 }
 
-// OC 申请对象内存时，在_class_createInstanceFromZone 方法中会调用该方法申请内存
+/**
+ * OC 申请对象内存时，在_class_createInstanceFromZone 方法中会调用该方法申请内存
+ * 从zone内存区域中申请内存
+ * zone创建是通过底层接口szone_t * create_scalable_szone(size_t initial_size, unsigned debug_flags)创建的
+ * 在create_scalable_szone中通过mvm_allocate_pages --> mach_vm_map 调用mach 接口从task中申请对应的内存，
+ * 并设置zone->calloc函数指针，后续通过zone->calloc调用从zone中获取zone内的内存
+*/
 void * malloc_zone_calloc(malloc_zone_t *zone, size_t num_items, size_t size)
 {
 	MALLOC_TRACE(TRACE_calloc | DBG_FUNC_START, (uintptr_t)zone, num_items, size, 0);
@@ -1692,12 +1709,45 @@ aligned_alloc(size_t alignment, size_t size)
 	return retval;
 }
 
+
 /**
  * OC 申请对象内存时，在_class_createInstanceFromZone 方法中会调用该方法申请内存
- */
+ * 从default zone内存区域中申请内存
+ * default zone 在编译期已经确定，具体如下
+ *
+ * typedef struct {
+ * malloc_zone_t malloc_zone;
+ * 	uint8_t pad[PAGE_MAX_SIZE - sizeof(malloc_zone_t)];
+ * } virtual_default_zone_t;
+ * // 编译阶段写入到__DATA数据段__v_zone section 中
+ * static virtual_default_zone_t virtual_default_zone
+ * __attribute__((section("__DATA,__v_zone")))
+ * __attribute__((aligned(PAGE_MAX_SIZE))) = {
+	NULL, //这里对应malloc_zone_t -> reserved1 保留字段
+	NULL, //这里对应malloc_zone_t -> reserved2 保留字段
+	default_zone_size, //这里对应malloc_zone_t -> size 保留字段
+	default_zone_malloc, //这里对应malloc_zone_t -> malloc 字段
+	default_zone_calloc, //这里对应malloc_zone_t -> calloc 字段
+	default_zone_valloc, //后面字段依次类推
+	default_zone_free,
+	default_zone_realloc,
+	default_zone_destroy,
+	DEFAULT_MALLOC_ZONE_STRING,
+	default_zone_batch_malloc,
+	default_zone_batch_free,
+	&default_zone_introspect,
+	10,
+	default_zone_memalign,
+	default_zone_free_definite_size,
+	default_zone_pressure_relief,
+	default_zone_malloc_claimed_address,
+};
+ *static malloc_zone_t *default_zone = &virtual_default_zone.malloc_zone;
+*/
 void * calloc(size_t num_items, size_t size)
 {
 	void *retval;
+	
 	retval = malloc_zone_calloc(default_zone, num_items, size);
 	if (retval == NULL) {
 		errno = ENOMEM;
