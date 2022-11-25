@@ -212,3 +212,29 @@ struct class_ro_t {
 
 ```
 
+```
+@interface Teacher : Man
+@end
+
+@implementation Teacher
+- (void)doEat {
+    [super doEat];
+}
+- (void)doSomething {
+    [self doEat];
+}
+```
+会变成
+	
+	```
+	static void _I_Teacher_doEat(Teacher * self, SEL _cmd) {
+	    ((void (*)(__rw_objc_super *, SEL))(void *)objc_msgSendSuper)((__rw_objc_super){(id)self, (id)class_getSuperclass(objc_getClass("Teacher"))}, sel_registerName("doEat"));
+	}
+	
+	static void _I_Teacher_doSomething(Teacher * self, SEL _cmd) {
+	    ((void (*)(id, SEL))(void *)objc_msgSend)((id)self, sel_registerName("doEat"));
+	}
+	```
+
+* 从这里可以看出[super doSomething]，其实变成了调用objc_msgSendSuper()方法而不是objc_msgSend()方法
+* 他们的传参方式是一样的，只是在调用objc_msgSendSuper时，通过class_getSuperclass()拿取到父类进行传参

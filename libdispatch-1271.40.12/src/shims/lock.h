@@ -130,7 +130,7 @@ DISPATCH_ALWAYS_INLINE
 static inline bool
 _dispatch_lock_is_locked_by(dispatch_lock lock_value, dispatch_tid tid)
 {
-	// equivalent to _dispatch_lock_owner(lock_value) == tid
+	 equivalent to _dispatch_lock_owner(lock_value) == tid
 	return ((lock_value ^ tid) & DLOCK_OWNER_MASK) == 0;
 }
 

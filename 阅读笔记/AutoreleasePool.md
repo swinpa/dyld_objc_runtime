@@ -1,6 +1,24 @@
 ##AutoreleasePool
 
 ```
+
+class AutoreleasePoolPage 
+{
+    magic_t const magic;
+    id *next;
+    pthread_t const thread;//保存了当前页所在的线程
+    AutoreleasePoolPage * const parent;
+    AutoreleasePoolPage *child;
+    uint32_t const depth;
+    uint32_t hiwat;
+}
+
+```
+
+
+AutoreleasePool 是iOS管理Object-C对象内存的
+
+```
 int main(int argc, char * argv[]) {
 	@autoreleasepool {
         NSObject *obj0 = [[[NSObject alloc] init] autorelease];
@@ -63,12 +81,14 @@ int main(int argc, char * argv[]) {
 			|->autoreleaseFast(POOL_BOUNDARY)
 	```
 	#####objc_autoreleasePoolPush() 最终会通过autoreleaseFast(POOL_BOUNDARY)方法获取到当前的poolPage（AutoreleasePoolPage *page = hotPage();）或者新new 一个poolpage，并在poolpage 中添加一个哨兵（nil）,后续添加的autorelease对象会在这个page的哨兵的后面
-		* 哨兵应该是用来分隔每个@autoreleasepool{}代码块内的autorelease 对象的，这样当进行objc_autoreleasePoolPop(atautoreleasepoolobj)时，知道遍历到哪里结束，也就是一个poolpage 可以存放多个@autoreleasepool{}代码块内的autorelease 对象，他们是通过哨兵(nil)进行分隔的
+		* 哨兵应该是用来分隔每个@autoreleasepool{}代码块内的autorelease 对象的，这样当进行
+		  objc_autoreleasePoolPop(atautoreleasepoolobj)时，知道遍历到哪里结束，也就是一个
+		  poolpage 可以存放多个@autoreleasepool{}代码块内的autorelease 对象，他们是通过哨兵(nil)进行分隔的
 
 
 * 当代码块结束时，栈中的pool会被释放，那么在pool的析构方法中又会调用objc_autoreleasePoolPop()接口释放PoolPage中的对象
 
-* 当对象发送autorelease消息后（[obj autorelease]），最终经过一些列的调用栈转换，最终会执行AutoreleasePoolPage::autoreleaseFast(id obj); 方法将obj添加到AutoreleasePoolPage的next（id *next） 指针数组中
+* 当对象发送autorelease消息后（[obj autorelease]），最终经过一系列的调用栈转换，最终会执行AutoreleasePoolPage::autoreleaseFast(id obj); 方法将obj添加到AutoreleasePoolPage的next（id *next） 指针数组中
 
 	```
 	|->[obj autorelease]
@@ -94,7 +114,26 @@ int main(int argc, char * argv[]) {
 ####autoreleasepool 跟RunLoop有关系，从GNUstep 源码中看，RunLoop在- (BOOL) runMode: (NSString*)mode beforeDate: (NSDate*)date{} 的最前面代码会创建一个NSAutoreleasePool	*arp = [NSAutoreleasePool new];并且在最后面进行[arp drain];(也就是dealloc 掉)
 
 
-###那线程跟autoreleasepool 有关系吗？如果没开启RunLoop，那线程中的autorelease对象是添加到那个autoreleasepool中的呢？（目前没在GNUstep源码中的NSThread 看到相关的创建autoreleasepool 的代码）其实在没开启runloop的子线程中如果有autorelease对象时，会自动创建一个自动释放池，在创建自动释放池时，会注册线程销毁的回调tls_dealloc，当线程销毁时会回调到tls_deallo函数，tls_deallo中又调用objc_autoreleasePoolPop对自动释放池中的对象进行释放
+###那线程跟autoreleasepool 有关系吗？如果没开启RunLoop，那线程中的autorelease对象是添加到那个autoreleasepool中的呢？
+	目前没在GNUstep NSThread源码中看到相关的创建autoreleasepool 的代码，其实在没开启runloop的子线程中如果有autorelease对象时，会自动创建一个自动释放池，在创建自动释放池时，会注册线程销毁的回调tls_dealloc，当线程销毁时会回调到tls_deallo函数，tls_deallo中又调用objc_autoreleasePoolPop对自动释放池中的对象进行释放
+	
+	[obj autorelease];
+	具体源码调用栈如下：
+	1. autorelease
+	2. objc_object::rootAutorelease() 
+	3. objc_object::rootAutorelease2()
+	4. AutoreleasePoolPage::autorelease((id)this);
+	5. autoreleaseFast(obj);
+	6. autoreleaseNoPage(obj);
+	7. AutoreleasePoolPage *page = new AutoreleasePoolPage(nil);
+        	setHotPage(page);
+       8. tls_set_direct(key, (void *)page);
+
+       
+       在AutoreleasePool 的init 方法中注册了tls_dealloc
+       pthread_key_init_np(AutoreleasePoolPage::key, AutoreleasePoolPage::tls_dealloc);
+        
+	
 
 
 ###对象发送多条autorelease消息，比如多次执行[obj autorelease] 会有问题不？
@@ -121,8 +160,8 @@ _Exit(即将退出Loop) 时 _
 现在我们知道了AutoreleasePool是在RunLoop即将进入RunLoop和准备进入休眠这两种状态的时候被创建和销毁的。
 
 所以AutoreleasePool的释放有如下两种情况。
-一是Autorelease对象是在当前的runloop迭代结束时释放的，而它能够释放的原因是系统在每个runloop迭代中都加入了自动释放池Push和Pop。
-二是手动调用AutoreleasePool的释放方法（drain方法）来销毁AutoreleasePool
+1. Autorelease对象是在当前的runloop迭代结束时释放的，而它能够释放的原因是系统在每轮runloop循环中都加入了自动释放池Pop和Push。
+2. 手动调用AutoreleasePool的释放方法（drain方法）来销毁AutoreleasePool
 
 
 
@@ -140,13 +179,14 @@ iOS 内存分栈内存，堆内存
 		堆内存由用户自己管理，谁申请，谁就负责释放（具体表现在alloc/free）
 		为了管理堆内存，iOS引入了引用计数器来统计当前有多少对象在使用指定的某块堆内存，当引用计数为0
 		(也就是没人再使用那块堆内存)时，那么就调用free进行释放
-		在过去的年代，这个引用计数器的值仍然由开发者自己管理（MRC），在需要使用内存时，使用retain表明使用该
-		内存，不再使用时需要使用release来减持引用计数
-		这样的方式非常不友好，所有后来就出现了ARC（Automatic Reference Counting）自动引用计数，通
-		过编译器与运行时一起管理堆内存，（意思是编译器在合适的地方插入内存管理的方法（其实是插入了__strong 修饰），通过clang 
-		查看ARC 多了__strong修饰）在运行阶段，通过_object_setIvar()赋值时，会先通过_class_lookUpIvar()
-		获取当前属性的内存管理方式，如果是objc_ivar_memoryStrong，那么会调用objc_storeStrong()进行赋值，那么在
-		objc_storeStrong()中就会通过objc_retain(obj);像内存添加引用计数相关的方法
+		在过去的年代，这个引用计数器的值由开发者自己管理（MRC），在需要使用内存时，使用retain增加
+		引用计数的值，不再使用时使用release来减持引用计数
+		这样的方式非常不友好，所以后来就出现了ARC（Automatic Reference Counting）自动引用计数，通
+		过编译器与运行时一起管理堆内存，（编译器在合适的地方插入内存管理的方法（其实是插入了__strong 修饰），
+		通过clang查看ARC 多了__strong修饰）在运行阶段，通过_object_setIvar()赋值时，会先通过
+		_class_lookUpIvar()获取当前属性的内存管理方式，如果是objc_ivar_memoryStrong，
+		那么会调用objc_storeStrong()进行赋值，那么在objc_storeStrong()中就会通过objc_retain(obj);
+		像内存添加引用计数相关的方法
 		
 		AutoreleasePool 管理内存也是基于对引用计数的管理，它把引用计数的释放release延迟到了AutoreleasePool对象释放的时机统一释放
         

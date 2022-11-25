@@ -504,8 +504,7 @@ DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_thread_frame_save_state(dispatch_thread_frame_t dtf)
 {
-	_dispatch_thread_getspecific_packed_pair(
-			dispatch_queue_key, dispatch_frame_key, dtf->dtf_pair);
+	_dispatch_thread_getspecific_packed_pair(dispatch_queue_key, dispatch_frame_key, dtf->dtf_pair);
 }
 
 DISPATCH_ALWAYS_INLINE
@@ -514,8 +513,7 @@ _dispatch_thread_frame_push(dispatch_thread_frame_t dtf,
 		dispatch_queue_class_t dqu)
 {
 	_dispatch_thread_frame_save_state(dtf);
-	_dispatch_thread_setspecific_pair(dispatch_queue_key, dqu._dq,
-			dispatch_frame_key, dtf);
+	_dispatch_thread_setspecific_pair(dispatch_queue_key, dqu._dq, dispatch_frame_key, dtf);
 }
 
 DISPATCH_ALWAYS_INLINE
@@ -1188,6 +1186,9 @@ static inline dispatch_queue_class_t
 _dispatch_queue_init(dispatch_queue_class_t dqu, dispatch_queue_flags_t dqf,
 		uint16_t width, uint64_t initial_state_bits)
 {
+	/*
+	 串行时dqf为MUTABLE，width==1
+	 */
 	uint64_t dq_state = DISPATCH_QUEUE_STATE_INIT_VALUE(width);
 	dispatch_queue_t dq = dqu._dq;
 
@@ -1806,10 +1807,11 @@ _dispatch_queue_push_item(dispatch_lane_class_t dqu, dispatch_object_t dou)
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_root_queue_push_inline(dispatch_queue_global_t dq,
-								 dispatch_object_t _head,
+								 dispatch_object_t _head,//封装了block的数据的dispatch_continuation_t对象
 								 dispatch_object_t _tail, int n)
 {
-	struct dispatch_object_s *hd = _head._do, *tl = _tail._do;
+	struct dispatch_object_s *hd = _head._do;
+	struct dispatch_object_s *tl = _tail._do;
 	/*
 	 相当于
 	 struct dispatch_object_s *hd = _head._do;
@@ -1818,9 +1820,37 @@ _dispatch_root_queue_push_inline(dispatch_queue_global_t dq,
 	/*
 	 这里是插入queue里面吗？？？？？？
 	 unlikely(os_mpsc_push_list(dq, hd, tl, do_next))
+	 
+	 #define os_mpsc(q, _ns, ...)   (q, _ns, __VA_ARGS__)
+	 
+	 #define os_mpsc_push_list(Q, head, tail, _o_next)  ({ \
+			 os_mpsc_node_type(Q) _token; \
+			 _token = os_mpsc_push_update_tail(Q, tail, _o_next); \
+			 os_mpsc_push_update_prev(Q, _token, head, _o_next); \
+			 os_mpsc_push_was_empty(_token); \
+		 })
+	 #define os_mpsc_node_type(Q) _os_atomic_basetypeof(_os_mpsc_head Q)
+	 
+	 #define _os_atomic_basetypeof(p) \
+			 __typeof__(atomic_load_explicit(_os_atomic_c11_atomic(p), memory_order_relaxed))
+	 
+	 #define os_mpsc_push_update_tail(Q, tail, _o_next)  ({ \
+			 os_mpsc_node_type(Q) _tl = (tail); \
+			 os_atomic_store2o(_tl, _o_next, NULL, relaxed); \
+			 os_atomic_xchg(_os_mpsc_tail Q, _tl, release); \
+		 })
+	 #define os_mpsc_push_update_prev(Q, prev, head, _o_next)  ({ \
+			 os_mpsc_node_type(Q) _prev = (prev); \
+			 if (likely(_prev)) { \
+				 (void)os_atomic_store2o(_prev, _o_next, (head), relaxed); \
+			 } else { \
+				 (void)os_atomic_store(_os_mpsc_head Q, (head), relaxed); \
+			 } \
+		 })
 	 */
+	//在这里插入队列
 	if (unlikely(os_mpsc_push_list(os_mpsc(dq, dq_items), hd, tl, do_next))) {
-		//重点函数
+		//重点函数,n==1
 		return _dispatch_root_queue_poke(dq, n, 0);
 	}
 }
@@ -2422,6 +2452,9 @@ DISPATCH_ALWAYS_INLINE
 static inline bool
 _dispatch_block_has_private_data(const dispatch_block_t block)
 {
+	/*
+	 #define _dispatch_Block_invoke(bb) ((dispatch_function_t)((struct Block_layout *)bb)->invoke)
+	 */
 	return (_dispatch_Block_invoke(block) == _dispatch_block_special_invoke);
 }
 
@@ -2710,6 +2743,7 @@ _dispatch_continuation_init_f(dispatch_continuation_t dc,
 		pp = _dispatch_priority_propagate();
 	}
 	_dispatch_continuation_voucher_set(dc, flags);
+	//设置优先级dc->dc_priority = pp;
 	return _dispatch_continuation_priority_set(dc, dqu, pp, flags);
 }
 
@@ -2721,11 +2755,34 @@ _dispatch_continuation_init(dispatch_continuation_t dc,
 							dispatch_block_flags_t flags,
 							uintptr_t dc_flags)
 {
-	//
+	/*
+	 typedef struct dispatch_continuation_s {
+		 union {
+			 const void *__ptrauth_objc_isa_pointer do_vtable;
+			 uintptr_t dc_flags;
+		 };
+		 union {
+			 pthread_priority_t dc_priority;
+			 int dc_cache_cnt;
+			 uintptr_t dc_pad;
+		 };
+		 struct dispatch_continuation_s *volatile do_next;
+		 struct voucher_s *dc_voucher;
+		 dispatch_function_t dc_func;
+		 void *dc_ctxt; //dispatch_async()中的block参数
+		 void *dc_data;
+		 void *dc_other
+	 
+	 } *dispatch_continuation_t;
+	 */
+	//通过调用Block_copy接口将block从栈拷贝到堆中
 	void *ctxt = _dispatch_Block_copy(work);
 
 	dc_flags |= DC_FLAG_BLOCK | DC_FLAG_ALLOCATED;
-	//判断当前的block 是否是内部的私有block
+	/*
+	 判断当前的block 是否是内部的私有block
+	 ((struct Block_layout *)block)->invoke == _dispatch_block_special_invoke);
+	 */
 	if (unlikely(_dispatch_block_has_private_data(work))) {
 		//内部私有block
 		dc->dc_flags = dc_flags;
@@ -2743,6 +2800,10 @@ _dispatch_continuation_init(dispatch_continuation_t dc,
 		//调用完block后释放block
 		func = _dispatch_call_block_and_release;
 	}
+	/*
+	 1. 将block设置到dispatch_continuation_t中，
+	 2. 设置优先级dc->dc_priority = pp;
+	 */
 	return _dispatch_continuation_init_f(dc, dqu, ctxt, func, flags, dc_flags);
 }
 
@@ -2780,6 +2841,11 @@ static inline void _dispatch_continuation_async(dispatch_queue_class_t dqu,//que
 #else
 	(void)dc_flags;
 #endif
+	/*
+	 void _dispatch_root_queue_push(dispatch_queue_global_t rq
+	 #define dx_push(x, y, z) dx_vtable(x)->dq_push(x, y, z)
+	 #define dx_vtable(x) (&(x)->do_vtable->_os_obj_vtable)
+	 */
 	return dx_push(dqu._dq, dc, qos);// ==== _dispatch_root_queue_push(dqu._dq, dc, qos);
 	/*
 				x     y    z

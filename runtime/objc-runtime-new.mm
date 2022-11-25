@@ -5220,6 +5220,11 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
      5. 如果遍历完整条继承链的缓存以及方法列表都没找到，则进行动态方法决议，检查有没有resolveInstanceMethod，或者resolveClassMethod,有则执行
      6. 进行动态方法决议后再重新从缓存开始的地方再跑一遍，再跑一遍也没找到方法imp，则进行消息转发
      7. 消息转发失败则崩溃
+         消息转发流程
+         1. 调用forwardingTargetForSelector返回响应该消息的对象，
+         2. 如果forwardingTargetForSelector 返回nil 则调用methodSignatureForSelector返回NSMethodSignature
+         3. 如果methodSignatureForSelector 返回nil,则调用doesNotRecognizeSelector 触发异常
+     
      */
     
     IMP imp = nil;
@@ -5229,6 +5234,7 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
 
     // Optimistic cache lookup
     if (cache) {
+        //cache_getImp()汇编实现，在objc-msg-arm.s 中
         imp = cache_getImp(cls, sel);
         if (imp) return imp;
     }
@@ -5252,6 +5258,20 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
     //调用initialize 方法
     if (initialize  &&  !cls->isInitialized()) {
         runtimeLock.unlock();
+        /*
+         通过调用callInitialize(cls);方法，在callInitialize内发送一条((void(*)(Class, SEL))objc_msgSend)(cls, @selector(initialize));
+         消息进行初始化
+         
+         当然在_class_initialize 内部会判断父类是否已经initialize，如果没有，则先进行父类的initialize
+         所以在进行initialize时会优先保证父类先进行initialize
+         通过递归的方式进行_class_initialize(supercls)
+         
+         需要注意的是initialize是通过消息发送进行的，也就是，如果当前类没有initialize方法，那么他在lookUpImpOrForward的时候，会通过继承链的方式
+         找到父类的initialize方法执行，所以initialize就会出现多次执行的可能
+         比如，父类有initialize，但子类没有initialize的情况，当第一次向父类发送消息，那么父类的initialize方法会被调用
+         当子类第一次发送消息时，由于子类没有initialize方法，所以会在查找过程中获取到父类的initialize方法进行执行
+         所以父类的initialize就被执行了2次
+         */
         _class_initialize (_class_getNonMetaClass(cls, inst));
         runtimeLock.lock();
         // If sel == initialize, _class_initialize will send +initialize and 
@@ -5339,6 +5359,12 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
      如果走到这一步，那么说明类没实现方法（也就是没有IMP）
      同时也没进行动态方法决议（也没动态的给方法指定IMP（实现resolveInstanceMethod，并在其中给方法绑定IMP ））
      那么就尝试进行消息转发
+     转发流程可参考：https://www.jianshu.com/p/86713913323f
+     
+     1. 调用forwardingTargetForSelector返回响应该消息的对象，
+     2. 如果forwardingTargetForSelector 返回nil 则调用methodSignatureForSelector返回NSMethodSignature
+     3. 如果methodSignatureForSelector 返回nil,则调用doesNotRecognizeSelector 触发异常
+     
      */
     imp = (IMP)_objc_msgForward_impcache;
     cache_fill(cls, sel, imp, inst);
@@ -6064,8 +6090,16 @@ addMethod(Class cls, SEL name, IMP imp, const char *types, bool replace)
     assert(cls->isRealized());
 
     method_t *m;
+    /*
+     直接在类里面的方法列表查询cls->data()->methods
+     如果方法列表中没有，则添加
+     */
     if ((m = getMethodNoSuper_nolock(cls, name))) {
         // already exists
+        /*
+         如果类方法列表中已经有了对应的方法，则返回
+         如果需要替换则替换，但返回的仍然是旧的IMP
+        */
         if (!replace) {
             result = m->imp;
         } else {
@@ -6073,6 +6107,7 @@ addMethod(Class cls, SEL name, IMP imp, const char *types, bool replace)
         }
     } else {
         // fixme optimize
+        //如果类的方法列表中没有才添加，并返回空
         method_list_t *newlist;
         newlist = (method_list_t *)calloc(sizeof(*newlist), 1);
         newlist->entsizeAndFlags = 
@@ -6187,6 +6222,7 @@ class_replaceMethod(Class cls, SEL name, IMP imp, const char *types)
     if (!cls) return nil;
 
     mutex_locker_t lock(runtimeLock);
+    //
     return addMethod(cls, name, imp, types ?: "", YES);
 }
 
@@ -6918,8 +6954,15 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
     } 
     else {
         if (zone) {
+            /*
+             * 从指定zone中申请内存
+             * zone创建是通过底层接口szone_t * create_scalable_szone(size_t initial_size, unsigned debug_flags)创建的
+             * 在create_scalable_szone中通过mvm_allocate_pages --> mach_vm_map 调用mach 接口从task中申请对应的内存，
+             * 并设置zone->calloc函数指针，后续通过zone->calloc调用从zone中获取zone内的内存
+             */
             obj = (id)malloc_zone_calloc ((malloc_zone_t *)zone, 1, size);
         } else {
+            // 从default zone 中申请内存,OC 好像基本跑这分支，因为传进来的zone 参数都是nil
             obj = (id)calloc(1, size);
         }
         if (!obj) return nil;

@@ -9,6 +9,7 @@
 	* runtime中有一个名叫AssociationsManager 关联管理类，里面有一个static（静态）hashMap（static AssociationsHashMap *_map;）该哈希表存放着所有关联过属性的对象关联表，数据结构大致如下
 	
 	```
+    typedef DenseMap<const void *, ObjcAssociation> ObjectAssociationMap;   
 	AssociationsHashMap = [
 		ObjectAssociationMap1 = [ //根据对象地址找到对应的ObjectAssociationMap
 			ObjcAssociation,//在ObjectAssociationMap 中根据key找到对应的ObjcAssociation
@@ -81,15 +82,10 @@ struct category_t {
     struct property_list_t *instanceProperties;
     // Fields below this point are not always present on disk.
     struct property_list_t *_classProperties;
-    method_list_t *methodsForMeta(bool isMeta) {
-        if (isMeta) return classMethods;
-        else return instanceMethods;
-    }
-    property_list_t *propertiesForMeta(bool isMeta, struct header_info *hi);
 };
 
 ```
-* 从这个两个阶段的分类结构体可以看出，苹果在设计分类时，并没有给分类添加存储变量的列表，只设计了存储实例方法的instanceMethods列表，存储类方法的classMethods列表，存储协议的protocols列表，存储属性的instanceProperties类别等
+* 从这个两个阶段的分类结构体可以看出，苹果在设计分类时，并没有给分类添加存储变量的列表，只设计了存储实例方法的instanceMethods列表，存储类方法的classMethods列表，存储协议的protocols列表，存储属性的instanceProperties等
 * 在编译的时候，编译器会把我们的分类转成一个静态的_category_t类型的一个全局变量
 
 ```
@@ -227,6 +223,7 @@ static void OBJC_CLASS_SETUP_$_Animal(void ) {
 	OBJC_CLASS_$_Animal.superclass = &OBJC_CLASS_$_NSObject;
 	OBJC_CLASS_$_Animal.cache = &_objc_empty_cache;
 }
+从这里就可以看出，对象的isa指向对象，类的isa指向元类，元类的isa 执行根元类，
 ```
 第二点
 
@@ -238,19 +235,22 @@ xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc main.m
 
 // ARC
 xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc -fobjc-arc -fobjc-runtime=ios-8.0.0 main.m
+这会生成main.cpp
 
 ### 调用顺序
 
-* 分类中的方法，协议，属性添加到类中方法，协议，属性列表，添加顺序是倒序的，所以后编译的会在列表前面，
+* 在运行时，mapImage阶段，分类中的方法，协议，属性会被添加到类中方法，协议，属性列表中，添加顺序是倒序的，所以后编译的会在列表前面，
 另一个就是分类列表会在类的方法列表的前面，这就是为什么同名方法会先调用后编译的分类方法，或者说分类方法会比类方法先被调用。
 
 ### +load方法调用顺序
 
 * 在调用+load方法前，会将类的+load方法添加到一个列表中， 分类的+load方法添加到另一个列表中
 
-    
+    类的+load方法
     在prepare类的+load方法时，是通过递归的方式，所以父类的+load方法会在列表的前面，因此，调用顺序是
     
-    父类+load -> 当前类+load -> 先编译的分类 -> 后编译的+load
+    父类+load -> 当前类+load -> 先编译的分类+load -> 后编译的分类+load
 
 ### 分类跟主类都有同名方法，那怎么才能调用到主类方法而非分类方法？
+
+* 通过运行时方法class_copyMethodList获取到方法列表，然后想调哪个就调哪个

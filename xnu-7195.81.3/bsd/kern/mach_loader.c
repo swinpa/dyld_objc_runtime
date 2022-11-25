@@ -420,6 +420,62 @@ arm64e_plugin_host(struct image_params *imgp, load_result_t *result)
 	return false;
 }
 #endif /* __has_feature(ptrauth_calls) && XNU_TARGET_OS_OSX */
+/*
+ image_params {} 定义在
+ xnu-7195.81.3/bsd/sys/imgact.h:struct
+ 
+ struct image_params {
+     user_addr_t     ip_user_fname;          // argument
+     user_addr_t     ip_user_argv;           // argument
+     user_addr_t     ip_user_envv;           // argument
+     int             ip_seg;                 // segment for arguments
+     struct vnode    *ip_vp;                 // file
+     struct vnode_attr       *ip_vattr;      // run file attributes
+     struct vnode_attr       *ip_origvattr;  // invocation file attributes
+     cpu_type_t      ip_origcputype;         // cputype of invocation file
+     cpu_subtype_t   ip_origcpusubtype;      // subtype of invocation file
+     char            *ip_vdata;              // file data (up to one page)
+     int             ip_flags;               // image flags
+     int             ip_argc;                // argument count
+     int             ip_envc;                // environment count
+     int             ip_applec;              // apple vector count
+     char            *ip_startargv;          // argument vector beginning
+     char            *ip_endargv;    // end of argv/start of envv
+     char            *ip_endenvv;    // end of envv/start of applev
+     char            *ip_strings;            // base address for strings
+     char            *ip_strendp;            // current end pointer
+     char            *ip_subsystem_root_path;        // filepath for the subsystem root
+     int             ip_argspace;    // remaining space of NCARGS limit (argv+envv)
+     int             ip_strspace;            // remaining total string space
+     user_size_t     ip_arch_offset;         // subfile offset in ip_vp
+     user_size_t     ip_arch_size;           // subfile length in ip_vp
+     char            ip_interp_buffer[IMG_SHSIZE];   // interpreter buffer space
+     int             ip_interp_sugid_fd;             // fd for sugid script
+     // Next two fields are for support of architecture translation...
+     struct vfs_context      *ip_vfs_context;        // VFS context
+     struct nameidata *ip_ndp;               // current nameidata
+     thread_t        ip_new_thread;          // thread for spawn/vfork
+     struct label    *ip_execlabelp;         // label of the executable
+     struct label    *ip_scriptlabelp;       // label of the script
+     struct vnode    *ip_scriptvp;           // script
+     unsigned int    ip_csflags;             // code signing flags
+     int             ip_mac_return;          // return code from mac policy checks
+     void            *ip_px_sa;
+     void            *ip_px_sfa;
+     void            *ip_px_spa;
+     void            *ip_px_smpx;            // MAC-specific spawn attrs.
+     void            *ip_px_persona;         // persona args
+     void            *ip_px_pcred_info;      // posix cred args
+     void            *ip_cs_error;           // codesigning error reason
+     char            *ip_inherited_shared_region_id;  // inherited shared region id for ptr auth
+     uint64_t ip_dyld_fsid;
+     uint64_t ip_dyld_fsobjid;
+     uint64_t ip_inherited_jop_pid;
+     unsigned int    ip_simulator_binary;    // simulator binary flags
+     ipc_port_t      ip_sc_port;             // SUID port.
+ };
+ */
+//在static int exec_mach_imgact(struct image_params *imgp) 中调用该方法
 
 load_return_t
 load_machfile(
@@ -477,12 +533,16 @@ load_machfile(
 	}
 #endif /* defined(PMAP_CREATE_FORCE_4K_PAGES) && (DEBUG || DEVELOPMENT) */
 
+    /*
+     pmap 是物理内存抽象层，对物理内存提供了统一的接口
+    */
 	pmap = pmap_create_options(get_task_ledger(ledger_task),
 	    (vm_map_size_t) 0,
 	    pmap_flags);
 	if (pmap == NULL) {
 		return LOAD_RESOURCE;
 	}
+    //创建虚拟内存
 	map = vm_map_create(pmap,
 	    0,
 	    vm_compute_max_offset(result->is_64bit_addr),
@@ -829,7 +889,7 @@ parse_machfile(
 		if (depth != 1 && depth != 3) {
 			return LOAD_FAILURE;
 		}
-		if (header->flags & MH_DYLDLINK) {
+		if (header->flags & MH_DYLDLINK) {//dyld 加载需要的一些标记
 			/* Check properties of dynamic executables */
 			if (!(header->flags & MH_PIE) && pie_required(header->cputype, header->cpusubtype & ~CPU_SUBTYPE_MASK)) {
 				return LOAD_FAILURE;
@@ -1057,6 +1117,7 @@ parse_machfile(
 			 * before dereferencing fields not covered by struct load_command.
 			 */
 			switch (lcp->cmd) {
+            //将mach-o 中的段映射到进程的地址空间
 			case LC_SEGMENT: {
 				struct segment_command *scp = (struct segment_command *) lcp;
 				if (scp->cmdsize < sizeof(*scp)) {
@@ -1117,6 +1178,7 @@ parse_machfile(
 					break;
 				}
 
+                //指导内核如何设置新运行的进程的内存空间
 				ret = load_segment(lcp,
 				    header->filetype,
 				    control,

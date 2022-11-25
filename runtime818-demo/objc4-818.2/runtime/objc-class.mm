@@ -354,6 +354,7 @@ void _object_setIvar(id obj, Ivar ivar, id value, bool assumeStrong)
     id *location = (id *)((char *)obj + offset);
 
     switch (memoryManagement) {
+    //dyld_objc_runtime/runtime818-demo/objc4-818.2/runtime/NSObject.mm objc_storeWeak
     case objc_ivar_memoryWeak:       objc_storeWeak(location, value); break;
     case objc_ivar_memoryStrong:     objc_storeStrong(location, value); break;
     case objc_ivar_memoryUnretained: *location = value; break;

@@ -2,6 +2,8 @@
 ####[mach-o官方文档](https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/MachOTopics/0-Introduction/introduction.html)
 mach-o 是mac/iOS上可执行文件的文件格式，当然他还是目标文件，动态库文件等的文件格式
 
+__PAGEZERO段，[参考文章](https://juejin.cn/post/6844903968875757575)
+
 mach-o文件的文件内容分为3大部分，分别是
 	
 	1、header
@@ -87,3 +89,51 @@ mach-o文件内容跟书内容可以这样对应
 		clang -c main.c -o main.o
 	3. 链接 
 		clang main.o -o a.out -L . login.dylib pay.dylib say.dylib
+
+
+####MachOView解析mach-o
+
+1. 首先可以肯定的是mach_header长度是固定的，可以通过以下方式获取
+
+		
+		struct mach_header_64 {
+			uint32_t	magic;		/* mach magic number identifier */
+			cpu_type_t	cputype;	/* cpu specifier */
+			cpu_subtype_t	cpusubtype;	/* machine specifier */
+			uint32_t	filetype;	/* type of file */
+			uint32_t	ncmds;		/* number of load commands */
+			uint32_t	sizeofcmds;	/* the size of all the load commands */
+			uint32_t	flags;		/* flags */
+			uint32_t	reserved;	/* reserved */
+		};
+		
+		sizeof(mach_header) 
+		或者 
+		sizeof(mach_header_64)
+
+2. 通过固定长度读取到mach_header后，根据mach\_header的内容就可以得知接下来的load\_command的数量以及所有load\_command内容所占用的长度
+
+		struct load_command {
+			uint32_t cmd;		/* type of load command */
+			uint32_t cmdsize;	/* total size of command in bytes */
+		};
+   
+3. 得到load\_command的数量以及大小后，就可以遍历获取到每条load\_command了，因为每条load\_command前面的信息都是固定的，它指定了该条load_command的类型以及该条load_command占用长度是多少。
+
+	所以遍历过程都是先读取load_command的内容，然后根据load_command指定的类型以及内容长度，读入对应类型的command内容
+	
+		struct segment_command { /* for 32-bit architectures */
+			uint32_t	cmd;		/* LC_SEGMENT */
+			uint32_t	cmdsize;	/* includes sizeof section structs */
+			char		segname[16];	/* segment name */
+			uint32_t	vmaddr;		/* memory address of this segment */
+			uint32_t	vmsize;		/* memory size of this segment */
+			uint32_t	fileoff;	/* file offset of this segment */
+			uint32_t	filesize;	/* amount to map from the file */
+			vm_prot_t	maxprot;	/* maximum VM protection */
+			vm_prot_t	initprot;	/* initial VM protection */
+			uint32_t	nsects;		/* number of sections in segment */
+			uint32_t	flags;		/* flags */
+		};
+
+4. 是的

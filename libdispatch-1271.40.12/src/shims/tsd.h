@@ -284,8 +284,10 @@ _dispatch_thread_getspecific_packed_pair(pthread_key_t k1, pthread_key_t k2,
 // intel doesn't, hence this degrades to two stores on intel
 DISPATCH_TSD_INLINE
 static inline void
-_dispatch_thread_setspecific_pair(pthread_key_t k1, void *p1,
-		pthread_key_t k2, void *p2)
+_dispatch_thread_setspecific_pair(pthread_key_t k1,
+								  void *p1,
+								  pthread_key_t k2,
+								  void *p2)
 {
 	_dispatch_thread_setspecific(k1, p1);
 	_dispatch_thread_setspecific(k2, p2);

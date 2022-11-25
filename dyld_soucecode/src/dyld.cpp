@@ -1143,7 +1143,9 @@ void initializeMainExecutable()
 	ImageLoader::InitializerTimingList initializerTimes[sAllImages.size()];
 	initializerTimes[0].count = 0;
 	const size_t rootCount = sImageRoots.size();
-	//先初始化所有依赖的库
+	/*
+	 先初始化所有依赖的动态库,所以这里就有机会让libSystem.B.dylib先进行初始化，这样运行时才能_dyld_objc_notify_register进行注册
+	 */
 	if ( rootCount > 1 ) {
 		for(size_t i=1; i < rootCount; ++i) {
 			sImageRoots[i]->runInitializers(gLinkContext, initializerTimes[0]);
@@ -5042,6 +5044,13 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 	}
 	
 
+	/*
+	 初始化gLinkContext，比如：
+	 gLinkContext.notifySingle			= &notifySingle;
+	 gLinkContext.notifyBatch			= &notifyBatch;
+	 
+	 在link完成后就会调用notifySingle接口进行回调通知
+	 */
 	setContext(mainExecutableMH, argc, argv, envp, apple);	//设置全局属性。除了传进去的参数 其他都是写死的
 
 	// Pickup the pointer to the exec path.

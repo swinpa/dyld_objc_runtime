@@ -43,7 +43,9 @@ static void
 _dispatch_once_callout(dispatch_once_gate_t l, void *ctxt,
 		dispatch_function_t func)
 {
+	//执行block回调
 	_dispatch_client_callout(ctxt, func);
+	//广播锁已经释放了
 	_dispatch_once_gate_broadcast(l);
 }
 
@@ -53,14 +55,43 @@ void dispatch_once_f(dispatch_once_t *val, void *ctxt, dispatch_function_t func)
 {
 	/*
 	 可参考文章：https://xiaozhuanlan.com/topic/7916538240
+	 
+	 typedef struct dispatch_gate_s {
+		 dispatch_lock dgl_lock;
+	 } dispatch_gate_s, *dispatch_gate_t;
+
+	 typedef struct dispatch_once_gate_s {
+		 union {
+			 dispatch_gate_s dgo_gate;
+			 uintptr_t dgo_once;
+		 };
+	 } dispatch_once_gate_s, *dispatch_once_gate_t;
+	 
 	 */
 	dispatch_once_gate_t l = (dispatch_once_gate_t)val;
 
 #if !DISPATCH_ONCE_INLINE_FASTPATH || DISPATCH_ONCE_USE_QUIESCENT_COUNTER
 	
+	/*
+	 #define _os_atomic_c11_atomic(p) \
+			 ((__typeof__(*(p)) _Atomic *)(p))
+	 
+	 #define os_atomic_load(p, m) \
+			 atomic_load_explicit(_os_atomic_c11_atomic(p), memory_order_##m)
+	 
+	 所以展开得到
+	 
+	 atomic_load_explicit(_os_atomic_c11_atomic(l->dgo_once), memory_order_acquire)
+	 
+	 */
+	
 	uintptr_t v = os_atomic_load(&l->dgo_once, acquire);
 	
 	//likely表示更大可能成立，unlikely表示更大可能不成立。
+	/*
+	 ~ 取反运算符参考https://www.runoob.com/cplusplus/cpp-operators.html
+	 #define DLOCK_ONCE_DONE		(~(uintptr_t)0) 相当于~0=-1;
+	 */
 	
 	if (likely(v == DLOCK_ONCE_DONE)) {
 		/*
@@ -77,9 +108,13 @@ void dispatch_once_f(dispatch_once_t *val, void *ctxt, dispatch_function_t func)
 	#endif
 	
 #endif
+	//尝试加锁，加上了锁，就进入调用block，调用完block后就广播锁释放，通知正在等待锁的线程返回
 	if (_dispatch_once_gate_tryenter(l)) {
 		//调用block
 		return _dispatch_once_callout(l, ctxt, func);
 	}
+	/*
+	 等待锁，通过for循环不停的查询l->dgo_once的状态是否变成DLOCK_ONCE_DONE，直到变成DLOCK_ONCE_DONE后才结束查询返回
+	 */
 	return _dispatch_once_wait(l);
 }

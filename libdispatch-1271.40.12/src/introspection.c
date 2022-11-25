@@ -1085,37 +1085,89 @@ _dispatch_introspection_order_check(dispatch_order_frame_t dof_prev,
 	_dispatch_unfair_lock_unlock(&btqic->dqic_order_top_head_lock);
 }
 
-void
-_dispatch_introspection_order_record(dispatch_queue_t top_q)
+
+/// <#Description#>
+/// @param top_q 目标队列
+void _dispatch_introspection_order_record(dispatch_queue_t top_q)
 {
+	/*
+	 从当前线程的tls中获取队列信息
+	 也就是说queue会被缓存到tls中
+	 */
 	dispatch_queue_t bottom_q = _dispatch_queue_get_current();
 	dispatch_queue_order_entry_t e, it;
 	const int pcs_skip = 1, pcs_n_max = 128;
 	void *pcs[pcs_n_max];
 	int pcs_n;
 
+	/*
+	 do_targetq一般不为null，因为在创建时，如果参数没指定会分配一个rootqueue
+	 */
 	if (!bottom_q || !bottom_q->do_targetq || !top_q->do_targetq) {
 		return;
 	}
 
+	/*
+	 struct dispatch_queue_s {
+		 struct dispatch_queue_s *do_targetq;
+	 }
+	 可以理解错queue其实是由dispatch_queue_s类型组成的链表
+	 _dispatch_queue_bottom_target_queue()取到该链表的尾结点
+	 
+	 */
 	dispatch_queue_t top_tq = _dispatch_queue_bottom_target_queue(top_q);
 	dispatch_queue_t bottom_tq = _dispatch_queue_bottom_target_queue(bottom_q);
-	dispatch_queue_introspection_context_t ttqic, btqic;
-	ttqic = top_tq->do_introspection_ctxt;
-	btqic = bottom_tq->do_introspection_ctxt;
+	dispatch_queue_introspection_context_t ttqic = top_tq->do_introspection_ctxt;
+	dispatch_queue_introspection_context_t btqic = bottom_tq->do_introspection_ctxt;
 
+	/*
+	 遍历队列前先加锁，避免遍历过程中队列有变更
+	 */
 	_dispatch_unfair_lock_lock(&ttqic->dqic_order_top_head_lock);
+	
+	/*
+	 
+	 #define LIST_FOREACH(var, head, field)                                  \
+		 for ((var) = LIST_FIRST((head));                                \
+			 (var);                                                      \
+			 (var) = LIST_NEXT((var), field))
+	 
+	 所以展开变成如下
+	 for(it = ttqic->dqic_order_top_head->lh_first,it, it = it.dqoe_order_top_list) {
+		 if (it->dqoe_bottom_tq == bottom_tq) {
+			 // that dispatch_sync() is known and validated
+			 // move on
+			 _dispatch_unfair_lock_unlock(&ttqic->dqic_order_top_head_lock);
+			 return;
+		 }
+	 }
+	 */
+	//从队列头开始遍历队列queue
 	LIST_FOREACH(it, &ttqic->dqic_order_top_head, dqoe_order_top_list) {
+		/*
+		 如果队列是当前线程的队列，也就是同一线程操作同一队列，所以是安全的，可以返回了
+		 */
 		if (it->dqoe_bottom_tq == bottom_tq) {
 			// that dispatch_sync() is known and validated
 			// move on
+			/*
+			 viewDidLoad{
+				 dispatch_sync(dispatch_get_main_queue(), ^{
+				 })
+			 }
+			 
+			 这种情况就可以返回了吗？？
+			 */
 			_dispatch_unfair_lock_unlock(&ttqic->dqic_order_top_head_lock);
 			return;
 		}
 	}
 	_dispatch_unfair_lock_unlock(&ttqic->dqic_order_top_head_lock);
 
+	
+	
 	_dispatch_introspection_order_check(NULL, top_q, top_tq, bottom_q, bottom_tq);
+	
 	pcs_n = MAX(backtrace(pcs, pcs_n_max) - pcs_skip, 0);
 
 	bool copy_top_label = false, copy_bottom_label = false;

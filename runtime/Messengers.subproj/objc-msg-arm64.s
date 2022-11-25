@@ -736,7 +736,12 @@ LLookup_Nil:
 	END_ENTRY _objc_msgLookupSuper2
 
 
-    //准备去obj->isa->data()->methods方法列表中查找
+    /*
+     准备去obj->isa->data()->methods方法列表中查找
+     
+     通过调用_class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)接口去
+     obj->isa->data()->methods方法列表中查找
+     */
 .macro MethodTableLookup
 	
 	// push frame
@@ -771,7 +776,10 @@ LLookup_Nil:
 	str	x8,     [sp, #(8*16+8*8)]
 
 	// receiver and selector already in x0 and x1
-    // 将x16 应该是isa 存到x2寄存器中，因为x0 and x1 中已经保存了self,cmd 的参数
+    /*
+     将x16 应该是isa 存到x2寄存器中，因为x0 and x1 中已经保存了self,cmd 的参数
+     IMP _class_lookupMethodAndLoadCache3(id obj, SEL sel, Class cls)
+     */
 	mov	x2, x16
     /*
      如果缓存中未找到，则跳转到 __class_lookupMethodAndLoadCache3（c 函数） 去方法列表中去找函数，

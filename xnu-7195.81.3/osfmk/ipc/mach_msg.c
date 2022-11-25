@@ -511,15 +511,17 @@ mach_msg_receive_continue(void)
  */
 
 mach_msg_return_t
-mach_msg_overwrite_trap(
-	struct mach_msg_overwrite_trap_args *args)
+mach_msg_overwrite_trap(struct mach_msg_overwrite_trap_args *args)
 {
 	mach_vm_address_t       msg_addr = args->msg;
 	mach_msg_option_t       option = args->option;
 	mach_msg_size_t         send_size = args->send_size;
 	mach_msg_size_t         rcv_size = args->rcv_size;
 	mach_port_name_t        rcv_name = args->rcv_name;
+    
+    //msg_timeout
 	mach_msg_timeout_t      msg_timeout = args->timeout;
+    
 	mach_msg_priority_t     priority = args->priority;
 	mach_vm_address_t       rcv_msg_addr = args->rcv_msg;
 	__unused mach_port_seqno_t temp_seqno = 0;
@@ -569,6 +571,10 @@ mach_msg_overwrite_trap(
 
 	if (option & MACH_RCV_MSG) {
 		thread_t self = current_thread();
+        /*
+         #define current_space_fast()    (current_task_fast()->itk_space)
+         #define current_space()         (current_space_fast())
+         */
 		ipc_space_t space = current_space();
 		ipc_object_t object;
 		ipc_mqueue_t mqueue;
@@ -583,8 +589,7 @@ mach_msg_overwrite_trap(
 			ipc_port_t special_reply_port;
 			special_reply_port = ip_object_to_port(object);
 			/* link the special reply port to the destination */
-			mr = mach_msg_rcv_link_special_reply_port(special_reply_port,
-			    (mach_port_name_t)priority);
+			mr = mach_msg_rcv_link_special_reply_port(special_reply_port,(mach_port_name_t)priority);
 			if (mr != MACH_MSG_SUCCESS) {
 				io_release(object);
 				goto end;
@@ -605,9 +610,17 @@ mach_msg_overwrite_trap(
 		self->ith_knote = ITH_KNOTE_NULL;
 
 		ipc_mqueue_receive(mqueue, option, rcv_size, msg_timeout, THREAD_ABORTSAFE);
-		if ((option & MACH_RCV_TIMEOUT) && msg_timeout == 0) {
-			thread_poll_yield(self);
+		
+        if ((option & MACH_RCV_TIMEOUT) && msg_timeout == 0) {
+			/*
+             thread_poll_yield(thread_t self)
+             定义在xnu-7195.81.3/osfmk/kern/syscall_subr.c:thread_poll_yield(thread_t self)
+             
+             这是不是触发当前线程让出当前线程的CPU
+             */
+            thread_poll_yield(self);
 		}
+        //线程恢复后再尝试获取并返回
 		mr = mach_msg_receive_results(NULL);
 		goto end;
 	}
@@ -719,12 +732,12 @@ mach_msg_receive_results_complete(ipc_object_t object)
  */
 
 mach_msg_return_t
-mach_msg_trap(
-	struct mach_msg_overwrite_trap_args *args)
+mach_msg_trap(struct mach_msg_overwrite_trap_args *args)
 {
 	kern_return_t kr;
 	args->rcv_msg = (mach_vm_address_t)0;
 
+    //mach_msg_overwrite_trap(struct mach_msg_overwrite_trap_args *args)
 	kr = mach_msg_overwrite_trap(args);
 	return kr;
 }

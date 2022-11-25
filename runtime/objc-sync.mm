@@ -60,14 +60,17 @@ typedef struct SyncCache {
 
 struct SyncList {
     SyncData *data;
+    //用来锁住该链表进行安全访问
     spinlock_t lock;
-
     constexpr SyncList() : data(nil), lock(fork_unsafe_lock) { }
 };
 
 // Use multiple parallel lists to decrease contention among unrelated objects.
 #define LOCK_FOR_OBJ(obj) sDataLists[obj].lock
 #define LIST_FOR_OBJ(obj) sDataLists[obj].data
+/*
+ StripedMap 重载了[]操作符函数，在[]操作符函数内部根据obj进行hash计算得到下标，进行访问
+ */
 static StripedMap<SyncList> sDataLists;
 
 
@@ -350,7 +353,7 @@ int objc_sync_enter(id obj)
      */
     if (obj) {
         //拿到与对象绑定的锁（recursive_mutex_t）
-        SyncData* data = id2data(obj, ACQUIRE);
+        SyncData* data = id2data(obj, ACQUIRE);//ACQUIRE [əˈkwaɪə(r)]   美  [əˈkwaɪər] v. 获得，得到；
         assert(data);
         data->mutex.lock();
     } else {

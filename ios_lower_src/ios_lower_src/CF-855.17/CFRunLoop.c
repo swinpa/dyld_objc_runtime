@@ -685,7 +685,11 @@ typedef struct _per_run_data {
  common mode items = <CFBasicHash 0x600003b0a610 [0x7fff8002eb50]>{type = mutable set, count = 13,
  entries =>
      0 : <CFRunLoopSource 0x600000068180 [0x7fff8002eb50]>{signalled = No, valid = Yes, order = -1, context = <CFRunLoopSource context>{version = 0, info = 0x0, callout = PurpleEventSignalCallback (0x7fff2c258bc2)}}
-     3 : <CFRunLoopObserver 0x6000004788c0 [0x7fff8002eb50]>{valid = Yes, activities = 0xa0, repeats = Yes, order = 2000000, callout = _ZN2CA11Transaction17observer_callbackEP19__CFRunLoopObservermPv (0x7fff27aa53a0), context = <CFRunLoopObserver context 0x0>}
+     3 : <CFRunLoopObserver 0x6000004788c0 [0x7fff8002eb50]>{valid = Yes, activities = 0xa0, repeats = Yes, order = 2000000,
+        //在该回调中进行视图渲染
+        callout = _ZN2CA11Transaction17observer_callbackEP19__CFRunLoopObservermPv (0x7fff27aa53a0), context = <CFRunLoopObserver context 0x0>}
+            
+ 
      9 : <CFRunLoopSource 0x6000000643c0 [0x7fff8002eb50]>{signalled = No, valid = Yes, order = -1, context = <CFRunLoopSource context>{version = 1, info = 0x3003, callout = PurpleEventCallback (0x7fff2c258bce)}}
      10 : <CFRunLoopSource 0x600000078000 [0x7fff8002eb50]>{signalled = No, valid = Yes, order = 0, context = <CFRunLoopSource MIG Server> {port = 41731, subsystem = 0x7fff80cc0948, context = 0x60000117c060}}
      12 : <CFRunLoopObserver 0x6000004646e0 [0x7fff8002eb50]>{valid = Yes, activities = 0xa0, repeats = Yes, order = 2147483647, callout = _runLoopObserverCallout (0x7fff24171b35), context = (
@@ -735,6 +739,8 @@ typedef struct _per_run_data {
  },
 
      3 : <CFRunLoopMode 0x600000e60270 [0x7fff8002eb50]>{name = GSEventReceiveRunLoopMode, port set = 0x2f03, queue = 0x600001b69600, source = 0x600001b69700 (not fired), timer port = 0x5103,
+ 
+     //sources0
      sources0 = <CFBasicHash 0x600003b0a520 [0x7fff8002eb50]>{type = mutable set, count = 1,
  entries =>
      0 : <CFRunLoopSource 0x600000068180 [0x7fff8002eb50]>{signalled = No, valid = Yes, order = -1, context = <CFRunLoopSource context>{version = 0, info = 0x0, callout = PurpleEventSignalCallback (0x7fff2c258bc2)}}
@@ -817,7 +823,7 @@ struct __CFRunLoop {
     CFMutableSetRef _commonModeItems;///存储所有commonMode的item(source、timer、observer)
     CFRunLoopModeRef _currentMode;
     /*
-     用来存放RunLoop中所有的Mode，但没一次RunLoop都只能在其中的一种Mode运行
+     用来存放RunLoop中所有的Mode，但每一次RunLoop都只能在其中的一种Mode运行
      一个RunLoop中会有多个Mode，但每一RunLoop循环都只在某一种Mode下执行
      */
     CFMutableSetRef _modes;
@@ -2517,6 +2523,12 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 
 #define TIMEOUT_INFINITY (~(mach_msg_timeout_t)0)
 
+/// <#Description#>
+/// @param port <#port description#>
+/// @param buffer <#buffer description#>
+/// @param buffer_size <#buffer_size description#>
+/// @param livePort <#livePort description#>
+/// @param timeout 传进来的是0
 static Boolean __CFRunLoopServiceMachPort(mach_port_name_t port, mach_msg_header_t **buffer, size_t buffer_size, mach_port_t *livePort, mach_msg_timeout_t timeout) {
     Boolean originalBuffer = true;
     kern_return_t ret = KERN_SUCCESS;
@@ -2532,7 +2544,19 @@ static Boolean __CFRunLoopServiceMachPort(mach_port_name_t port, mach_msg_header
         } else {
             CFRUNLOOP_POLL();
         }
-        //接收消息，如果没有别人发送 port 消息过来，内核会将线程置于等待状态
+        /*
+         接收消息，如果没有别人发送 port 消息过来，内核会将线程置于等待状态
+         mach_msg(mach_msg_header_t *msg,
+         源码在xnu-7195.81.3/libsyscall/mach/mach_msg.c
+         
+         为了实现消息的发送和接收，mach_msg() 函数实际上是调用mach_msg_trap() 触发陷阱机制，从用户态切换到内核态；
+         
+         mach_msg()内部逻辑如下：
+         1. 获取消息，如果获取成功，则直接返回
+         2. 如果获取不成功，则进行while循环调用mach_msg_trap()获取
+         3. 在mach_msg_trap()内部如果获取不到，则会放弃当前线程的时间片进入睡眠转态，直到等到下次轮询时间到达时在恢复然后返回，进行新一轮的轮询
+         
+         */
         ret = mach_msg(msg, MACH_RCV_MSG|MACH_RCV_LARGE|((TIMEOUT_INFINITY != timeout) ? MACH_RCV_TIMEOUT : 0)|MACH_RCV_TRAILER_TYPE(MACH_MSG_TRAILER_FORMAT_0)|MACH_RCV_TRAILER_ELEMENTS(MACH_RCV_TRAILER_AV), 0, msg->msgh_size, port, timeout, MACH_PORT_NULL);
         
         CFRUNLOOP_WAKEUP(ret);
@@ -2785,7 +2809,8 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             /* 5. 接收 dispatchPort 端口的消息，dispatch 到 main queue 的事件。
                这里去读取消息，如果没消息则直接返回(__CFRunLoopServiceMachPort 方法最后的参数传了0，表示接收消息的等待时间)
                接收到消息去处理消息，也就是跑source1 事件
-               相当于判断是否有source1 事件，有就跑source1处理流程，没有就跑进入休眠流程
+               相当于判断是否有source1 事件，有就跑source1处理流程，没有就往下继续执行，通知即将等待事件到来，也就是这里即使没消息
+               也不会睡眠
              */
             if (__CFRunLoopServiceMachPort(dispatchPort, &msg, sizeof(msg_buffer), &livePort, 0)) {
                 // 如果接收到了消息的话，前往 handle_msg 开始处理 msg
@@ -2808,6 +2833,45 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
         if (!poll && (rlm->_observerMask & kCFRunLoopBeforeWaiting)) {
             /// 此处有Observer释放并新建AutoreleasePool: _objc_autoreleasePoolPop(); _objc_autoreleasePoolPush();
             /// 即将进入休眠，会重绘一次界面
+            /*
+             1. 应用启动时Core Animation 会在主线程的RunLoop中注册一个Observer监听RunLoop的BeforeWaiting(即将进入休眠)和Exit(即将退出Loop)事件。
+             2. 当收到这两个事件时，会回调去执行一个很长的函数： _ZN2CA11Transaction17observer_callbackEP19__CFRunLoopObservermPv()。
+                在这个函数中会遍历所有待处理的UIView/CAlayer（保存在一个全局的容器）以执行实际的绘制和更新UI（CPU，GPU渲染）。
+             3.  当UI发生变更时（比如Frame变了 、UIView/CALayer层次变了(addSubview,removeSubview))，或者手动调用了 UIView/CALayer 的 setNeedsLayout/setNeedsDisplay 方法后，这个 UIView/CALayer 就被标记为待处理，并被提交到一个全局的容器去。
+             4. 当RunLoop的BeforeWaiting事件到来时，在回调函数中会遍历全局容器中的UIView/CALayer（已标记为dirty），并调用CALayer的display方法进入到真正的绘制当中(主要就是通过异步绘制或者系统绘制流程等到layer.content)。
+
+                 
+                 1. 在display中首先会判断layer的delegate方法有没响应displayLayer方法？如果代理没有响应displayLayer方法，则进入到系统绘制流程；否则进入到异步绘制流程（YYLabel中就是通过重载layer的display方法，在display方法中实现同步或异步处理的逻辑（其实就是使用CoreGraphics方法生成一张image，然后回到主线程赋值给layer.content））
+                 2. 这就是通过监听主线程runloop的beforeSource，beforeWaiting  这来两个事件之间的时间间隔来判断是否卡顿的原理
+             
+             
+             
+                     其实 BeforeWaiting 指的是，提交到这一轮 RunLoop 的事务都做完了，要进入休眠了。可以理解为每一轮 RunLoop 的 completion callback ，可以开始进行新一轮的事务提交了。而监听到 BeforeWaiting 的Observer会调用 _ZN2CA11Transaction17observer_callbackEP19__CFRunLoopObservermPv ，进行下一次的事务的准备和提交。
+             
+             
+             
+                     _ZN2CA11Transaction17observer_callbackEP19__CFRunLoopObservermPv()
+                         QuartzCore:CA::Transaction::observer_callback:
+                             CA::Transaction::commit();
+                                 CA::Context::commit_transaction();
+                                     CA::Layer::layout_and_display_if_needed();
+                                         CA::Layer::layout_if_needed();
+                                             [CALayer layoutSublayers];
+                                                 [UIView layoutSubviews];
+                                         CA::Layer::display_if_needed();
+                                             [CALayer display];
+                                                 [UIView drawRect];
+
+             
+
+             5. 第4步结束后就得到了GPU渲染需要的数据，layer.content, 那接下来就进入了GPU渲染的流程
+                 
+                 1.读取顶点数据 —> 执行顶点着色器 —> 图元装配——光栅化图元 —> 执行片元着色器 —> 写入帧缓冲区
+             6. 显示到屏幕上。
+             
+             所以通过监听kCFRunLoopBeforeSources，跟kCFRunLoopBeforeWaiting 这两个事件来判断是否卡顿，因为这两个事件之间做了绝大多数的事情
+
+             */
             __CFRunLoopDoObservers(rl, rlm, kCFRunLoopBeforeWaiting);
         }
 	
@@ -2837,6 +2901,8 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             }
             msg = (mach_msg_header_t *)msg_buffer;
             // 7. 接收waitSet端口的消息,,7. 等待 mach_port 的消息，线程进入休眠，直到被 9 中的条件唤醒
+             // 如果没有 Sources0 事件处理 并且 没有超时，poll 为 false
+             // 如果有 Sources0 事件处理 或者 超时，poll 都为 true
             __CFRunLoopServiceMachPort(waitSet, &msg, sizeof(msg_buffer), &livePort, poll ? 0 : TIMEOUT_INFINITY);
             // 收到消息之后，livePort 的值为本地接收消息的活动端口
             if (modeQueuePort != MACH_PORT_NULL && livePort == modeQueuePort) {
@@ -2867,6 +2933,8 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
         /// • 一个 Timer 到时间了
         /// • RunLoop 自身的超时时间到了
         /// • 被其他什么调用者手动唤醒
+        // 如果没有 Sources0 事件处理 并且 没有超时，poll 为 false
+        // 如果有 Sources0 事件处理 或者 超时，poll 都为 true
         __CFRunLoopServiceMachPort(waitSet, &msg, sizeof(msg_buffer), &livePort, poll ? 0 : TIMEOUT_INFINITY);
 #endif
         __CFRunLoopLock(rl);
@@ -2907,6 +2975,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             CFRUNLOOP_WAKEUP_FOR_WAKEUP();
             // do nothing on Mac OS
         }
+//------------------------定时器事件--------------------------------------
 #if USE_DISPATCH_SOURCE_FOR_TIMERS
         // 如果是 timer 事件
         /// 9.1 如果一个 Timer 到时间了，触发这个Timer的回调。
@@ -2932,6 +3001,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
             }
         }
 #endif
+//------------------------定时器事件结束--------------------------------------
         /*
          如果是 dispatch 到 main queue 的 block
          子线程切换到主线程
@@ -2962,6 +3032,24 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 #if DEPLOYMENT_TARGET_MACOSX || DEPLOYMENT_TARGET_EMBEDDED || DEPLOYMENT_TARGET_EMBEDDED_MINI
                 mach_msg_header_t *reply = NULL;
                 // 处理 source1 事件
+                /*
+                 
+                 当用户操作屏幕，IOKit收到屏幕操作，会将这次操作封装为IOHIDEvent对象。通过mach port(IPC 进程间通信) 将事件转发给SpringBoard来处理。
+
+                 SpringBoard是 iOS 系统的桌面程序。SpringBoard收到mach port发过来的事件，唤醒main runloop来处理。
+                 main runloop将事件交给source1处理，source1会调用__IOHIDEventSystemClientQueueCallback()函数。
+
+                 函数内部会判断，是否有程序在前台显示，如果有则通过mach port将IOHIDEvent事件转发给这个程序。
+                 如果前台没有程序在显示，则表明SpringBoard的桌面程序在前台显示，也就是用户在桌面进行了操作。 __IOHIDEventSystemClientQueueCallback()函数会将事件交给source0处理，source0会调用__UIApplicationHandleEventQueue()函数，函数内部会做具体的处理操作。
+
+                 例如用户点击了某个应用程序的 icon，会将这个程序启动。
+                 应用程序接收到SpringBoard传来的消息，会唤醒main runloop并将这个消息交给source1处理，source1调用__IOHIDEventSystemClientQueueCallback()函数，在函数内部会将事件交给source0处理，并调用source0的__UIApplicationHandleEventQueue()函数。 在__UIApplicationHandleEventQueue()函数中，会将传递过来的IOHIDEvent转换为UIEvent对象。
+
+                 在函数内部，调用UIApplication的sendEvent:方法，将UIEvent传递给第一响应者或UIControl对象处理，在UIEvent内部包含若干个UITouch对象。
+                 Tips
+
+                 source1是runloop用来处理mach port传来的系统事件的，source0是用来处理用户事件的。 source1收到系统事件后，都会调用source0的函数，所以最终这些事件都是由source0处理的。
+                 */
                 sourceHandledThisLoop = __CFRunLoopDoSource1(rl, rlm, rls, msg, msg->msgh_size, &reply) || sourceHandledThisLoop;
                 if (NULL != reply) {
                     (void)mach_msg(reply, MACH_SEND_MSG, reply->msgh_size, 0, MACH_PORT_NULL, 0, MACH_PORT_NULL);

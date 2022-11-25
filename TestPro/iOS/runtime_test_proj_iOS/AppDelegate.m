@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import <os/proc.h>
 
 @interface AppDelegate ()
 

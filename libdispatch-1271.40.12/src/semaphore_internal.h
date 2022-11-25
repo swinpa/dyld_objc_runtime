@@ -29,8 +29,45 @@
 
 struct dispatch_queue_s;
 
+
+
+/*
+ #define OS_OBJECT_STRUCT_HEADER(x) \
+	 _OS_OBJECT_HEADER(\
+	 const struct x##_vtable_s *__ptrauth_objc_isa_pointer do_vtable, \
+	 do_ref_cnt, \
+	 do_xref_cnt)
+ #endif
+ 
+ #define _OS_OBJECT_HEADER(isa, ref_cnt, xref_cnt) \
+		 isa; // must be pointer-sized and use __ptrauth_objc_isa_pointer
+		 int volatile ref_cnt; \
+		 int volatile xref_cnt
+
+ #define _DISPATCH_OBJECT_HEADER(x) \
+	 struct _os_object_s _as_os_obj[0]; \
+ 
+	
+	 _OS_OBJECT_HEADER(const struct dispatch_semaphore_vtable_s *__ptrauth_objc_isa_pointer do_vtable, do_ref_cnt,do_xref_cnt)
+ 
+
+	 
+ 
+	struct dispatch_semaphore_s *volatile do_next; \
+	 struct dispatch_queue_s *do_targetq; \
+	 void *do_ctxt; \
+	 union { \
+		 dispatch_function_t DISPATCH_FUNCTION_POINTER do_finalizer; \
+		 void *do_introspection_ctxt; \
+	 }
+ */
+
+
 DISPATCH_CLASS_DECL(semaphore, OBJECT);
 struct dispatch_semaphore_s {
+	
+	
+	
 	DISPATCH_OBJECT_HEADER(semaphore);
 	intptr_t volatile dsema_value;
 	intptr_t dsema_orig;

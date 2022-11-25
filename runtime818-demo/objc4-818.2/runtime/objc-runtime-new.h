@@ -1360,6 +1360,9 @@ class list_array_tt {
         }
     }
 
+    /**
+     * 整体逻辑就是扩容列表，然后将新数据放在列表前面，旧数据放在后面
+     */
     void attachLists(List* const * addedLists, uint32_t addedCount) {
         if (addedCount == 0) return;
 
@@ -1367,15 +1370,25 @@ class list_array_tt {
             // many lists -> many lists
             uint32_t oldCount = array()->count;
             uint32_t newCount = oldCount + addedCount;
+            // 扩容数组
             array_t *newArray = (array_t *)malloc(array_t::byteSize(newCount));
             newArray->count = newCount;
             array()->count = newCount;
 
+            /*
+             将旧内容填充到新容器中新内容后面
+             加绒新内容有addedCount 个元素，那么就从[addedCount]这个节点开始往后添加
+             */
             for (int i = oldCount - 1; i >= 0; i--)
                 newArray->lists[i + addedCount] = array()->lists[i];
+            
+            /*
+             将新内容填充到新容器的前面，此时的新容器的后部分已经存放了旧数据
+             */
             for (unsigned i = 0; i < addedCount; i++)
                 newArray->lists[i] = addedLists[i];
             free(array());
+            //把旧容器更新为新容器
             setArray(newArray);
             validate();
         }

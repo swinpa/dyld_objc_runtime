@@ -1,3 +1,67 @@
+###应用启动过程
+1. 内核创建一个进程,分配空间,根据mach-o的LC\_SEGMENT段将mach-o的各段映射到分配的虚
+	拟内存空间中，根据LC\_LOAD\_DYLDINKER段中指定的dyld路径(/usr/lib/dyld)调用dyld
+	将执行权限转交给dyld,让dyld给主程序链接主程序依赖的动态库，dyld处理完后返回主程序的入口地址，
+	从此执行权限转交到主程序，开始运行主程序进入main阶段
+
+	[很好的加载过程文章](https://www.jianshu.com/p/8498cec10a41)
+
+	更具体一点的
+	
+	```
+	1. 系统内核从调用exec_mach_imgact()开始（在kern_exec.c中定义）
+		在exec_mach_imgact中各种判断，magic魔数判断，filetype判断，cputype判断等等
+		各种判断通过后通过【创建进程】
+		imgp->ip_new_thread = fork_create_child(task,
+		    NULL,
+		    p,
+		    FALSE,
+		    (imgp->ip_flags & IMGPF_IS_64BIT_ADDR),
+		    (imgp->ip_flags & IMGPF_IS_64BIT_DATA),
+		    FALSE)
+		 
+	2. 内核通过在exec_mach_imgact内创建进程后会调用内核加载器load_machfile()加载macho
+		
+	   内核加载器只关心几条load command，如LC_SEGMENT，LC_LOAD_DYLDINKER
+		
+	3. 在load_machfile中进行如下操作
+	
+		1. 创建虚拟内存空间
+		2. 生成aslr需要的随机数
+		3. 调用parse_machfile()解析macho中的内核部分的load command
+	4. 在parse_machfile执行如下操作
+		
+		1. 会先将load command映射到内核的内存中
+		/*
+	 	 * Map the load commands into kernel memory.
+	 	 */
+		addr = kalloc(alloc_size);
+		2. 遍历load command
+			
+		    1. 根据LC_SEGMENT的描述将各段映射到进程内存空间
+		    2. 根据LC_LOAD_DYLDINKER中描述的dyld路径(/usr/lib/dyld)调用dyld
+		   	   将执行权限转交给dyld,让dyld给主程序链接主程序依赖的动态库
+		3. dyld处理完后返回主程序的入口地址，从此执行权限转交到主程序
+	
+	5. 根据dyld返回的主程序入口地址，开始进入主程序执行
+	
+	```
+	[About the app launch sequence](https://developer.apple.com/documentation/uikit/app_and_environment/responding_to_the_launch_of_your_app/about_the_app_launch_sequence/)
+2. 进入main后，执行如下步骤
+	
+		1. 实例化UIApplication，设置代理AppDelegate，开启主线程RunLoop，
+		2. 加载info.plist设置的storyboard
+		3. 回调代理执行willFinishLaunchingWithOptions，didFinishLaunchingWithOptions:
+		4. 在didFinishLaunchingWithOptions中一般会做
+			1. SDK注册
+			2. 组件注册
+			3. 推送注册
+			4. 创建window，设置rootViewController，自此进入首页渲染，
+			   在首页的viewdidload中进行视图创建，数据加载等操作
+			5. 
+		5. 
+3.  
+
 # dyld
 ## _main()逻辑
 1. 全局的参数变量设置setContext(mainExecutableMH, argc, argv, envp, apple)
@@ -49,16 +113,39 @@
 		旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个随机地址偏移量？？？》
 		this->recursiveRebase(context);
 			  
-		2. bind
-		《占位地址》转成《实际地址》，
-		（编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，在加载的时候才能确定地址）
-		this->recursiveBind(context, forceLazysBound, neverUnload);
+		2. bind《占位地址》转成《实际地址》，
+			编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，
+			在加载的时候才能确定地址）
+			this->recursiveBind(context, forceLazysBound, neverUnload);
+			
+			为了性能考虑，动态绑定过程绑定的符号是非懒加载的符号(一般是数据)，懒加载符号(一般是函数调用)的绑定发生在
+			第一次使用的时候
+			因为模块间的数据访问很少（模块间还提供很多全局变量给其它模块用，那耦合度太大了，所以这样的情况很少见），
+			所以外部数据地址，都是放到got（也称Non-Lazy Symbol Pointers）数据段，非惰性的，动态链接阶段，
+			就寻找好所有数据符号的地址；而模块间函数调用就太频繁了，就用了延迟绑定技术，将外部函数地址都放在
+			la_symbol_ptr(Lasy Symbol Pointers)数据段，惰性的，程序第一次调用到这个函数，才寻址函数地址，
+			然后将地址写入到这个数据段
 
 
 9. 执行initializeMainExecutable(); 在initializeMainExecutable中遍历sImageRoots容器中所有image，并且执行image的runInitializers初始化函数
 	* runInitializers() ->processInitializers()->recursiveInitialization()->doInitialization()->doModInitFunctions()
 	* doModInitFunctions()中获取loadcommand段标记为S_MOD_INIT_FUNC_POINTERS的段（存储的是函数指针）进行函数调用。在libSystem.dylib ，该函数指针对应_libSystem_initializer
 	* libSystem_initializer()->libdispatch_init()->_os_object_init()->_objc_init(),到此完成了运行时的回调注册_dyld_objc_notify_register(&map_images, load_images, unmap_image);
+
+* 断点查看+load调用栈如下：
+
+	```
+	1. dyldbooststrap::start(macho_header const*, int, char...)
+	2. dyld::_main()
+	3. dyld::initializeMainExecutable()
+	4. ImageLoader::runInitializers()
+	5. ImageLoader::recursiveInitialization
+	6. dyld::notifySingle()
+	7. load_images
+	8. call_load_methods
+	9. +[xxx load]
+	
+	```
 
 
 
@@ -108,3 +195,20 @@ Binding 是处理那些指向 dylib 外部的指针，它们实际上被符号�
 https://blog.csdn.net/A1553225534/article/details/104187054
 
 ###[关于DYLD,以及一些mach-o中的一些section的说明](http://www.newosxbook.com/articles/DYLD.html#footnote)
+
+###启动优化的文章
+
+[iOS App 启动优化 - 阿里云云栖号](https://baijiahao.baidu.com/s?id=1716928011037277248&wfr=spider&for=pc)
+
+[bind 过程懒加载符号以及非懒加载符号](https://blog.csdn.net/u011774517/article/details/117088565)
+
+[懒加载符号绑定过程](https://zhuanlan.zhihu.com/p/386785443)
+
+[MachO详解以及使用](https://juejin.cn/post/6844903910537166861)
+
+[iOS程序员的自我修养-MachO文件结构分析](https://juejin.cn/post/6844903912189722637)
+
+1. Category的方法覆盖检查
+2. 包瘦身,无用代码检查
+3. 代码覆盖率静态检查
+

@@ -1853,6 +1853,11 @@ nano_forked_zone(nanozone_t *nanozone)
 malloc_zone_t *
 nano_create_zone(malloc_zone_t *helper_zone, unsigned debug_flags)
 {
+	/*
+	 根据微信技术文章：https://cloud.tencent.com/developer/article/1031006
+	 得知
+	 申请小内存（小于256B）则从nanozone 中分配
+	 */
 	nanozone_t *nanozone;
 	int i, j;
 

@@ -307,11 +307,23 @@ void __malloc_init(const char *apple[])
 	mvm_aslr_init();
 }
 
+/*
+ 在
+ static szone_t *
+ create_and_insert_msl_lite_zone(const char *name,
+		 void *mallocp, void *callocp,
+		 void *vallocp, void *reallocp, void *batch_mallocp,
+		 void *batch_freep, void *memalignp, void *freep,
+		 void *free_definite_sizep, void *sizep)
+ {
+ 内创建
+ */
 MALLOC_NOEXPORT malloc_zone_t* lite_zone = NULL;
 
 MALLOC_ALWAYS_INLINE
 static inline malloc_zone_t *
 runtime_default_zone() {
+	//通常应该都是走inline_malloc_default_zone()
 	return (lite_zone) ? lite_zone : inline_malloc_default_zone();
 }
 
@@ -773,7 +785,20 @@ malloc_zone_register_while_locked(malloc_zone_t *zone)
 	//malloc_report(ASL_LEVEL_INFO, "Registered malloc_zone %p in malloc_zones %p [%u zones, %u bytes]\n", zone, malloc_zones,
 	// malloc_num_zones, protect_size);
 }
-
+/*
+ 调用栈如下
+ 1.  start
+ 2.  main
+ 3.  calloc
+ 4.  malloc_zone_calloc
+ 5.  default_zone_calloc
+ 6.  runtime_default_zone[inline]
+ 7.  inline_malloc_default_zone[inline]
+ 8.  _malloc_initialize_once
+ 9.  os_once
+ 10. os_once_callout
+ 11. _malloc_initialize
+ */
 // To be used in _malloc_initialize_once() only, call that function instead.
 static void _malloc_initialize(void *context __unused)
 {
@@ -829,6 +854,7 @@ static void _malloc_initialize(void *context __unused)
 	n = malloc_num_zones;// malloc_num_zones == 0
 
 #if CONFIG_NANOZONE
+	//nano 是小
 	nano_common_configure();
 	/*
 	 创建 malloc_zone_t， 在创建zone中调用mach底层接口从task的虚拟内存空间中分配虚拟内存
@@ -892,6 +918,7 @@ MALLOC_ALWAYS_INLINE
 static inline void
 _malloc_initialize_once(void)
 {
+	//类似dispatch_once功能，整个系统生命周期只调用一次_malloc_initialize()方法
 	os_once(&_malloc_initialize_pred, NULL, _malloc_initialize);
 }
 

@@ -544,6 +544,7 @@ thread_depress_abort_locked(thread_t thread)
  * Invoked as part of a polling operation like a no-timeout port receive
  *
  * Forces a fixpri thread to yield if it is detected polling without blocking for too long.
+ yield: .屈服，让步；放弃，让出；
  */
 void
 thread_poll_yield(thread_t self)
@@ -558,8 +559,7 @@ thread_poll_yield(thread_t self)
 	spl_t s = splsched();
 
 	uint64_t abstime = mach_absolute_time();
-	uint64_t total_computation = abstime -
-	    self->computation_epoch + self->computation_metered;
+	uint64_t total_computation = abstime - self->computation_epoch + self->computation_metered;
 
 	if (total_computation >= max_poll_computation) {
 		thread_lock(self);
@@ -567,11 +567,10 @@ thread_poll_yield(thread_t self)
 		self->computation_epoch   = abstime;
 		self->computation_metered = 0;
 
-		uint64_t yield_expiration = abstime +
-		    (total_computation >> sched_poll_yield_shift);
+		uint64_t yield_expiration = abstime + (total_computation >> sched_poll_yield_shift);
 
-		if (!timer_call_enter(&self->depress_timer, yield_expiration,
-		    TIMER_CALL_USER_CRITICAL)) {
+		if (!timer_call_enter(&self->depress_timer, yield_expiration, TIMER_CALL_USER_CRITICAL))
+        {
 			self->depress_timer_active++;
 		}
 

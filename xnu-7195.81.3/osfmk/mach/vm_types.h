@@ -92,6 +92,7 @@ __END_DECLS
 
 typedef struct pmap             *pmap_t;
 typedef struct _vm_map          *vm_map_t, *vm_map_read_t, *vm_map_inspect_t;
+//vm_object 定义在osfmk/vm/vm_object.h
 typedef struct vm_object        *vm_object_t;
 typedef struct vm_object_fault_info     *vm_object_fault_info_t;
 

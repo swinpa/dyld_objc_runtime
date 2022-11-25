@@ -2,7 +2,41 @@
 
 
 ```
-struct _class_t {
+
+struct ivar_t {
+    int32_t *offset;
+    const char *name;
+    const char *type;
+    // alignment is sometimes -1; use alignment() instead
+    uint32_t alignment_raw;
+    uint32_t size;
+    uint32_t alignment() const {
+        if (alignment_raw == ~(uint32_t)0) return 1U << WORD_SHIFT;
+        return 1 << alignment_raw;
+    }
+};
+
+
+struct class_ro_t {
+    uint32_t flags;
+    uint32_t instanceStart;
+    uint32_t instanceSize;
+#ifdef __LP64__
+    uint32_t reserved;
+#endif
+    union {
+        const uint8_t * ivarLayout;
+        Class nonMetaclass;
+    };
+    explicit_atomic<const char *> name;
+    void *baseMethodList;
+    protocol_list_t * baseProtocols;
+    const ivar_list_t * ivars;
+    const uint8_t * weakIvarLayout;
+    property_list_t *baseProperties;
+}
+
+struct _class_t {//编译期间类的形态
 	struct _class_t *isa;
 	struct _class_t *superclass;
 	void *cache;
@@ -24,6 +58,45 @@ struct objc_object {
 	private:
 	    isa_t isa;
 }
+
+union isa_t {
+    isa_t() { }
+    isa_t(uintptr_t value) : bits(value) { }
+    Class cls;
+    uintptr_t bits;
+#if defined(ISA_BITFIELD)
+    struct {
+        ISA_BITFIELD;  // defined in isa.h
+        /*
+         这不就相当于 isa bit field 吗？ 不就是 isa 中的 bits 这个成员变量 的个个段的意思吗？？
+         ISA_BITFIELD 这是宏定义，展开如下，就能看到有has_assoc 这字段
+         //不单纯的是指针，还包含了别的信息，如弱引用，引用计数等等
+         uintptr_t nonpointer        : 1;                                         \
+         //是否有关联对象
+         uintptr_t has_assoc         : 1;                                         \
+         //是否有C++析构函数
+         uintptr_t has_cxx_dtor      : 1;                                         \
+         //存储着class对象的内存地址信息 （存储在第3-35字节）存储类的指针，其实就是优化之前 isa 指向的内容。在arm64架构中有33位用来存储类指针。x86_64架构有44位。
+         uintptr_t shiftcls          : 44;                                        \
+         //用于在调试时分辨对象释放未完成初始化（存储在第36-41字节）：判断对象是否初始化完成， 是调试器判断当前对象是真的对象还是没有初始化的空间
+         uintptr_t magic             : 6;                                         \
+         //是否有被弱引用指向过
+         uintptr_t weakly_referenced : 1;                                         \
+         //是否正在释放
+         uintptr_t deallocating      : 1;                                         \
+         //
+         //引用计数器是否大过无法存储在ISA中，如果为1，
+         //那么引用计数会存储在一个叫sidetable的表中
+         //sidetable 是一个全局的，用来存放所有的类的引用计数，弱引用等属性的表
+         uintptr_t has_sidetable_rc  : 1;                                         \
+         //里面存储的值是弱引用计数器减1
+         uintptr_t extra_rc          : 8
+         */
+    };
+#endif
+};
+
+//运行期间类的形态
 struct objc_class : objc_object {
     // Class ISA;
     Class superclass;
@@ -66,6 +139,10 @@ struct class_rw_t {
 }
 ```
 ####class_rw_t中保存了方法methods
+
+* class_ro_t 是类最原始的形态，他包含了类所有的元素属性，如，baseMethodlist, baseProtocols, baseProperties，instanceSize,
+instanceStart, varlist等，class_rw_t 是class realize后的形态，他的methods包含了分类的方法列表的，他包含了一个class_ro_t *ro
+变量，而且该变量中的instanceSize,instanceStart是经过fixup的
 
 ```
 [Person drive];
@@ -149,6 +226,11 @@ objc_msgSend((id)obj, sel_registerName("doJob"));
      		
      6. 如果动态方法决议后也没找到方法imp，则进行消息转发
      7. 消息转发失败则崩溃
+     
+             消息转发流程
+             1. 调用forwardingTargetForSelector返回响应该消息的对象，
+             2. 如果forwardingTargetForSelector 返回nil 则调用methodSignatureForSelector返回NSMethodSignature
+             3. 如果methodSignatureForSelector 返回nil,则调用doesNotRecognizeSelector 触发异常
 
 
 	

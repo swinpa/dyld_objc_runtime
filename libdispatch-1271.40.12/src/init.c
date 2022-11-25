@@ -318,6 +318,12 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 	}
 //++++++++++++++++++++++++++++++++++++++++++++++++++++
 	/*
+	 #define DISPATCH_GLOBAL_OBJECT_HEADER(name) \
+		 .do_vtable = DISPATCH_VTABLE(name), \
+		 .do_ref_cnt = DISPATCH_OBJECT_GLOBAL_REFCNT, \
+		 .do_xref_cnt = DISPATCH_OBJECT_GLOBAL_REFCNT
+	 
+	 
 	 从这里才是数组的开始，前面是数组元素构造时用到的的宏定义
 	 DISPATCH_GLOBAL_OBJECT_HEADER(queue_global) 最终将会展开为_dispatch_queue_global_vtable
 	 
@@ -335,7 +341,6 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 	 );
 	 
 	 */
-	_dispatch_queue_global_vtable
 	
 	//_dispatch_root_queues[0]
 	_DISPATCH_ROOT_QUEUE_ENTRY(MAINTENANCE, 0,
@@ -766,7 +771,7 @@ DISPATCH_VTABLE_INSTANCE(workloop,
 	.dq_wakeup      = _dispatch_workloop_wakeup,
 	.dq_push        = _dispatch_workloop_push,
 );
-
+// 自己创建的串行队列
 DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_serial, lane,
 	.do_type        = DISPATCH_QUEUE_SERIAL_TYPE,
 	.do_dispose     = _dispatch_lane_dispose,
@@ -777,7 +782,7 @@ DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_serial, lane,
 	.dq_wakeup      = _dispatch_lane_wakeup,
 	.dq_push        = _dispatch_lane_push,
 );
-
+// 自己创建的并行队列
 DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_concurrent, lane,
 	.do_type        = DISPATCH_QUEUE_CONCURRENT_TYPE,
 	.do_dispose     = _dispatch_lane_dispose,
@@ -792,6 +797,7 @@ DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_concurrent, lane,
  _dispatch_queue_global_vtable 可以定位跳转到这里
  DISPATCH_VTABLE_SUBCLASS_INSTANCE看意思应该是定义一些实例变量
  
+ 全局队列
  */
 DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_global, lane,
 	.do_type        = DISPATCH_QUEUE_GLOBAL_ROOT_TYPE,
@@ -835,7 +841,7 @@ DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_mgr, lane,
 	.dq_wakeup      = _dispatch_mgr_queue_wakeup,
 	.dq_push        = _dispatch_mgr_queue_push,
 );
-
+//主队列
 DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_main, lane,
 	.do_type        = DISPATCH_QUEUE_MAIN_TYPE,
 	.do_dispose     = _dispatch_lane_dispose,

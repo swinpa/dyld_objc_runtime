@@ -720,6 +720,7 @@ _dispatch_workloop_set_observer_hooks_4IOHID(dispatch_workloop_t workloop,
 		dispatch_pthread_root_queue_observer_hooks_t observer_hooks);
 #endif // __APPLE__
 
+//-----------------------------------------------------------------
 #if DISPATCH_USE_PTHREAD_POOL
 typedef struct dispatch_pthread_root_queue_context_s {
 #if !defined(_WIN32)
@@ -729,6 +730,8 @@ typedef struct dispatch_pthread_root_queue_context_s {
 	struct dispatch_semaphore_s dpq_thread_mediator;
 	dispatch_pthread_root_queue_observer_hooks_s dpq_observer_hooks;
 } *dispatch_pthread_root_queue_context_t;
+//------------------------------------------------------------------
+
 #endif // DISPATCH_USE_PTHREAD_POOL
 
 #if DISPATCH_USE_PTHREAD_ROOT_QUEUES
@@ -1096,8 +1099,31 @@ dispatch_queue_attr_info_t _dispatch_queue_attr_to_info(dispatch_queue_attr_t);
 // The item is a channel item, not a continuation
 #define DC_FLAG_CHANNEL_ITEM			0x400ul
 
+
+/**
+ typedef struct dispatch_continuation_s {
+	 union {
+		 const void *__ptrauth_objc_isa_pointer do_vtable;
+		 uintptr_t dc_flags;
+	 };
+	 union {
+		 pthread_priority_t dc_priority;
+		 int dc_cache_cnt;
+		 uintptr_t dc_pad;
+	 };
+	 struct dispatch_continuation_s *volatile do_next;
+	 struct voucher_s *dc_voucher;
+	 dispatch_function_t dc_func;
+	 void *dc_ctxt; //dispatch_async()中的block参数
+	 void *dc_data;
+	 void *dc_other
+ 
+ } *dispatch_continuation_t;
+ */
 typedef struct dispatch_continuation_s {
+	//定义请往上看,展开类似上面的注释
 	DISPATCH_CONTINUATION_HEADER(continuation);
+	
 } *dispatch_continuation_t;
 
 dispatch_assert_aliases(dispatch_continuation_s, dispatch_object_s, do_next);
@@ -1110,6 +1136,7 @@ typedef struct dispatch_sync_context_s {
 	void *dsc_ctxt;
 	dispatch_thread_frame_s dsc_dtf;
 	dispatch_thread_event_s dsc_event;
+	///需要等待的线程
 	dispatch_tid dsc_waiter;
 	uint8_t dsc_override_qos_floor;
 	uint8_t dsc_override_qos;

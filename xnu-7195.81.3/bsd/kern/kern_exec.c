@@ -956,6 +956,70 @@ binary_match(cpu_type_t mask, cpu_type_t req_cpu,
 	return TRUE;
 }
 
+/*
+ image_params {} 定义在
+ xnu-7195.81.3/bsd/sys/imgact.h:struct
+ 
+ struct image_params {
+     user_addr_t     ip_user_fname;          // argument
+     user_addr_t     ip_user_argv;           // argument
+     user_addr_t     ip_user_envv;           // argument
+     int             ip_seg;                 // segment for arguments
+     struct vnode    *ip_vp;                 // file
+     struct vnode_attr       *ip_vattr;      // run file attributes
+     struct vnode_attr       *ip_origvattr;  // invocation file attributes
+     cpu_type_t      ip_origcputype;         // cputype of invocation file
+     cpu_subtype_t   ip_origcpusubtype;      // subtype of invocation file
+     char            *ip_vdata;              // file data (up to one page)
+     int             ip_flags;               // image flags
+     int             ip_argc;                // argument count
+     int             ip_envc;                // environment count
+     int             ip_applec;              // apple vector count
+
+     char            *ip_startargv;          // argument vector beginning
+     char            *ip_endargv;    // end of argv/start of envv
+     char            *ip_endenvv;    // end of envv/start of applev
+
+     char            *ip_strings;            // base address for strings
+     char            *ip_strendp;            // current end pointer
+
+     char            *ip_subsystem_root_path;        // filepath for the subsystem root
+
+     int             ip_argspace;    // remaining space of NCARGS limit (argv+envv)
+     int             ip_strspace;            // remaining total string space
+
+     user_size_t     ip_arch_offset;         // subfile offset in ip_vp
+     user_size_t     ip_arch_size;           // subfile length in ip_vp
+     char            ip_interp_buffer[IMG_SHSIZE];   // interpreter buffer space
+     int             ip_interp_sugid_fd;             // fd for sugid script
+
+     // Next two fields are for support of architecture translation...
+     struct vfs_context      *ip_vfs_context;        // VFS context
+     struct nameidata *ip_ndp;               // current nameidata
+     thread_t        ip_new_thread;          // thread for spawn/vfork
+
+     struct label    *ip_execlabelp;         // label of the executable
+     struct label    *ip_scriptlabelp;       // label of the script
+     struct vnode    *ip_scriptvp;           // script
+     unsigned int    ip_csflags;             // code signing flags
+     int             ip_mac_return;          // return code from mac policy checks
+     void            *ip_px_sa;
+     void            *ip_px_sfa;
+     void            *ip_px_spa;
+     void            *ip_px_smpx;            // MAC-specific spawn attrs.
+     void            *ip_px_persona;         // persona args
+     void            *ip_px_pcred_info;      // posix cred args
+     void            *ip_cs_error;           // codesigning error reason
+     char            *ip_inherited_shared_region_id;  // inherited shared region id for ptr auth
+
+     uint64_t ip_dyld_fsid;
+     uint64_t ip_dyld_fsobjid;
+     uint64_t ip_inherited_jop_pid;
+     unsigned int    ip_simulator_binary;    // simulator binary flags
+
+     ipc_port_t      ip_sc_port;             // SUID port.
+ };
+ */
 
 /*
  * exec_mach_imgact
@@ -980,9 +1044,9 @@ binary_match(cpu_type_t mask, cpu_type_t req_cpu,
  *
  * TODO:	More gracefully handle failures after vfork
  */
-static int
-exec_mach_imgact(struct image_params *imgp)
+static int exec_mach_imgact(struct image_params *imgp)
 {
+    //char            *ip_vdata;              // file data (up to one page)
 	struct mach_header *mach_header = (struct mach_header *)imgp->ip_vdata;
 	proc_t                  p = vfs_context_proc(imgp->ip_vfs_context);
 	int                     error = 0;
@@ -1007,6 +1071,7 @@ exec_mach_imgact(struct image_params *imgp)
 	 * treat them as if they were identical. Reverse-endian Mach-O
 	 * binaries are recognized but not compatible.
 	 */
+    //magic: 魔数, FAT文件(包含多个架构)为 0xcafebabe, armV7 是0xfeedface, arm64是0xfeedfacf
 	if ((mach_header->magic == MH_CIGAM) ||
 	    (mach_header->magic == MH_CIGAM_64)) {
 		error = EBADARCH;
@@ -1036,6 +1101,7 @@ exec_mach_imgact(struct image_params *imgp)
 		imgp->ip_origcpusubtype = mach_header->cpusubtype;
 	}
 
+    //这是父进程，父线程
 	task = current_task();
 	thread = current_thread();
 	uthread = get_bsdthread_info(thread);
@@ -1122,6 +1188,7 @@ grade:
 	 * new child process.
 	 */
 	if (vfexec) {
+        //创建进程
 		imgp->ip_new_thread = fork_create_child(task,
 		    NULL,
 		    p,
@@ -1156,6 +1223,7 @@ grade:
 
 	/*
 	 * Actually load the image file we previously decided to load.
+     * 真正去加载我们前面决定要加载的image文件
 	 */
 	lret = load_machfile(imgp, mach_header, thread, &map, &load_result);
 	if (lret != LOAD_SUCCESS) {

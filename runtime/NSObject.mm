@@ -854,12 +854,14 @@ class AutoreleasePoolPage
 #   define POOL_BOUNDARY nil
     static pthread_key_t const key = AUTORELEASE_POOL_KEY;
     static uint8_t const SCRIBBLE = 0xA3;  // 0xA3A3A3A3 after releasing
-    static size_t const SIZE = 
+    ///AutoreleasePoolPage的大小，值为PAGE_MAX_SIZE,4096个字节,其中56个字节用来存储自己的变量，剩下的4040个字节用来存储要释放的对象，也就是最多505个对象。
+    static size_t const SIZE =
 #if PROTECT_AUTORELEASEPOOL
         PAGE_MAX_SIZE;  // must be multiple of vm page size，大概是4096
 #else
         PAGE_MAX_SIZE;  // size and alignment, power of 2
 #endif
+    
     static size_t const COUNT = SIZE / sizeof(id);
 
     magic_t const magic;
@@ -956,6 +958,9 @@ class AutoreleasePoolPage
 
 
     id * begin() {
+        /*
+         能不能这样理解，next是位于第二个成员变量的位置，而第一个成员变量占的内存空间大小为
+         */
         return (id *) ((uint8_t *)this+sizeof(*this));
     }
 

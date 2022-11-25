@@ -25,6 +25,33 @@
    <Group
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
+      <FileRef
+         location = "group:&#x9ad8;&#x7ea7;&#x77e5;&#x8bc6;&#x70b9;.md">
+      </FileRef>
+      <FileRef
+         location = "group:&#x7ebf;&#x7a0b;.md">
+      </FileRef>
+      <FileRef
+         location = "group:&#x6027;&#x80fd;&#x4f18;&#x5316;-&#x6587;&#x6863;&#x7ffb;&#x8bd1;.md">
+      </FileRef>
+      <FileRef
+         location = "group:block.md">
+      </FileRef>
+      <FileRef
+         location = "group:GCD.md">
+      </FileRef>
+      <FileRef
+         location = "group:GCD&#x7c7b;.md">
+      </FileRef>
+      <FileRef
+         location = "group:mach-o">
+      </FileRef>
+      <FileRef
+         location = "group:mach-o.md">
+      </FileRef>
+      <FileRef
+         location = "group:rvm&#x3001;Ruby&#x3001;gem&#x3001;CocoaPods.md">
+      </FileRef>
       <Group
          location = "group:StudyNotes"
          name = "StudyNotes">

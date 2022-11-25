@@ -676,6 +676,10 @@ _dispatch_once_wait(dispatch_once_gate_t dgo)
 	uint32_t timeout = 1;
 
 	for (;;) {
+		/*
+		 os_atomic_rmw_loop用于从操作系统底层获取状态，使用 os_atomic_rmw_loop_give_up 来执行返回操作。
+		 即不停查询 &dgo->dgo_once 的值，若变为DLOCK_ONCE_DONE，则调用 os_atomic_rmw_loop_give_up(return); 退出等待。
+		 */
 		os_atomic_rmw_loop(&dgo->dgo_once, old_v, new_v, relaxed, {
 			if (likely(old_v == DLOCK_ONCE_DONE)) {
 				os_atomic_rmw_loop_give_up(return);

@@ -71,77 +71,68 @@ static inline void setupCompat()
 
 #endif
 
-static void
-SetValueForKey(NSObject *self, id anObject, const char *key, unsigned size)
+static void SetValueForKey(NSObject *self, id anObject, const char *key, unsigned size)
 {
-  SEL		sel = 0;
-  const char	*type = 0;
-  int		off = 0;
-
-  if (size > 0)
-    {
-      const char	*name;
-      char		buf[size + 6];
-      char		lo;
-      char		hi;
-
-      memcpy(buf, "_set", 4);
-      memcpy(&buf[4], key, size);
-      lo = buf[4];
-      hi = islower(lo) ? toupper(lo) : lo;
-      buf[4] = hi;
-      buf[size + 4] = ':';
-      buf[size + 5] = '\0';
-
-      name = &buf[1];	// setKey:
-      type = NULL;
-      sel = sel_getUid(name);
-      if (sel == 0 || [self respondsToSelector: sel] == NO)
-	{
-	  name = buf;	// _setKey:
-	  sel = sel_getUid(name);
-	  if (sel == 0 || [self respondsToSelector: sel] == NO)
-	    {
-	      sel = 0;
-	      if ([[self class] accessInstanceVariablesDirectly] == YES)
-		{
-		  buf[size + 4] = '\0';
-		  buf[3] = '_';
-		  buf[4] = lo;
-		  name = &buf[3];	// _key
-		  if (GSObjCFindVariable(self, name, &type, &size, &off) == NO)
-		    {
-		      buf[4] = hi;
-		      buf[3] = 's';
-		      buf[2] = 'i';
-		      buf[1] = '_';
-		      name = &buf[1];	// _isKey
-		      if (GSObjCFindVariable(self,
-			name, &type, &size, &off) == NO)
-			{
-			  buf[4] = lo;
-			  name = &buf[4];	// key
-			  if (GSObjCFindVariable(self,
-			    name, &type, &size, &off) == NO)
-			    {
-			      buf[4] = hi;
-			      buf[3] = 's';
-			      buf[2] = 'i';
-			      name = &buf[2];	// isKey
-			      GSObjCFindVariable(self,
-				name, &type, &size, &off);
-			    }
-			}
-		    }
-		}
-	    }
-	  else
-	    {
-	      GSOnceFLog(@"Key-value access using _setKey: is deprecated:");
-	    }
-	}
+    SEL		sel = 0;
+    const char	*type = 0;
+    int		off = 0;
+    if (size > 0) {
+        const char	*name;
+        char		buf[size + 6];//额外需要_set，':'，'\0' 这6个字符
+        char		lo;
+        char		hi;
+        memcpy(buf, "_set", 4);
+        memcpy(&buf[4], key, size);
+        lo = buf[4];
+        hi = islower(lo) ? toupper(lo) : lo;
+        buf[4] = hi;
+        buf[size + 4] = ':';
+        buf[size + 5] = '\0';
+        name = &buf[1];	// setKey:
+        type = NULL;
+        sel = sel_getUid(name);// sel == setKey:
+        if (sel == 0 || [self respondsToSelector: sel] == NO) {
+            // 如果不响应setKey方法，尝试带下划线的_setKey方法
+            name = buf;	// _setKey:
+            sel = sel_getUid(name); // sel == _setKey:
+            if (sel == 0 || [self respondsToSelector: sel] == NO) {
+                // 如果不响应_setKey方法
+                sel = 0;// 这里置空
+                if ([[self class] accessInstanceVariablesDirectly] == YES) {
+                    buf[size + 4] = '\0';
+                    buf[3] = '_';
+                    buf[4] = lo;
+                    name = &buf[3];	// _key
+                    /*
+                     查找对应变量var 的offset,赋值是直接同self + var_offset 进行赋值的
+                     也就是self + offset 就是var所在的内存空间
+                    */
+                    if (GSObjCFindVariable(self, name, &type, &size, &off) == NO)
+                    {
+                        buf[4] = hi;
+                        buf[3] = 's';
+                        buf[2] = 'i';
+                        buf[1] = '_';
+                        name = &buf[1];	// _isKey
+                        if (GSObjCFindVariable(self, name, &type, &size, &off) == NO) {
+                            buf[4] = lo;
+                            name = &buf[4];	// key
+                            if (GSObjCFindVariable(self, name, &type, &size, &off) == NO) {
+                                buf[4] = hi;
+                                buf[3] = 's';
+                                buf[2] = 'i';
+                                name = &buf[2];	// isKey
+                                GSObjCFindVariable(self, name, &type, &size, &off);
+                            }
+                        }
+                    }
+                }
+            }else{
+                GSOnceFLog(@"Key-value access using _setKey: is deprecated:");
+            }
+        }
     }
-  GSObjCSetVal(self, key, anObject, sel, type, size, off);
+    GSObjCSetVal(self, key, anObject, sel, type, size, off);
 }
 
 static id ValueForKey(NSObject *self, const char *key, unsigned size)
@@ -321,45 +312,47 @@ static id ValueForKey(NSObject *self, const char *key, unsigned size)
 - (void) setNilValueForKey: (NSString*)aKey
 {
 #ifdef WANT_DEPRECATED_KVC_COMPAT
-  static IMP	o = 0;
-
-  /* Backward compatibility hack */
-  if (o == 0)
-    {
-      o = [NSObject instanceMethodForSelector:
-	@selector(unableToSetNilForKey:)];
+    static IMP	o = 0;
+    /* Backward compatibility hack */
+    if (o == 0){
+        o = [NSObject instanceMethodForSelector:@selector(unableToSetNilForKey:)];
     }
-  if ([self methodForSelector: @selector(unableToSetNilForKey:)] != o)
-    {
-      [self unableToSetNilForKey: aKey];
-      return;
+    if ([self methodForSelector: @selector(unableToSetNilForKey:)] != o){
+        [self unableToSetNilForKey: aKey];
+        return;
     }
 #endif
-  [NSException raise: NSInvalidArgumentException
-    format: @"%@ -- %@ 0x%"PRIxPTR": Given nil value to set for key \"%@\"",
-    NSStringFromSelector(_cmd), NSStringFromClass([self class]),
-    (NSUInteger)self, aKey];
+    [NSException raise: NSInvalidArgumentException
+                format: @"%@ -- %@ 0x%"PRIxPTR": Given nil value to set for key \"%@\"",
+                NSStringFromSelector(_cmd),
+                NSStringFromClass([self class]),
+                (NSUInteger)self, aKey];
 }
 
-
+/**
+ 1. 首先会通过respondsToSelector判断aKey对应的setter方法是否响应，找到了就调用方法赋值并返回
+ 2. 如果找不到会去找 带下划线的 setter 方法。找到了就调用方法赋值并返回
+ 2. 如果都找不到，则会看 +(BOOL)accessInstanceVariablesDirectly 方法中的返回（默认为 YES） 。
+    a. 返回 YES 时：会按照 _key、_isKey、key、isKey 的顺序找属性赋值，如果类中没有上面的这些属性则会调用 -(void)setValue:(id)value forUndefinedKey:(NSString *)key 方法
+      (自己简单实现一下比如打个 NSLog()，否则报错)；
+ 
+    b. 返回 NO 时：会直接调用 -(void)setValue:(id)value forUndefinedKey 方法 。
+ */
 - (void) setValue: (id)anObject forKey: (NSString*)aKey
 {
   unsigned	size = [aKey length] * 8;
   char		key[size + 1];
 #ifdef WANT_DEPRECATED_KVC_COMPAT
   IMP   	o = [self methodForSelector: @selector(takeValue:forKey:)];
-
   setupCompat();
   if (o != takeValue && o != takeValueKVO)
-    {
+  {
       (*o)(self, @selector(takeValue:forKey:), anObject, aKey);
       return;
-    }
+  }
 #endif
 
-  [aKey getCString: key
-	 maxLength: size + 1
-	  encoding: NSUTF8StringEncoding];
+  [aKey getCString: key maxLength: size + 1 encoding: NSUTF8StringEncoding];
   size = strlen(key);
   SetValueForKey(self, anObject, key, size);
 }
@@ -395,32 +388,28 @@ static id ValueForKey(NSObject *self, const char *key, unsigned size)
 
 - (void) setValue: (id)anObject forUndefinedKey: (NSString*)aKey
 {
-  NSDictionary	*dict;
-  NSException	*exp; 
+    NSDictionary	*dict;
+    NSException	*exp;
 #ifdef WANT_DEPRECATED_KVC_COMPAT
-  static IMP	o = 0;
-
-  /* Backward compatibility hack */
-  if (o == 0)
-    {
-      o = [NSObject instanceMethodForSelector:
-	@selector(handleTakeValue:forUnboundKey:)];
+    static IMP	o = 0;
+    /* Backward compatibility hack */
+    if (o == 0){
+        o = [NSObject instanceMethodForSelector: @selector(handleTakeValue:forUnboundKey:)];
     }
-  if ([self methodForSelector: @selector(handleTakeValue:forUnboundKey:)] != o)
-    {
-      [self handleTakeValue: anObject forUnboundKey: aKey];
-      return;
+    if ([self methodForSelector: @selector(handleTakeValue:forUnboundKey:)] != o){
+        [self handleTakeValue: anObject forUnboundKey: aKey];
+        return;
     }
 #endif
-
-  dict = [NSDictionary dictionaryWithObjectsAndKeys:
-    (anObject ? (id)anObject : (id)@"(nil)"), @"NSTargetObjectUserInfoKey",
-    (aKey ? (id)aKey : (id)@"(nil)"), @"NSUnknownUserInfoKey",
-    nil];
-  exp = [NSException exceptionWithName: NSUndefinedKeyException
-				reason: @"Unable to set value for undefined key"
-			      userInfo: dict];
-  [exp raise];
+    dict = [NSDictionary dictionaryWithObjectsAndKeys:
+                (anObject ? (id)anObject : (id)@"(nil)"), @"NSTargetObjectUserInfoKey",
+                (aKey ? (id)aKey : (id)@"(nil)"), @"NSUnknownUserInfoKey",
+                nil
+            ];
+    exp = [NSException exceptionWithName: NSUndefinedKeyException
+                                  reason: @"Unable to set value for undefined key"
+                                userInfo: dict];
+    [exp raise];
 }
 
 

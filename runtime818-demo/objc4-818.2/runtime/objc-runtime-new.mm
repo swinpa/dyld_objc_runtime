@@ -1415,13 +1415,26 @@ attachCategories(Class cls, const locstamped_category_t *cats_list, uint32_t cat
     for (uint32_t i = 0; i < cats_count; i++) {
         auto& entry = cats_list[i];
 
+        //获取分类中的方法列表
         method_list_t *mlist = entry.cat->methodsForMeta(isMeta);
         if (mlist) {
             if (mcount == ATTACH_BUFSIZ) {
+                //如果分类方法列表mlists已经满了，则先将mlists中的方法添加到methods的前面
                 prepareMethodLists(cls, mlists, mcount, NO, fromBundle, __func__);
                 rwe->methods.attachLists(mlists, mcount);
                 mcount = 0;
             }
+            /*
+             将分类的方法列表放到一个列表数组(mlists)中
+             先编译的分类方法列表会被存放到列表数组(mlists)的后面，这样就是后编译的分类的方法会被调用的原因
+             mlists = [
+                //分类A的方法列表
+                [catA_func1, catA_func2, catA_func3, catA_func4],
+                //分类B的方法列表
+                [catB_func1, catB_func2, catB_func3, catB_func4],
+                []
+             ]
+             */
             mlists[ATTACH_BUFSIZ - ++mcount] = mlist;
             fromBundle |= entry.hi->isBundle();
         }

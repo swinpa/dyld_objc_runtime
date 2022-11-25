@@ -900,6 +900,7 @@ dispatch_async(dispatch_queue_t dq, dispatch_block_t work)
 	qos = _dispatch_continuation_init(dc, dq, work, 0, dc_flags);
 	
 	//将work push 到queue的_os_obj_vtable 中
+	//static inline void _dispatch_continuation_async(dispatch_queue_class_t dqu
 	_dispatch_continuation_async(dq, dc, qos, dc->dc_flags);
 }
 #endif
@@ -1060,6 +1061,9 @@ _dispatch_lane_barrier_sync_invoke_and_complete(dispatch_lane_t dq,
 {
 	_dispatch_sync_function_invoke_inline(dq, ctxt, func);
 	_dispatch_trace_item_complete(dc);
+	/*
+	 如果队列没有任务在执行，或者队列是并行队列
+	 */
 	if (unlikely(dq->dq_items_tail || dq->dq_width > 1)) {
 		return _dispatch_lane_barrier_complete(dq, 0, 0);
 	}
@@ -1511,6 +1515,10 @@ _dispatch_lane_barrier_complete(dispatch_lane_class_t dqu, dispatch_qos_t qos,
 	dispatch_queue_wakeup_target_t target = DISPATCH_QUEUE_WAKEUP_NONE;
 	dispatch_lane_t dq = dqu._dl;
 
+	/*
+	 #define DISPATCH_QUEUE_IS_SUSPENDED(x) \
+			 _dq_state_is_suspended(os_atomic_load2o(x, dq_state, relaxed))
+	 */
 	if (dq->dq_items_tail && !DISPATCH_QUEUE_IS_SUSPENDED(dq)) {
 		struct dispatch_object_s *dc = _dispatch_queue_get_head(dq);
 		if (likely(dq->dq_width == 1 || _dispatch_object_is_barrier(dc))) {
@@ -1571,6 +1579,24 @@ _dispatch_wait_prepare(dispatch_queue_t dq)
 {
 	uint64_t old_state, new_state;
 
+	/*
+	 #define os_atomic_rmw_loop2o(p, f, ov, nv, m, ...) \
+			 os_atomic_rmw_loop(&(p)->f, ov, nv, m, __VA_ARGS__)
+	 
+	 
+	 #define os_atomic_rmw_loop(p, ov, nv, m, ...)  ({ \
+			 bool _result = false; \
+			 __typeof__(p) _p = (p); \
+			 ov = os_atomic_load(_p, relaxed); \
+			 do { \
+				 __VA_ARGS__; \
+				 _result = os_atomic_cmpxchgvw(_p, ov, nv, &ov, m); \
+			 } while (unlikely(!_result)); \
+			 _result; \
+		 })
+
+	 */
+	
 	os_atomic_rmw_loop2o(dq, dq_state, old_state, new_state, relaxed, {
 		if (_dq_state_is_suspended(old_state) ||
 				!_dq_state_is_base_wlh(old_state) ||
@@ -1623,7 +1649,13 @@ static void
 __DISPATCH_WAIT_FOR_QUEUE__(dispatch_sync_context_t dsc, dispatch_queue_t dq)
 {
 	uint64_t dq_state = _dispatch_wait_prepare(dq);
+	
+	//判断目标队列的lock owner（是不是线程）与等待队列任务完成的线程是否是相同的，如果是相同的则抛出异常
 	if (unlikely(_dq_state_drain_locked_by(dq_state, dsc->dsc_waiter))) {
+		/*
+		 unlikely(不一样) 看起来有点别扭
+		 unlikely(a,b) == true
+		 */
 		DISPATCH_CLIENT_CRASH((uintptr_t)dq_state,
 				"dispatch_sync called on queue "
 				"already owned by current thread");
@@ -1651,8 +1683,20 @@ __DISPATCH_WAIT_FOR_QUEUE__(dispatch_sync_context_t dsc, dispatch_queue_t dq)
 				(uint8_t)_dispatch_get_basepri_override_qos_floor();
 		_dispatch_thread_event_init(&dsc->dsc_event);
 	}
+	//这是表示进入队列吗
 	dx_push(dq, dsc, _dispatch_qos_from_pp(dsc->dc_priority));
+	
+	/*
+	 在这里等待队列？
+	 #define _dispatch_trace_runtime_event(evt, ptr, value) \
+			 _dispatch_introspection_runtime_event(dispatch_introspection_runtime_event_##evt, ptr, value)
+	 
+	 展开后下面会是
+
+	 _dispatch_introspection_runtime_event(dispatch_introspection_runtime_event_sync_wait,dq,0)
+	 */
 	_dispatch_trace_runtime_event(sync_wait, dq, 0);
+	
 	if (dsc->dc_data == DISPATCH_WLH_ANON) {
 		_dispatch_thread_event_wait(&dsc->dsc_event); // acquire
 	} else if (!dsc->dsc_wlh_self_wakeup) {
@@ -1713,10 +1757,14 @@ _dispatch_barrier_trysync_or_async_f(dispatch_lane_t dq, void *ctxt,
 
 DISPATCH_NOINLINE
 static void
-_dispatch_sync_f_slow(dispatch_queue_class_t top_dqu, void *ctxt,
-		dispatch_function_t func, uintptr_t top_dc_flags,
-		dispatch_queue_class_t dqu, uintptr_t dc_flags)
+_dispatch_sync_f_slow(dispatch_queue_class_t top_dqu,
+					  void *ctxt,
+					  dispatch_function_t func,
+					  uintptr_t top_dc_flags,
+					  dispatch_queue_class_t dqu,
+					  uintptr_t dc_flags)
 {
+	//从外部传参来看top_dqu 跟 dqu是一样的
 	dispatch_queue_t top_dq = top_dqu._dq;
 	dispatch_queue_t dq = dqu._dq;
 	if (unlikely(!dq->do_targetq)) {
@@ -1724,6 +1772,30 @@ _dispatch_sync_f_slow(dispatch_queue_class_t top_dqu, void *ctxt,
 	}
 
 	pthread_priority_t pp = _dispatch_get_priority();
+	
+	/*
+	 typedef struct dispatch_sync_context_s {
+		 struct dispatch_continuation_s _as_dc[0];
+		 DISPATCH_CONTINUATION_HEADER(continuation);
+		 dispatch_function_t dsc_func;
+		 void *dsc_ctxt;
+		 dispatch_thread_frame_s dsc_dtf;
+		 dispatch_thread_event_s dsc_event;
+		 
+		 dispatch_tid dsc_waiter;//typedef mach_port_t dispatch_tid;
+		
+		 uint8_t dsc_override_qos_floor;
+		 uint8_t dsc_override_qos;
+		 uint16_t dsc_autorelease : 2;
+		 uint16_t dsc_wlh_was_first : 1;
+		 uint16_t dsc_wlh_self_wakeup : 1;
+		 uint16_t dsc_wlh_is_workloop : 1;
+		 uint16_t dsc_waiter_needs_cancel : 1;
+		 uint16_t dsc_release_storage : 1;
+		 uint16_t dsc_from_async : 1;
+	 } *dispatch_sync_context_t;
+	 */
+	
 	struct dispatch_sync_context_s dsc = {
 		.dc_flags    = DC_FLAG_SYNC_WAITER | dc_flags,
 		.dc_func     = _dispatch_async_and_wait_invoke,
@@ -1733,10 +1805,16 @@ _dispatch_sync_f_slow(dispatch_queue_class_t top_dqu, void *ctxt,
 		.dc_voucher  = _voucher_get(),
 		.dsc_func    = func,
 		.dsc_ctxt    = ctxt,
-		.dsc_waiter  = _dispatch_tid_self(),
+		.dsc_waiter  = _dispatch_tid_self(),//等待线程，意思是不是可以当做是正在等待队列中的任务执行结束的线程
 	};
 
+	//#define _dispatch_tid_self()		((dispatch_tid)(_dispatch_get_tsd_base()->tid << 2))
+	//#define _dispatch_tid_self()		((dispatch_tid)_dispatch_thread_port())
+	//#define _dispatch_thread_port() pthread_mach_thread_np(_dispatch_thread_self())
+	
 	_dispatch_trace_item_push(top_dq, &dsc);
+	
+	//
 	__DISPATCH_WAIT_FOR_QUEUE__(&dsc, dq);
 
 	if (dsc.dsc_func == NULL) {
@@ -1812,7 +1890,16 @@ static inline void _dispatch_barrier_sync_f_inline(dispatch_queue_t dq,
 	//
 	// Global concurrent queues and queues bound to non-dispatch threads
 	// always fall into the slow case, see DISPATCH_ROOT_QUEUE_STATE_INIT_VALUE
+	
 	if (unlikely(!_dispatch_queue_try_acquire_barrier_sync(dl, tid))) {
+		
+		/*
+		 全局并发队列和绑定到非分派线程的队列总是处于缓慢的情况
+		 所以以下情况不会进入该条件
+		 dispatch_sync(dispatch_get_main_queue(), ^{})
+		 
+		 */
+		
 		return _dispatch_sync_f_slow(dl, ctxt, func, DC_FLAG_BARRIER, dl,
 				DC_FLAG_BARRIER | dc_flags);
 	}
@@ -1821,7 +1908,11 @@ static inline void _dispatch_barrier_sync_f_inline(dispatch_queue_t dq,
 		return _dispatch_sync_recurse(dl, ctxt, func,
 				DC_FLAG_BARRIER | dc_flags);
 	}
+	/*
+	 自省，加锁
+	 */
 	_dispatch_introspection_sync_begin(dl);
+	//
 	_dispatch_lane_barrier_sync_invoke_and_complete(dl, ctxt, func
 			DISPATCH_TRACE_ARG(_dispatch_trace_item_sync_push_pop(
 					dq, ctxt, func, dc_flags | DC_FLAG_BARRIER)));
@@ -1856,8 +1947,16 @@ DISPATCH_ALWAYS_INLINE
 	 //32bit hole on LP64
  } DISPATCH_ATOMIC64_ALIGN;
  */
-static inline void _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
-		dispatch_function_t func, uintptr_t dc_flags)
+
+/// <#Description#>
+/// @param dq dispatch_sync(dispatch_queue_t dq, dispatch_block_t work) 中的dq
+/// @param ctxt dispatch_sync(dispatch_queue_t dq, dispatch_block_t work)中的block
+/// @param func dispatch_sync(dispatch_queue_t dq, dispatch_block_t work) 中的block内的函数指针
+/// @param dc_flags <#dc_flags description#>
+static inline void _dispatch_sync_f_inline(dispatch_queue_t dq,
+										   void *ctxt,
+										   dispatch_function_t func,
+										   uintptr_t dc_flags)
 {
 	if (likely(dq->dq_width == 1)) {
 		/*
@@ -1871,6 +1970,12 @@ static inline void _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 		DISPATCH_CLIENT_CRASH(0, "Queue type doesn't support dispatch_sync");
 	}
 
+	/*
+	 static inline dispatch_object_t upcast(dispatch_object_t dou)
+	 {
+		 return dou;
+	 }
+	 */
 	dispatch_lane_t dl = upcast(dq)._dl;/* == dispatch_object_t._dl
 										 dispatch_object_t 又是啥？?
 										 
@@ -1889,12 +1994,35 @@ static inline void _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 											 struct dispatch_semaphore_s *_dsema;
 											 struct dispatch_data_s *_ddata;
 											 struct dispatch_io_s *_dchannel;
+
+											 struct dispatch_continuation_s *_dc;
+											 struct dispatch_sync_context_s *_dsc;
+											 struct dispatch_operation_s *_doperation;
+											 struct dispatch_disk_s *_ddisk;
+											 struct dispatch_workloop_s *_dwl;
+										 
+											 struct dispatch_lane_s *_dl;
+										 
+											 struct dispatch_queue_static_s *_dsq;
+											 struct dispatch_queue_global_s *_dgq;
+											 struct dispatch_queue_pthread_root_s *_dpq;
+											 dispatch_queue_class_t _dqu;
+											 dispatch_lane_class_t _dlu;
+											 uintptr_t _do_value;
 										 } dispatch_object_t DISPATCH_TRANSPARENT_UNION;
 										 
 										 */
 	// Global concurrent queues and queues bound to non-dispatch threads
 	// always fall into the slow case, see DISPATCH_ROOT_QUEUE_STATE_INIT_VALUE
 	if (unlikely(!_dispatch_queue_try_reserve_sync_width(dl))) {
+		/*
+		 viewDidLoad {
+			 dispatch_sync(dispatch_get_main_queue(), ^{
+				 NSLog(@"%@ 任务:",[NSThread currentThread]);
+			 });
+		 }
+		 从崩溃栈看，似乎是在这里进入
+		 */
 		return _dispatch_sync_f_slow(dl, ctxt, func, 0, dl, dc_flags);
 	}
 
@@ -1909,15 +2037,16 @@ static inline void _dispatch_sync_f_inline(dispatch_queue_t dq, void *ctxt,
 		return _dispatch_sync_recurse(dl, ctxt, func, dc_flags);
 	}
 	_dispatch_introspection_sync_begin(dl);
-	_dispatch_sync_invoke_and_complete(dl, ctxt, func DISPATCH_TRACE_ARG(
-			_dispatch_trace_item_sync_push_pop(dq, ctxt, func, dc_flags)));
+	_dispatch_sync_invoke_and_complete(dl, ctxt,
+									   func DISPATCH_TRACE_ARG(_dispatch_trace_item_sync_push_pop(dq, ctxt, func, dc_flags))
+									   );
 }
 
 DISPATCH_NOINLINE
 
 /// <#Description#>
 /// @param dq 队列
-/// @param ctxt block 参数
+/// @param ctxt dispatch_sync(dispatch_queue_t dq, dispatch_block_t work) 中的work参数，也就是block
 /// @param func block对象中的函数指针
 /// @param dc_flags 用来标识func参数的来源(是来自于block对象中的函数指针还是其他地方)
 static void _dispatch_sync_f(dispatch_queue_t dq, void *ctxt, dispatch_function_t func,
@@ -1988,12 +2117,32 @@ dispatch_sync(dispatch_queue_t dq, dispatch_block_t work)
 {
 	uintptr_t dc_flags = DC_FLAG_BLOCK;
 	/*
-	 判断block类型 是否为_dispatch_block_special_invoke？
+	 判断block中的函数指针是否为_dispatch_block_special_invoke
+	 _dispatch_block_special_invoke 可能是一个全局的静态函数
 	 通过获取block内存布局（Block_layout），也就是block对象中的函数指针来判断
+	 _dispatch_block_has_private_data(const dispatch_block_t block) {
+		  //#define _dispatch_Block_invoke(bb) ((dispatch_function_t)((struct Block_layout *)bb)->invoke)
+		 return (_dispatch_Block_invoke(block) == _dispatch_block_special_invoke);
+	 }
 	 */
 	if (unlikely(_dispatch_block_has_private_data(work))) {
 		return _dispatch_sync_block_with_privdata(dq, work, dc_flags);
 	}
+	/*
+	 
+	 struct Block_layout {
+		 void *isa;
+		 volatile int32_t flags; // contains ref count
+		 int32_t reserved;
+		 BlockInvokeFunction invoke;
+		 struct Block_descriptor_1 *descriptor;
+		 // imported variables
+	 };
+	 
+	 _dispatch_Block_invoke(work)
+	 #define _dispatch_Block_invoke(bb) ((dispatch_function_t)((struct Block_layout *)bb)->invoke)
+	 获取到Block_layout的静态函数指针invoke
+	 */
 	_dispatch_sync_f(dq, work, _dispatch_Block_invoke(work), dc_flags);
 }
 #endif // __BLOCKS__
@@ -2755,14 +2904,17 @@ _dispatch_queue_priority_inherit_from_target(dispatch_lane_class_t dq,
 	return tq;
 }
 
-
-DISPATCH_NOINLINE
-static dispatch_queue_t
-_dispatch_lane_create_with_target(const char *label,
-								  dispatch_queue_attr_t dqa,
-								  dispatch_queue_t tq,
-								  bool legacy)
+/// <#Description#>
+/// @param label “字符串参数”
+/// @param dqa 串行还是并行 DISPATCH_QUEUE_SERIAL
+/// @param tq 目标queue，默认为null
+/// @param legacy 默认为true
+DISPATCH_NOINLINE static dispatch_queue_t _dispatch_lane_create_with_target(const char *label,
+								  dispatch_queue_attr_t dqa,//串行还是并行，串行是null
+								  dispatch_queue_t tq,//目标queue，默认为null
+								  bool legacy)、、
 {
+	//dqa为DISPATCH_QUEUE_SERIAL（NULL）时，_dispatch_queue_attr_to_info直接返回dqa
 	dispatch_queue_attr_info_t dqai = _dispatch_queue_attr_to_info(dqa);
 
 	//
@@ -2779,6 +2931,10 @@ _dispatch_lane_create_with_target(const char *label,
 	}
 #endif // !HAVE_PTHREAD_WORKQUEUE_QOS
 
+	/*
+	 overcommit 的值应该是_dispatch_queue_attr_overcommit_unspecified，因为
+	 dqai一般都是null
+	 */
 	_dispatch_queue_attr_overcommit_t overcommit = dqai.dqai_overcommit;
 	if (overcommit != _dispatch_queue_attr_overcommit_unspecified && tq) {
 		if (tq->do_targetq) {
@@ -2808,8 +2964,15 @@ _dispatch_lane_create_with_target(const char *label,
 					"and use this kind of target queue");
 		}
 	} else {
+		/*
+		 一般走这里，因为tq参数在
+		 dispatch_queue_create内部调用_dispatch_lane_create_with_target函数时传了null
+		 */
 		if (overcommit == _dispatch_queue_attr_overcommit_unspecified) {
 			// Serial queues default to overcommit!
+			/*
+			 设置overcommit的值为_dispatch_queue_attr_overcommit_enabled
+			 */
 			overcommit = dqai.dqai_concurrent ?
 					_dispatch_queue_attr_overcommit_disabled :
 					_dispatch_queue_attr_overcommit_enabled;
@@ -2831,6 +2994,7 @@ _dispatch_lane_create_with_target(const char *label,
 	if (legacy) {
 		// if any of these attributes is specified, use non legacy classes
 		if (dqai.dqai_inactive || dqai.dqai_autorelease_frequency) {
+			//默认不会进入这里，因为dqai默认值为null
 			legacy = false;
 		}
 	}
@@ -2840,6 +3004,10 @@ _dispatch_lane_create_with_target(const char *label,
 	if (dqai.dqai_concurrent) {
 		vtable = DISPATCH_VTABLE(queue_concurrent);
 	} else {
+		/*
+		 宏展开后变成
+		 _dispatch_queue_serial_vtable
+		 */
 		vtable = DISPATCH_VTABLE(queue_serial);
 	}
 	switch (dqai.dqai_autorelease_frequency) {
@@ -2878,8 +3046,15 @@ _dispatch_lane_create_with_target(const char *label,
 		_dispatch_lane_inherit_wlh_from_target(dq, tq);
 	}
 	_dispatch_retain(tq);
-	dq->do_targetq = tq;// 目标队列，GCD允许我们将一个队列放在另一个队列里执行任务
+	/*
+	 目标队列，GCD允许我们将一个队列放在另一个队列里执行任务,
+	 但通过dispatch_queue_create创建时tq都是null
+	 */
+	dq->do_targetq = tq;
 	_dispatch_object_debug(dq, "%s", __func__);
+	/*
+	 
+	 */
 	return _dispatch_trace_queue_create(dq)._dq;
 }
 
@@ -2902,6 +3077,7 @@ dispatch_queue_create_with_target(const char *label, dispatch_queue_attr_t dqa,
  */
 dispatch_queue_t dispatch_queue_create(const char *label, dispatch_queue_attr_t attr)
 {
+	
 	return _dispatch_lane_create_with_target(label, attr,
 			DISPATCH_TARGET_QUEUE_DEFAULT, true);
 }
@@ -6378,7 +6554,7 @@ _dispatch_debug_root_queue(dispatch_queue_class_t dqu, const char *str)
 
 DISPATCH_NOINLINE
 static void
-_dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
+_dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)//n == 1, floor = 0
 {
 	int remaining = n;
 #if !defined(_WIN32)
@@ -6393,7 +6569,21 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 #if !DISPATCH_USE_INTERNAL_WORKQUEUE
 #if DISPATCH_USE_PTHREAD_ROOT_QUEUES
 	// 如果dq的type是DISPATCH_QUEUE_GLOBAL_ROOT_TYPE类型
-	if (dx_type(dq) == DISPATCH_QUEUE_GLOBAL_ROOT_TYPE)
+	/*
+	 全局队列创建，初始化时指定了do_type
+	 DISPATCH_VTABLE_SUBCLASS_INSTANCE(queue_global, lane,
+			 .do_type        = DISPATCH_QUEUE_GLOBAL_ROOT_TYPE,
+			 .do_dispose     = _dispatch_object_no_dispose,
+			 .do_debug       = _dispatch_queue_debug,
+			 .do_invoke      = _dispatch_object_no_invoke,
+			 .dq_activate    = _dispatch_queue_no_activate,
+			 .dq_wakeup      = _dispatch_root_queue_wakeup,
+			 //将block添加到队列queue时需要调用的接口
+			 .dq_push        = _dispatch_root_queue_push,
+		 );
+	 判断 dq->do_vtable->_os_obj_vtable->do_type  ===  DISPATCH_QUEUE_GLOBAL_ROOT_TYPE
+	 */
+	if (dx_type(dq) == DISPATCH_QUEUE_GLOBAL_ROOT_TYPE)//全局队列global_queue的情况
 #endif
 	{
 		_dispatch_root_queue_debug("requesting new worker thread for global "
@@ -6402,19 +6592,77 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 		 这里创建线程
 		 直接往工作队列添加线程
 		 */
-		r = _pthread_workqueue_addthreads(remaining,
-				_dispatch_priority_to_pp_prefer_fallback(dq->dq_priority));
+		r = _pthread_workqueue_addthreads(remaining,_dispatch_priority_to_pp_prefer_fallback(dq->dq_priority));
 		(void)dispatch_assume_zero(r);
 		return;
 	}
 #endif // !DISPATCH_USE_INTERNAL_WORKQUEUE
-#if DISPATCH_USE_PTHREAD_POOL
+	
+#if DISPATCH_USE_PTHREAD_POOL //使用线程池
+	
+	
+	/*
+	 dq->do_ctxt 在queue初始化的时候进行了赋值
+	 
+	 #define _DISPATCH_ROOT_QUEUE_ENTRY(n, flags, ...) \
+		 [_DISPATCH_ROOT_QUEUE_IDX(n, flags)] = { \
+			 DISPATCH_GLOBAL_OBJECT_HEADER(queue_global), \
+			 .dq_state = DISPATCH_ROOT_QUEUE_STATE_INIT_VALUE, \
+			 .do_ctxt = _dispatch_root_queue_ctxt(_DISPATCH_ROOT_QUEUE_IDX(n, flags)), \
+			 .dq_atomic_flags = DQF_WIDTH(DISPATCH_QUEUE_WIDTH_POOL), \
+			 .dq_priority = flags | ((flags & DISPATCH_PRIORITY_FLAG_FALLBACK) ? \
+					 _dispatch_priority_make_fallback(DISPATCH_QOS_##n) : \
+					 _dispatch_priority_make(DISPATCH_QOS_##n, 0)), \
+			 __VA_ARGS__ \
+		 }
+	 
+		所以do_ctxt应该是下面的类型
+		 //-----------------------------------------------------------------
+		 #if DISPATCH_USE_PTHREAD_POOL
+		 typedef struct dispatch_pthread_root_queue_context_s {
+		 #if !defined(_WIN32)
+			 pthread_attr_t dpq_thread_attr;
+		 #endif
+			 dispatch_block_t dpq_thread_configure;
+			 struct dispatch_semaphore_s dpq_thread_mediator;
+			 dispatch_pthread_root_queue_observer_hooks_s dpq_observer_hooks;
+		 } *dispatch_pthread_root_queue_context_t;
+		 //------------------------------------------------------------------
+
+		 struct dispatch_semaphore_s {
+			 DISPATCH_OBJECT_HEADER(semaphore);
+			 intptr_t volatile dsema_value;
+			 intptr_t dsema_orig;
+			 _dispatch_sema4_t dsema_sema;
+		 };
+
+		 #define OS_OBJECT_STRUCT_HEADER(x) \
+			 _OS_OBJECT_HEADER(\
+			 const struct x##_vtable_s *__ptrauth_objc_isa_pointer do_vtable, \
+			 do_ref_cnt, \
+			 do_xref_cnt)
+		 #endif
+
+		 #define _DISPATCH_OBJECT_HEADER(x) \
+			 struct _os_object_s _as_os_obj[0]; \
+			 OS_OBJECT_STRUCT_HEADER(dispatch_##x); \
+			 struct dispatch_##x##_s *volatile do_next; \
+			 struct dispatch_queue_s *do_targetq; \
+			 void *do_ctxt; \
+			 union { \
+				 dispatch_function_t DISPATCH_FUNCTION_POINTER do_finalizer; \
+				 void *do_introspection_ctxt; \
+			 }
+	 
+	 */
+	
 	dispatch_pthread_root_queue_context_t pqc = dq->do_ctxt;
+	
 	if (likely(pqc->dpq_thread_mediator.do_vtable)) {
+		//唤醒remaining条睡眠的线程起来
 		while (dispatch_semaphore_signal(&pqc->dpq_thread_mediator)) {
-			_dispatch_root_queue_debug("signaled sleeping worker for "
-					"global queue: %p", dq);
-			if (!--remaining) {
+			_dispatch_root_queue_debug("signaled sleeping worker for " "global queue: %p", dq);
+			if (!--remaining) {//需要的线程都唤醒后就可以返回了，线程内从队列中获取block执行
 				return;
 			}
 		}
@@ -6425,6 +6673,7 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 		os_atomic_add2o(dq, dgq_pending, remaining, relaxed);
 	} else {
 		if (!os_atomic_cmpxchg2o(dq, dgq_pending, 0, remaining, relaxed)) {
+			//pending adj. 待决的，待定的，待处理的；
 			_dispatch_root_queue_debug("worker thread request still pending for "
 					"global queue: %p", dq);
 			return;
@@ -6456,6 +6705,9 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 		}
 	} while (!os_atomic_cmpxchgv2o(dq, dgq_thread_pool_size, t_count,t_count - remaining, &t_count, acquire));
 
+	
+
+
 #if !defined(_WIN32)
 	pthread_attr_t *attr = &pqc->dpq_thread_attr;
 	pthread_t tid, *pthr = &tid;
@@ -6463,7 +6715,7 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 	if (unlikely(dq == &_dispatch_mgr_root_queue)) {
 		pthr = _dispatch_mgr_root_queue_init();
 	}
-#endif
+#endif// end of DISPATCH_USE_MGR_THREAD && DISPATCH_USE_PTHREAD_ROOT_QUEUES
 	do {
 		_dispatch_retain(dq); // released in _dispatch_worker_thread
 		//创建线程，  根据remaining大小去创建线程 这里是普通的并发队列创建线程
@@ -6474,34 +6726,40 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 			_dispatch_temporary_resource_shortage();
 		}
 	} while (--remaining);
+	
+
 #else // defined(_WIN32)
-#if DISPATCH_USE_MGR_THREAD && DISPATCH_USE_PTHREAD_ROOT_QUEUES
-	if (unlikely(dq == &_dispatch_mgr_root_queue)) {
-		_dispatch_mgr_root_queue_init();
-	}
-#endif
-	do {
-		_dispatch_retain(dq); // released in _dispatch_worker_thread
-#if DISPATCH_DEBUG
-		unsigned dwStackSize = 0;
-#else
-		unsigned dwStackSize = 64 * 1024;
-#endif
-		uintptr_t hThread = 0;
-		while (!(hThread = _beginthreadex(NULL, dwStackSize, _dispatch_worker_thread_thunk, dq, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL))) {
-			if (errno != EAGAIN) {
-				(void)dispatch_assume(hThread);
+	//---------------------一下为WIN32环境，可忽略---------------------------
+	#if DISPATCH_USE_MGR_THREAD && DISPATCH_USE_PTHREAD_ROOT_QUEUES //11
+		if (unlikely(dq == &_dispatch_mgr_root_queue)) {
+			_dispatch_mgr_root_queue_init();
+		}
+	#endif//11
+		do {
+			_dispatch_retain(dq); // released in _dispatch_worker_thread
+	#if DISPATCH_DEBUG//22
+			unsigned dwStackSize = 0;
+	#else
+			unsigned dwStackSize = 64 * 1024;
+	#endif//22
+			uintptr_t hThread = 0;
+			while (!(hThread = _beginthreadex(NULL, dwStackSize, _dispatch_worker_thread_thunk, dq, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL))) {
+				if (errno != EAGAIN) {
+					(void)dispatch_assume(hThread);
+				}
+				_dispatch_temporary_resource_shortage();
 			}
-			_dispatch_temporary_resource_shortage();
-		}
-#if DISPATCH_USE_PTHREAD_ROOT_QUEUES
-		if (_dispatch_mgr_sched.prio > _dispatch_mgr_sched.default_prio) {
-			(void)dispatch_assume_zero(SetThreadPriority((HANDLE)hThread, _dispatch_mgr_sched.prio) == TRUE);
-		}
-#endif
-		CloseHandle((HANDLE)hThread);
-	} while (--remaining);
+	#if DISPATCH_USE_PTHREAD_ROOT_QUEUES
+			if (_dispatch_mgr_sched.prio > _dispatch_mgr_sched.default_prio) {
+				(void)dispatch_assume_zero(SetThreadPriority((HANDLE)hThread, _dispatch_mgr_sched.prio) == TRUE);
+			}
+	#endif
+			CloseHandle((HANDLE)hThread);
+		} while (--remaining);
+	//-----------------以上为win32环境，可忽略--------------------
 #endif // defined(_WIN32)
+
+	
 #else
 	(void)floor;
 #endif // DISPATCH_USE_PTHREAD_POOL
@@ -6509,7 +6767,7 @@ _dispatch_root_queue_poke_slow(dispatch_queue_global_t dq, int n, int floor)
 
 DISPATCH_NOINLINE
 void
-_dispatch_root_queue_poke(dispatch_queue_global_t dq, int n, int floor)
+_dispatch_root_queue_poke(dispatch_queue_global_t dq, int n, int floor)//n == 1, floor == 0
 {
 	if (!_dispatch_queue_class_probe(dq)) {
 		return;
@@ -6519,7 +6777,19 @@ _dispatch_root_queue_poke(dispatch_queue_global_t dq, int n, int floor)
 	if (likely(dx_type(dq) == DISPATCH_QUEUE_GLOBAL_ROOT_TYPE))
 #endif
 	{
+		/*
+		 #define os_atomic_cmpxchg2o(p, f, e, v, m) \
+				 os_atomic_cmpxchg(&(p)->f, (e), (v), m)
+		 os_atomic_cmpxchgv2o 宏定义中 f 是 &(p) 的成员变量，比较 &(p)->f 和 e 的值，如果相等则用 &(p)->f 的值替换 v 的值，如果不相等，则把 &(p)->f 的值存入 e 中。
+		 */
+		/*
+		 dq->dgq_pending 跟 0 比较，如果dq->dgq_pending跟0相等，则将dq->dgq_pending的值，也就是0赋值给n,
+		 */
 		if (unlikely(!os_atomic_cmpxchg2o(dq, dgq_pending, 0, n, relaxed))) {
+			/*
+			 如果队列dq->dgq_pending == 0,说明队列没任务需要执行，故可以返回
+			 出现这种情况的原因可能是代码执行到这里的时候，前面加入队列的任务已经被线程池中的线程获取并处理了
+			 */
 			_dispatch_root_queue_debug("worker thread request still pending "
 					"for global queue: %p", dq);
 			return;
@@ -6969,8 +7239,7 @@ static void * _dispatch_worker_thread(void *context)//dispatch_queue_t对象
 		_dispatch_root_queue_drain(dq, pri, DISPATCH_INVOKE_REDIRECTING_DRAIN);
 		_dispatch_reset_priority_and_voucher(pp, NULL);
 		_dispatch_trace_runtime_event(worker_park, NULL, 0);
-	} while (dispatch_semaphore_wait(&pqc->dpq_thread_mediator,
-			dispatch_time(0, timeout)) == 0);
+	} while (dispatch_semaphore_wait(&pqc->dpq_thread_mediator, dispatch_time(0, timeout)) == 0);
 
 #if DISPATCH_USE_INTERNAL_WORKQUEUE
 	if (monitored) _dispatch_workq_worker_unregister(dq);
@@ -7014,7 +7283,7 @@ void _dispatch_root_queue_push(dispatch_queue_global_t rq,//其实相当于 disp
 {
 #if DISPATCH_USE_KEVENT_WORKQUEUE
 	/*
-	 获取当前线程TSD线程缓存区中已dispatch_deferred_items_key 做为key保存的数据
+	 获取当前线程TSD线程缓存区中以dispatch_deferred_items_key 做为key保存的数据
 	 typedef struct dispatch_deferred_items_s {
 		 dispatch_queue_global_t ddi_stashed_rq;
 		 dispatch_object_t ddi_stashed_dou;
@@ -7059,6 +7328,8 @@ void _dispatch_root_queue_push(dispatch_queue_global_t rq,//其实相当于 disp
 		}
 	}
 #endif
+	
+	
 #if HAVE_PTHREAD_WORKQUEUE_QOS
 	if (_dispatch_root_queue_push_needs_override(rq, qos)) {
 		return _dispatch_root_queue_push_override(rq, dou, qos);

@@ -65,7 +65,7 @@ extern int proc_importance_assertion_complete(uint64_t assertion_handle);
 
 #define MACH_MSG_TRAP(msg, opt, ssize, rsize, rname, to, not) \
 	 mach_msg_trap((msg), (opt), (ssize), (rsize), (rname), (to), (not))
-
+     //mach_msg_trap(struct mach_msg_overwrite_trap_args *args)
 #define LIBMACH_OPTIONS (MACH_SEND_INTERRUPT|MACH_RCV_INTERRUPT)
 
 /*
@@ -75,6 +75,19 @@ extern int proc_importance_assertion_complete(uint64_t assertion_handle);
  *		is interrupted, and the user did not request an indication
  *		of that fact, then restart the appropriate parts of the
  *              operation.
+ 
+ mach_msg_return_t
+ mach_msg(mach_msg_header_t *msg,
+    mach_msg_option_t option,
+    mach_msg_size_t send_size,
+    mach_msg_size_t rcv_size,
+    mach_port_t rcv_name,
+    mach_msg_timeout_t timeout,
+    mach_port_t notify)
+ {
+ 
+ }
+ 
  */
 mach_msg_return_t
 mach_msg(msg, option, send_size, rcv_size, rcv_name, timeout, notify)
@@ -100,9 +113,33 @@ mach_port_t notify;
 	 * the kernel's fast paths (when it checks the option value).
 	 */
 
-	mr = MACH_MSG_TRAP(msg, option & ~LIBMACH_OPTIONS,
-	    send_size, rcv_size, rcv_name,
-	    timeout, notify);
+    /*
+     https://blog.ibireme.com/2015/05/18/runloop/
+     为了实现消息的发送和接收，mach_msg() 函数实际上是调用了一个 Mach 陷阱 (trap)，即函数mach_msg_trap()，
+     陷阱这个概念在 Mach 中等同于系统调用。当你在用户态调用 mach_msg_trap() 时会触发陷阱机制，切换到内核态；
+     内核态中内核实现的 mach_msg() 函数会完成实际的工作
+     
+     #define MACH_MSG_TRAP(msg, opt, ssize, rsize, rname, to, not) \
+          mach_msg_trap((msg), (opt), (ssize), (rsize), (rname), (to), (not))
+     
+     mach_msg_trap 定义在
+     xnu-7195.81.3/osfmk/ipc/mach_msg.c:mach_msg_trap(struct mach_msg_overwrite_trap_args *args)
+     
+     mach_msg() -> mach_msg_trap() -> mach_msg_overwrite_trap()
+     
+     1. 获取消息，如果获取成功，则直接返回
+     2. 如果获取不成功，则进行while循环调用MACH_MSG_TRAP获取
+     3. 在mach_msg_trap()内部如果获取不到，则会放弃当前线程的时间片进入睡眠转态，直到等到下次轮询时间到达时在恢复
+     
+     */
+	mr = MACH_MSG_TRAP(msg,
+                       option & ~LIBMACH_OPTIONS,
+                       send_size,
+                       rcv_size,
+                       rcv_name,
+                       timeout,
+                       notify);
+    
 	if (mr == MACH_MSG_SUCCESS) {
 		return MACH_MSG_SUCCESS;
 	}
@@ -110,18 +147,24 @@ mach_port_t notify;
 	if ((option & MACH_SEND_INTERRUPT) == 0) {
 		while (mr == MACH_SEND_INTERRUPTED) {
 			mr = MACH_MSG_TRAP(msg,
-			    option & ~LIBMACH_OPTIONS,
-			    send_size, rcv_size, rcv_name,
-			    timeout, notify);
+                               option & ~LIBMACH_OPTIONS,
+                               send_size,
+                               rcv_size,
+                               rcv_name,
+                               timeout,
+                               notify);
 		}
 	}
 
 	if ((option & MACH_RCV_INTERRUPT) == 0) {
 		while (mr == MACH_RCV_INTERRUPTED) {
 			mr = MACH_MSG_TRAP(msg,
-			    option & ~(LIBMACH_OPTIONS | MACH_SEND_MSG),
-			    0, rcv_size, rcv_name,
-			    timeout, notify);
+                               option & ~(LIBMACH_OPTIONS | MACH_SEND_MSG),
+                               0,
+                               rcv_size,
+                               rcv_name,
+                               timeout,
+                               notify);
 		}
 	}
 

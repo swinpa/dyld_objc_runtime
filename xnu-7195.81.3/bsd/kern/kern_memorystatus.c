@@ -1635,7 +1635,9 @@ static int
 jetsam_do_kill(proc_t p, int jetsam_flags, os_reason_t jetsam_reason)
 {
 	int error = 0;
-	error = exit_with_reason(p, W_EXITCODE(0, SIGKILL), (int *)NULL, FALSE, FALSE, jetsam_flags, jetsam_reason);
+    // #define SIGKILL 9       /* kill (cannot be caught or ignored) */
+	// define in bsd/sys/signal.h
+    error = exit_with_reason(p, W_EXITCODE(0, SIGKILL), (int *)NULL, FALSE, FALSE, jetsam_flags, jetsam_reason);
 	return error;
 }
 

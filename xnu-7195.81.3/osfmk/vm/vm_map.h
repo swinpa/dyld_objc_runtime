@@ -148,6 +148,7 @@ typedef struct vm_map_entry     *vm_map_entry_t;
  *		memory object or a sub map (of the kernel map).
  */
 typedef union vm_map_object {
+    //typedef struct vm_object        *vm_object_t;
 	vm_object_t             vmo_object;     /* object object */
 	vm_map_t                vmo_submap;     /* belongs to another map */
 } vm_map_object_t;
@@ -460,7 +461,8 @@ struct vm_map_header {
  */
 struct _vm_map {
 	lck_rw_t                lock;           /* map lock */
-	struct vm_map_header    hdr;            /* Map entry header */
+	///这里开始，在vm_map_header有一个链表
+    struct vm_map_header    hdr;            /* Map entry header */
 #define min_offset              hdr.links.start /* start of range */
 #define max_offset              hdr.links.end   /* end of range */
 	pmap_t                  XNU_PTRAUTH_SIGNED_PTR("_vm_map.pmap") pmap;           /* Physical map */
