@@ -474,9 +474,22 @@ arm64e_plugin_host(struct image_params *imgp, load_result_t *result)
      unsigned int    ip_simulator_binary;    // simulator binary flags
      ipc_port_t      ip_sc_port;             // SUID port.
  };
+ 
+ struct mach_header {
+     uint32_t    magic;        // mach magic number identifier
+     cpu_type_t    cputype;    // cpu specifier
+     cpu_subtype_t    cpusubtype;    // machine specifier
+     uint32_t    filetype;    // type of file
+     uint32_t    ncmds;        // number of load commands
+     uint32_t    sizeofcmds;    // the size of all the load commands
+     uint32_t    flags;        // flags
+ };
+ 
  */
-//在static int exec_mach_imgact(struct image_params *imgp) 中调用该方法
 
+
+
+//在static int exec_mach_imgact(struct image_params *imgp) 中调用该方法
 load_return_t
 load_machfile(
 	struct image_params     *imgp,
@@ -543,10 +556,7 @@ load_machfile(
 		return LOAD_RESOURCE;
 	}
     //创建虚拟内存
-	map = vm_map_create(pmap,
-	    0,
-	    vm_compute_max_offset(result->is_64bit_addr),
-	    TRUE);
+	map = vm_map_create(pmap, 0, vm_compute_max_offset(result->is_64bit_addr), TRUE);
 
 #if defined(__arm64__)
 	if (result->is_64bit_addr) {
@@ -618,11 +628,14 @@ load_machfile(
 	result->is_64bit_addr = ((imgp->ip_flags & IMGPF_IS_64BIT_ADDR) == IMGPF_IS_64BIT_ADDR);
 	result->is_64bit_data = ((imgp->ip_flags & IMGPF_IS_64BIT_DATA) == IMGPF_IS_64BIT_DATA);
 
-	lret = parse_machfile(vp, map, thread, header, file_offset, macho_size,
+    
+    //解析macho文件，主要是通过读取load command字段，根据不同的load command做相应处理
+    lret = parse_machfile(vp, map, thread, header, file_offset, macho_size,
 	    0, aslr_page_offset, dyld_aslr_page_offset, result,
 	    NULL, imgp);
 
-	if (lret != LOAD_SUCCESS) {
+	
+    if (lret != LOAD_SUCCESS) {
 		vm_map_deallocate(map); /* will lose pmap reference too */
 		return lret;
 	}
@@ -943,8 +956,7 @@ parse_machfile(
 		return LOAD_NOSPACE;
 	}
 
-	error = vn_rdwr(UIO_READ, vp, addr, (int)alloc_size, file_offset,
-	    UIO_SYSSPACE, 0, vfs_context_ucred(imgp->ip_vfs_context), &resid, p);
+	error = vn_rdwr(UIO_READ, vp, addr, (int)alloc_size, file_offset, UIO_SYSSPACE, 0, vfs_context_ucred(imgp->ip_vfs_context), &resid, p);
 	if (error) {
 		kfree(addr, alloc_size);
 		return LOAD_IOERROR;
@@ -1853,7 +1865,8 @@ map_segment(
 	if (vm_map_page_aligned(vm_start, effective_page_mask) &&
 	    vm_map_page_aligned(vm_end, effective_page_mask) &&
 	    vm_map_page_aligned(file_start, effective_page_mask) &&
-	    vm_map_page_aligned(file_end, effective_page_mask)) {
+	    vm_map_page_aligned(file_end, effective_page_mask))
+    {
 		/* all page-aligned and map-aligned: proceed */
 	} else {
 #if __arm64__
@@ -1921,8 +1934,8 @@ map_segment(
 		goto done;
 	}
 	if (vm_map_round_page(cur_end, effective_page_mask) >=
-	    vm_map_trunc_page(vm_start + (file_end - file_start),
-	    effective_page_mask)) {
+	    vm_map_trunc_page(vm_start + (file_end - file_start),effective_page_mask))
+    {
 		/* no middle */
 	} else {
 		cur_start = cur_end;
@@ -2000,8 +2013,8 @@ map_segment(
 	}
 	cur_start = cur_end;
 #if __arm64__
-	if (!vm_map_page_aligned(vm_start + (file_end - file_start),
-	    effective_page_mask)) {
+	if (!vm_map_page_aligned(vm_start + (file_end - file_start),effective_page_mask))
+    {
 		/* one 4K pager for the last page */
 		cur_end = vm_start + (file_end - file_start);
 		if (control != MEMORY_OBJECT_CONTROL_NULL) {
@@ -2228,7 +2241,8 @@ load_segment(
 	    file_size == 0 &&
 	    vm_size != 0 &&
 	    (scp->initprot & VM_PROT_ALL) == VM_PROT_NONE &&
-	    (scp->maxprot & VM_PROT_ALL) == VM_PROT_NONE) {
+	    (scp->maxprot & VM_PROT_ALL) == VM_PROT_NONE)
+    {
 		if (map == VM_MAP_NULL) {
 			return LOAD_SUCCESS;
 		}

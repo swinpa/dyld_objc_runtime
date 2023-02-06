@@ -821,9 +821,15 @@ void ImageLoaderMachOClassic::rebase(const LinkContext& context)
 				else if (reloc->r_length == RELOC_SIZE) {
 					switch(reloc->r_type) {
 						case GENERIC_RELOC_VANILLA:
+							/*
+							 拿到需要rebase的地址
+							 */
 							rebaseAddr = reloc->r_address + relocBase;
 							if ( ! this->containsAddress((void*)rebaseAddr) )
 								dyld::throwf("local reloc %p not in mapped image\n", (void*)rebaseAddr);
+							/*
+							 对需要rebase的地址进行rebase(添加slide)
+							 */
 							*((uintptr_t*)rebaseAddr) += slide;
 							if ( context.verboseRebase )
 								dyld::log("dyld: rebase: %s:*0x%08lX += 0x%08lX\n", this->getShortName(), rebaseAddr, slide);
@@ -1947,8 +1953,10 @@ void ImageLoaderMachOClassic::doBind(const LinkContext& context, bool forceLazys
 		
 	#if TEXT_RELOC_SUPPORT
 		// if there are __TEXT fixups, temporarily make __TEXT writable
-		if ( fTextSegmentBinds ) 
+		if ( fTextSegmentBinds ) {
 			this->makeTextSegmentWritable(context, true);
+		}
+			
 	#endif
 
 		

@@ -10,6 +10,20 @@
 	
 	```
 	1. 系统内核从调用exec_mach_imgact()开始（在kern_exec.c中定义）
+		在__mac_execve()中创建image_params，然后调用exec_activate_image(image_params *imgp)
+		在exec_activate_image()中通过(*execsw[i].ex_imgact)(imgp);的方式调用到exec_mach_imgact()方法
+			struct execsw {
+				int(*const ex_imgact)(struct image_params *);
+				const char *ex_name;
+			}const execsw[] = {
+				{ exec_mach_imgact, "Mach-o Binary" },
+				{ exec_fat_imgact, "Fat Binary" },
+				{ exec_shell_imgact, "Interpreter Script" },
+				{ NULL, NULL}
+			};
+		
+			
+			
 		在exec_mach_imgact中各种判断，magic魔数判断，filetype判断，cputype判断等等
 		各种判断通过后通过【创建进程】
 		imgp->ip_new_thread = fork_create_child(task,
@@ -38,7 +52,9 @@
 		addr = kalloc(alloc_size);
 		2. 遍历load command
 			
-		    1. 根据LC_SEGMENT的描述将各段映射到进程内存空间
+		    1. 根据LC_SEGMENT的描述将各段映射到进程内存空间（虚拟内存空间）
+		    	map_segment()
+		    
 		    2. 根据LC_LOAD_DYLDINKER中描述的dyld路径(/usr/lib/dyld)调用dyld
 		   	   将执行权限转交给dyld,让dyld给主程序链接主程序依赖的动态库
 		3. dyld处理完后返回主程序的入口地址，从此执行权限转交到主程序
@@ -94,6 +110,12 @@
 		1. rebase
 		旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个随机地址偏移量？？？》
 		this->recursiveRebase(context);
+		ImageLoaderMachO::doRebase(const LinkContext& context)
+			-> void ImageLoaderMachOCompressed::rebase(const LinkContext& context)
+				-> ImageLoaderMachOCompressed::rebaseAt(const LinkContext& context, uintptr_t addr, uintptr_t slide, uint8_t type)
+		
+		更确切的说是获取segment_command_64.vmaddr，然后进行修正
+		因为vmaddr 是在内核在parse_machfile()阶段将
 			  
 		2. bind
 		《占位地址》转成《实际地址》，
@@ -208,7 +230,18 @@ https://blog.csdn.net/A1553225534/article/details/104187054
 
 [iOS程序员的自我修养-MachO文件结构分析](https://juejin.cn/post/6844903912189722637)
 
+
+
+###熟悉MachO可以做什么
 1. Category的方法覆盖检查
 2. 包瘦身,无用代码检查
 3. 代码覆盖率静态检查
+4. bitcode分析
+5. crash符号化
+7. 符号模块查找
+8. 非OC函数switch
+9. 包支持架构分析
+10. 常量字符串分析
+11. 进程启动速度优化
+12. 学习经典的数据结构
 

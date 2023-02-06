@@ -974,11 +974,15 @@ thread_set_apc_ast_locked(thread_t thread)
 	if (thread == current_thread()) {
 		ast_propagate(thread);
 	} else {
+        //获取线程的处理器
 		processor_t processor = thread->last_processor;
 
 		if (processor != PROCESSOR_NULL &&
+            //当前处理器正在执行
 		    processor->state == PROCESSOR_RUNNING &&
-		    processor->active_thread == thread) {
+            //处理器正在处理的线程是指定线程
+		    processor->active_thread == thread)
+        {
 			cause_ast_check(processor);
 		}
 	}

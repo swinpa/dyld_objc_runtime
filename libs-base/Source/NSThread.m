@@ -2147,85 +2147,76 @@ GSRunLoopInfoForThread(NSThread *aThread)
            waitUntilDone: (BOOL)aFlag
                    modes: (NSArray*)anArray
 {
-  GSRunLoopThreadInfo   *info;
-  NSThread	        *t;
 
-  if ([anArray count] == 0)
+    GSRunLoopThreadInfo   *info;
+    NSThread	          *t;
+    if ([anArray count] == 0)
     {
-      return;
+        return;
     }
-
-  t = GSCurrentThread();
-  if (aThread == nil)
+    t = GSCurrentThread();
+    if (aThread == nil)
     {
-      aThread = t;
+        aThread = t;
     }
-  info = GSRunLoopInfoForThread(aThread);
-  if (t == aThread)
+    info = GSRunLoopInfoForThread(aThread);
+    if (t == aThread)
     {
       /* Perform in current thread.
        */
-      if (aFlag == YES || info->loop == nil)
-	{
-          /* Wait until done or no run loop.
-           */
-	  [self performSelector: aSelector withObject: anObject];
-	}
-      else
-	{
-          /* Don't wait ... schedule operation in run loop.
-           */
-	  [info->loop performSelector: aSelector
+        if (aFlag == YES || info->loop == nil)
+        {
+              /* Wait until done or no run loop.
+               */
+            [self performSelector: aSelector withObject: anObject];
+        } else {
+              /* Don't wait ... schedule operation in run loop.
+               */
+            [info->loop performSelector: aSelector
                                target: self
                              argument: anObject
                                 order: 0
                                 modes: anArray];
-	}
-    }
-  else
-    {
-      GSPerformHolder   *h;
-      NSConditionLock	*l = nil;
-
-      if ([aThread isFinished] == YES)
-        {
-          [NSException raise: NSInternalInconsistencyException
-            format: @"perform [%@-%@] attempted on finished thread (%@)",
-            NSStringFromClass([self class]),
-            NSStringFromSelector(aSelector),
-            aThread];
         }
-      if (aFlag == YES)
-	{
-	  l = [[NSConditionLock alloc] init];
-	}
-
-      h = [GSPerformHolder newForReceiver: self
-				 argument: anObject
-				 selector: aSelector
-				    modes: anArray
-				     lock: l];
-      [info addPerformer: h];
-      if (l != nil)
-	{
-          [l lockWhenCondition: 1];
-	  [l unlock];
-	  RELEASE(l);
-          if ([h isInvalidated] == NO)
+    }
+    else
+    {
+        GSPerformHolder   *h;
+        NSConditionLock	*l = nil;
+        if ([aThread isFinished] == YES)
+        {
+            [NSException raise: NSInternalInconsistencyException
+                        format: @"perform [%@-%@] attempted on finished thread (%@)", NSStringFromClass([self class]),NSStringFromSelector(aSelector),aThread];
+        }
+        if (aFlag == YES)
+        {
+            l = [[NSConditionLock alloc] init];
+        }
+        h = [GSPerformHolder newForReceiver: self
+                 argument: anObject
+                 selector: aSelector
+                    modes: anArray
+                     lock: l];
+        [info addPerformer: h];
+        if (l != nil)
+        {
+            [l lockWhenCondition: 1];
+            [l unlock];
+            RELEASE(l);
+            if ([h isInvalidated] == NO)
             {
               /* If we have an exception passed back from the remote thread,
                * re-raise it.
                */
-              if (nil != h->exception)
+                if (nil != h->exception)
                 {
-                  NSException       *e = AUTORELEASE(RETAIN(h->exception));
-
-                  RELEASE(h);
-                  [e raise];
+                    NSException       *e = AUTORELEASE(RETAIN(h->exception));
+                    RELEASE(h);
+                    [e raise];
                 }
             }
-	}
-      RELEASE(h);
+        }
+        RELEASE(h);
     }
 }
 

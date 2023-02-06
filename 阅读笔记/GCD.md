@@ -280,6 +280,7 @@ _dispatch_sync_f_slow(){
 __DISPATCH_WAIT_FOR_QUEUE__(dispatch_sync_context_t dsc, dispatch_queue_t dq)
 {
 	uint64_t dq_state = _dispatch_wait_prepare(dq);
+	//判断队列是不是被当前线程owned
 	if (unlikely(_dq_state_drain_locked_by(dq_state, dsc->dsc_waiter))) {
 		DISPATCH_CLIENT_CRASH((uintptr_t)dq_state,
 				"dispatch_sync called on queue "
@@ -287,4 +288,58 @@ __DISPATCH_WAIT_FOR_QUEUE__(dispatch_sync_context_t dsc, dispatch_queue_t dq)
 	}
 }
 ```
+
+###dispatch\_semaphore\_t
+```
+计数器减一
+dispatch_semaphore_wait(dispatch_semaphore_t dsema, dispatch_time_t timeout)
+{
+	 /*
+	  dsema->dsema_value = dsema->dsema_value - 1
+	  return dsema->dsema_value
+	  也就是对信号量dispatch_semaphore_t 中的计数器属性dsema_value进行-1 操作，返回-1后的结果
+	  */
+	 
+	long value = os_atomic_dec2o(dsema, dsema_value, acquire);
+	if (likely(value >= 0)) {
+		/*
+		 如果结果 >= 0 那么就可以马上返回，不会进入等待状态
+		 这也许就是信号量的性能比pthread_mutex 高的原因
+		*/
+		return 0;
+	}
+	return _dispatch_semaphore_wait_slow(dsema, timeout);
+}
+
+计数器加一
+dispatch_semaphore_signal(dispatch_semaphore_t dsema)
+{
+	/*
+	 dsema->dsema_value = dsema->dsema_value + 1
+	 return dsema->dsema_value
+	 也就是对信号量dispatch_semaphore_t 中的计数器属性dsema_value进行+1 操作，返回+1后的结果
+	 */
+	long value = os_atomic_inc2o(dsema, dsema_value, release);
+	if (likely(value > 0)) {
+		/*
+		 如果dsema->dsema_value进行+1后的值大于0 则直接返回
+		 应该是>0 时没有其他线程因为该信号量而阻塞
+		 == 0 时已经通知阻塞线程返回了
+		*/
+		return 0;
+	}
+	if (unlikely(value == LONG_MIN)) {
+		DISPATCH_CLIENT_CRASH(value,
+				"Unbalanced call to dispatch_semaphore_signal()");
+	}
+	return _dispatch_semaphore_signal_slow(dsema);
+}
+
+
+```
+dispatch_semaphore\_t内部有一计数器
+dispatch\_semaphore\_wait()是计数器减一
+	
+	1. 如果减一后计数器的值小于0则阻塞等待
+	2. 如果减一后计数器的值大于等于0
 

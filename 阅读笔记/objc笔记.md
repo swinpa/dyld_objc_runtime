@@ -471,7 +471,41 @@ static struct IMAGE_INFO { unsigned version; unsigned flag; } _OBJC_IMAGE_INFO =
 
 ```
 
+从下面就可以得到对象的ISA指向类，类的ISA指向元类，元类的ISA指向根元类的结论。
+类，元类，跟元类都是_class_t实例
+```
+extern "C" __declspec(dllimport) struct _class_t OBJC_METACLASS_$_NSObject;
+extern "C" __declspec(dllexport) struct _class_t OBJC_METACLASS_$_Man __attribute__ ((used, section ("__DATA,__objc_data"))) = { 0, 0,0, 0, &_OBJC_METACLASS_RO_$_Man,};
+extern "C" __declspec(dllexport) struct _class_t OBJC_CLASS_$_Man __attribute__ ((used, section ("__DATA,__objc_data"))) = { 0, 0, 0, 0, &_OBJC_CLASS_RO_$_Man,};
+
+static void OBJC_CLASS_SETUP_$_Man(void ) {
+ OBJC_METACLASS_$_Man.isa = &OBJC_METACLASS_$_NSObject;
+ OBJC_METACLASS_$_Man.superclass = &OBJC_METACLASS_$_Person;
+ OBJC_METACLASS_$_Man.cache = &_objc_empty_cache;
+  
+  OBJC_CLASS_$_Man.isa = &OBJC_METACLASS_$_Man;
+ OBJC_CLASS_$_Man.superclass = &OBJC_CLASS_$_Person;
+ OBJC_CLASS_$_Man.cache = &_objc_empty_cache;
+}
+```
+
 从上面可以看出[super xx] 在编译阶段会变成了调用objc_msgSendSuper(self,cmd,xxx)
 
 __declspec(allocate("segname")) 告诉编译器分配一个名字为segname的段
 在实际使用时，还需要#pragma section事先告诉编译器，我们要使用的段名
+
+###一个NSObject对象占用多少内存空间？
+
+```
+@interface NSObject <NSObject> {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wobjc-interface-ivars"
+    Class isa  OBJC_ISA_AVAILABILITY;
+#pragma clang diagnostic pop
+}
+```
+从NSObject的定义来看，NSObject内部只有一个Class isa指针，指针只占用4字节大小内存空间
+但是alloc一个NSObject对象时，它所申请的内存空间大小实际是通过获取class->bits()->ro->instanceSize,
+然后进行字对齐得到的，如果小于16的话还会取最小值16进行申请
+
+

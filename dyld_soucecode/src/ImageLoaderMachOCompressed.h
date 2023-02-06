@@ -138,6 +138,23 @@ private:
     void                                updateAlternateLazyPointer(uint8_t* stub, void** originalLazyPointerAddr, const LinkContext& context);
 	void								registerEncryption(const struct encryption_info_command* encryptCmd, const LinkContext& context);
 	
+	/*
+	 struct dyld_info_command {
+		uint32_t   cmd;
+		uint32_t   cmdsize;
+		uint32_t   rebase_off;
+		uint32_t   rebase_size;
+		uint32_t   bind_off;
+		uint32_t   bind_size;
+		uint32_t   weak_bind_off;
+		uint32_t   weak_bind_size;
+		uint32_t   lazy_bind_off;
+		uint32_t   lazy_bind_size;
+		uint32_t   export_off;
+		uint32_t   export_size;
+	 };
+	 */
+	//这个应该是rebase时需要用到的信息
 	const struct dyld_info_command*			fDyldInfo;
 };
 

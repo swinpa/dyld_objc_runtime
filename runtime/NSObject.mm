@@ -1854,12 +1854,18 @@ objc_object::sidetable_release(bool performDealloc)
 void 
 objc_object::sidetable_clearDeallocating()
 {
+    /*
+     根据hash(this)计数得到当前对象所在全局hash表SideTableBuf中的位置,获取对应的值
+     */
     SideTable& table = SideTables()[this];
 
     // clear any weak table items
     // clear extra retain count and deallocating bit
     // (fixme warn or abort if extra retain count == 0 ?)
     table.lock();
+    /*
+     
+     */
     RefcountMap::iterator it = table.refcnts.find(this);
     if (it != table.refcnts.end()) {
         if (it->second & SIDE_TABLE_WEAKLY_REFERENCED) {
@@ -2619,6 +2625,51 @@ void arr_init(void)
 
 
 // Replaced by NSZombies
+/*
+ [参考 iOS Zombie Objects(僵尸对象)原理探索](https://www.jianshu.com/p/493f581d336b)
+ zombie开启后会hook下面的dealloc方法，将他重新绑定到__dealloc_zombie方法中
+ 从__dealloc_zombie符号断点来看实现是如下这样
+ 
+ CoreFoundation`-[NSObject(NSObject) __dealloc_zombie]:
+     0x7fff3fa2dee7 <+23>:  leaq   0x5a59c4a2(%rip), %rax    ; __CFZombieEnabled
+     0x7fff3fa2defa <+42>:  callq  0x7fff3fa7d930            ; symbol stub for: object_getClass
+     0x7fff3fa2df0a <+58>:  callq  0x7fff3fa7d486            ; symbol stub for: class_getName
+     0x7fff3fa2df12 <+66>:  leaq   0x237d1b(%rip), %rsi      ; "_NSZombie_%s"
+     0x7fff3fa2df2b <+91>:  callq  0x7fff3fa7d8b8            ; symbol stub for: objc_lookUpClass
+     0x7fff3fa2df38 <+104>: leaq   0x2376a9(%rip), %rdi      ; "_NSZombie_"
+     0x7fff3fa2df3f <+111>: callq  0x7fff3fa7d8b8            ; symbol stub for: objc_lookUpClass
+     0x7fff3fa2df4d <+125>: callq  0x7fff3fa7d870            ; symbol stub for: objc_duplicateClass
+     0x7fff3fa2df61 <+145>: callq  0x7fff3fa7d86a            ; symbol stub for: objc_destructInstance
+     0x7fff3fa2df6c <+156>: callq  0x7fff3fa7d948            ; symbol stub for: object_setClass
+ 
+ 伪代码大概如下
+ - (void)__dealloc_zombie {
+     if(zombieEnable) {
+         // 获取到即将deallocted对象所属类（Class）
+         Class cls = object_getClass(self);
+         // 获取类名
+         const char *clsName = class_getName(cls)
+         // 生成僵尸对象类名
+         const char *zombieClsName = "_NSZombie_" + clsName;
+         // 查看是否存在相同的僵尸对象类名，不存在则创建
+         Class zombieCls = objc_lookUpClass(zombieClsName);
+         if (!zombieCls) {
+             // 获取僵尸对象类 _NSZombie_
+             Class baseZombieCls = objc_lookUpClass(“_NSZombie_");
+             // 创建 zombieClsName 类
+             zombieCls = objc_duplicateClass(baseZombieCls, zombieClsName, 0);
+         }
+         // 在对象内存未被释放的情况下销毁对象的成员变量及关联引用。
+         objc_destructInstance(self);
+         // 修改对象的 isa 指针，令其指向特殊的僵尸类
+         objc_setClass(self, zombieCls);
+    }else{
+        调用原来的方法释放对象
+        [obj __dealloc_zombie]
+    }
+ }
+ */
+
 /*
  NSObject 的成员函数，内部调用了_objc_rootDealloc()方法
  _objc_rootDealloc 中又调用了对象的rootDealloc()方法

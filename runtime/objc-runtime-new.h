@@ -1013,8 +1013,9 @@ public:
          31                  15                0
          
          
-         通过bits & FAST_DATA_MASK进行与操作，拿到类的class_rw_t 这个结构体的数据
-         也就是类的class_rw_t 结构体数据存放在bits 中的从第3到47 位中，总共31位
+         通过bits & FAST_DATA_MASK进行与操作，拿到指向class_rw_t对象的指针
+         也就是类在bits中的从第3到47 位中，总共31位表示的是指向class_rw_t结构体对象的指针，
+         这个指针指向的内存块是class_rw_t类型的数据
          */
         return (class_rw_t *)(bits & FAST_DATA_MASK);
     }
@@ -1210,6 +1211,20 @@ struct objc_class : objc_object {
     cache_t cache;             // formerly cache pointer and vtable
     /**
      * 存放对象相关数据的地方，比如成员变量
+     * bits->bits指针的3到47 位总共31位表示的是指向class_rw_t结构体对象的指针
+     * 通过这个指针我们就能获取到类对象所在的内存位置，从而去获取它里面的
+     * 方法列表，变量相关信息
+     * struct class_rw_t {
+         uint32_t flags;
+         uint32_t version;
+         const class_ro_t *ro;
+         method_array_t methods;
+         property_array_t properties;
+         protocol_array_t protocols;
+         Class firstSubclass;
+         Class nextSiblingClass;
+         char *demangledName;
+     * }
      */
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
 

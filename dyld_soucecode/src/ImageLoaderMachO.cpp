@@ -74,6 +74,21 @@ extern "C" long __stack_chk_guard;
 	#define LC_SEGMENT_COMMAND		LC_SEGMENT_64
 	#define LC_ROUTINES_COMMAND		LC_ROUTINES_64
 	#define LC_SEGMENT_COMMAND_WRONG LC_SEGMENT
+	/*
+	 struct segment_command_64 { // for 64-bit architectures /
+		 uint32_t	cmd;		// LC_SEGMENT_64 /
+		 uint32_t	cmdsize;	// includes sizeof section_64 structs /
+		 char		segname[16];	// segment name /
+		 uint64_t	vmaddr;		// memory address of this segment /
+		 uint64_t	vmsize;		// memory size of this segment /
+		 uint64_t	fileoff;	// file offset of this segment /
+		 uint64_t	filesize;	// amount to map from the file /
+		 vm_prot_t	maxprot;	// maximum VM protection /
+		 vm_prot_t	initprot;	// initial VM protection /
+		 uint32_t	nsects;		// number of sections in segment /
+		 uint32_t	flags;		// flags /
+	 };
+	 */
 	struct macho_segment_command	: public segment_command_64  {};
 	struct macho_section			: public section_64  {};	
 	struct macho_routines_command	: public routines_command_64  {};	
@@ -152,7 +167,6 @@ fSegmentsCount(segCount), fIsSplitSeg(false), fInSharedCache(false),
 	 uint32_t cmdsize;   // total size of command in bytes
  };
 
- 
   * The segment load command indicates that a part of this file is to be
   * mapped into the task's address space.  The size of this segment in memory,
   * vmsize, maybe equal to or larger than the amount to map from this file,
@@ -200,16 +214,18 @@ void ImageLoaderMachO::sniffLoadCommands(const macho_header* mh, const char* pat
 	*codeSigCmd = NULL;
 	*encryptCmd = NULL;
 
-	const uint32_t cmd_count = mh->ncmds;
 	//获取cmds的个数,保存在mach-o文件的头部ncmds字段中
-	const struct load_command* const startCmds    = (struct load_command*)(((uint8_t*)mh) + sizeof(macho_header));
+	const uint32_t cmd_count = mh->ncmds;
 	//获取command段开始的地址，startCmds = mach-o地址 + mach-o头部长度
-	const struct load_command* const endCmds = (struct load_command*)(((uint8_t*)mh) + sizeof(macho_header) + mh->sizeofcmds);
+	const struct load_command* const startCmds    = (struct load_command*)(((uint8_t*)mh) + sizeof(macho_header));
 	//获取command段结束的地址，endCmds = mach-o地址 + mach-o头部长度 + cmds所用的长度
+	const struct load_command* const endCmds = (struct load_command*)(((uint8_t*)mh) + sizeof(macho_header) + mh->sizeofcmds);
+	
 	const struct load_command* cmd = startCmds;
 	bool foundLoadCommandSegment = false;
+	//遍历每一个load command
 	for (uint32_t i = 0; i < cmd_count; ++i) {
-		//遍历每一个command
+		
 		uint32_t cmdLength = cmd->cmdsize;
 		struct macho_segment_command* segCmd;
 		if ( cmdLength < 8 ) {
@@ -394,6 +410,7 @@ ImageLoader* ImageLoaderMachO::instantiateMainExecutable(const macho_header* mh,
 	/*
 	 sniff 英  [snɪf]   美  [snɪf]  嗅；闻；用力吸；发觉
 	 这里应该翻译成解析loadcammand(也就是解析mach-o 中的Load Commands 段)
+	 解析遍历loadcammand内容，获取一些参数，比如compressed，segCount，libCount等等
 	*/
 	sniffLoadCommands(mh, path, false, &compressed, &segCount, &libCount, context, &codeSigCmd, &encryptCmd);
 	//判断macho是普通的还是压缩的
@@ -402,7 +419,11 @@ ImageLoader* ImageLoaderMachO::instantiateMainExecutable(const macho_header* mh,
 	 instantiate concrete class based on content of load commands
 	 根据sniffLoadCommands()解析出来的LoadCommand段信息实例化ImageLoader对象
 	 */
-	if ( compressed ) 
+	if ( compressed )
+		/*
+		 如果load command带有LC_DYLD_INFO，LC_DYLD_INFO_ONLY 这两种command的则就是compress的
+		 用machoview看应该通常都有，所以走的是这个分支
+		 */
 		return ImageLoaderMachOCompressed::instantiateMainExecutable(mh, slide, path, segCount, libCount, context);
 	else
 #if SUPPORT_CLASSIC_MACHO
@@ -441,6 +462,7 @@ ImageLoader* ImageLoaderMachO::instantiateFromFile(const char* path, int fd, con
 	 遍历mach-o文件的loadcommds，获取一些关键的信息。
 	 是否是compressd，section个数，依赖lib个数，数字签名信息，encryptcmd信息
 	 sniff 英  [snɪf]   美  [snɪf] vt. 嗅；闻；用力吸；发觉
+	 解析遍历loadcammand内容，获取一些参数，比如compressed，segCount，libCount等等
 	 */
 	sniffLoadCommands((const macho_header*)fileData, path, false, &compressed, &segCount, &libCount, context, &codeSigCmd, &encryptCmd);
 	// instantiate concrete class based on content of load commands
@@ -518,8 +540,14 @@ void ImageLoaderMachO::parseLoadCmds(const LinkContext& context)
 	for(unsigned int i=0; i < fSegmentsCount; ++i) {
 		// set up pointer to __LINKEDIT segment
 		if ( strcmp(segName(i),"__LINKEDIT") == 0 ) {
-			if ( context.codeSigningEnforced && (segFileOffset(i) > fCoveredCodeLength))
+			if ( context.codeSigningEnforced && (segFileOffset(i) > fCoveredCodeLength)){
 				dyld::throwf("cannot load '%s' (segment outside of code signature)", this->getShortName());
+			}
+			/*
+			 //memory address of this segment                       file offset of this segment
+			 segment_command_64.vmaddr + fSlide - segment_command_64.fileoff
+			 
+			 */
 			fLinkEditBase = (uint8_t*)(segActualLoadAddress(i) - segFileOffset(i));
 		}
 #if TEXT_RELOC_SUPPORT
@@ -555,18 +583,23 @@ void ImageLoaderMachO::parseLoadCmds(const LinkContext& context)
 
 	// walk load commands (mapped in at start of __TEXT segment)
 	const dyld_info_command* dyldInfo = NULL;
+	
 	const macho_nlist* symbolTable = NULL;
 	const char* symbolTableStrings = NULL;
 	const struct load_command* firstUnknownCmd = NULL;
 	const struct version_min_command* minOSVersionCmd = NULL;
 	const dysymtab_command* dynSymbolTable = NULL;
 	const uint32_t cmd_count = ((macho_header*)fMachOData)->ncmds;
+	
+	//从macho_header后面就是load command
 	const struct load_command* const cmds = (struct load_command*)&fMachOData[sizeof(macho_header)];
+	//第一个load command
 	const struct load_command* cmd = cmds;
 	for (uint32_t i = 0; i < cmd_count; ++i) {
 		switch (cmd->cmd) {
 			case LC_SYMTAB:
 				{
+					//获取符号表
 					const struct symtab_command* symtab = (struct symtab_command*)cmd;
 					symbolTableStrings = (const char*)&fLinkEditBase[symtab->stroff];
 					symbolTable = (macho_nlist*)(&fLinkEditBase[symtab->symoff]);
@@ -589,6 +622,7 @@ void ImageLoaderMachO::parseLoadCmds(const LinkContext& context)
 				break;
 			case LC_DYLD_INFO:
 			case LC_DYLD_INFO_ONLY:
+				//这个应该是rebase时需要用到
 				dyldInfo = (struct dyld_info_command*)cmd;
 				break;
 			case LC_SEGMENT_COMMAND:
@@ -597,8 +631,13 @@ void ImageLoaderMachO::parseLoadCmds(const LinkContext& context)
 					const bool isTextSeg = (strcmp(seg->segname, "__TEXT") == 0);
 					const struct macho_section* const sectionsStart = (struct macho_section*)((char*)seg + sizeof(struct macho_segment_command));
 					const struct macho_section* const sectionsEnd = &sectionsStart[seg->nsects];
+					
 					for (const struct macho_section* sect=sectionsStart; sect < sectionsEnd; ++sect) {
 						const uint8_t type = sect->flags & SECTION_TYPE;
+						/*
+						 是否有MOD_INIT_FUNC_POINTERS，用来执行初始化的函数指针
+						 libSystem 就有这样的一个指针，调用的时候就会进行一些列初始化，最后走到objc 的init 方法进行dyld回调注册
+						 */
 						if ( type == S_MOD_INIT_FUNC_POINTERS )
 							fHasInitializers = true;
 						else if ( type == S_MOD_TERM_FUNC_POINTERS )
@@ -724,19 +763,38 @@ uintptr_t ImageLoaderMachO::segFileOffset(unsigned int segIndex) const
 	return segLoadCommand(segIndex)->fileoff;
 }
 
-
+//判断指定segment是否可读
 bool ImageLoaderMachO::segReadable(unsigned int segIndex) const
 {
+	/*
+	 struct segment_command_64 { // for 64-bit architectures /
+		 uint32_t	cmd;		// LC_SEGMENT_64 /
+		 uint32_t	cmdsize;	// includes sizeof section_64 structs /
+		 char		segname[16];	// segment name /
+		 uint64_t	vmaddr;		// memory address of this segment /
+		 uint64_t	vmsize;		// memory size of this segment /
+		 uint64_t	fileoff;	// file offset of this segment /
+		 uint64_t	filesize;	// amount to map from the file /
+		 vm_prot_t	maxprot;	// maximum VM protection /
+		 vm_prot_t	initprot;	// initial VM protection /
+		 uint32_t	nsects;		// number of sections in segment /
+		 uint32_t	flags;		// flags /
+	 };
+	 #define VM_PROT_READ    ((vm_prot_t) 0x01)      // read permission /
+	 #define VM_PROT_WRITE   ((vm_prot_t) 0x02)      // write permission /
+	 #define VM_PROT_EXECUTE ((vm_prot_t) 0x04)      // execute permission /
+
+	 */
 	return ( (segLoadCommand(segIndex)->initprot & VM_PROT_READ) != 0);
 }
 
-
+//判断指定segment是否可写
 bool ImageLoaderMachO::segWriteable(unsigned int segIndex) const
 {
 	return ( (segLoadCommand(segIndex)->initprot & VM_PROT_WRITE) != 0);
 }
 
-
+//判断指定segment是否可执行（是不是相当于代码段）
 bool ImageLoaderMachO::segExecutable(unsigned int segIndex) const
 {
 	return ( (segLoadCommand(segIndex)->initprot & VM_PROT_EXECUTE) != 0);
@@ -757,9 +815,28 @@ uintptr_t ImageLoaderMachO::segPreferredLoadAddress(unsigned int segIndex) const
 {
 	return segLoadCommand(segIndex)->vmaddr;
 }
-
+/**
+ * 获取segment中的vmaddr
+ * 然后+上aslr(随机偏移量)
+ * segment_command_64.vmaddr + fSlide
+ */
 uintptr_t ImageLoaderMachO::segActualLoadAddress(unsigned int segIndex) const
 {
+	/*
+	 struct segment_command_64 { // for 64-bit architectures /
+		 uint32_t	cmd;		// LC_SEGMENT_64 /
+		 uint32_t	cmdsize;	// includes sizeof section_64 structs /
+		 char		segname[16];	// segment name /
+		 uint64_t	vmaddr;		// memory address of this segment /
+		 uint64_t	vmsize;		// memory size of this segment /
+		 uint64_t	fileoff;	// file offset of this segment /
+		 uint64_t	filesize;	// amount to map from the file /
+		 vm_prot_t	maxprot;	// maximum VM protection /
+		 vm_prot_t	initprot;	// initial VM protection /
+		 uint32_t	nsects;		// number of sections in segment /
+		 uint32_t	flags;		// flags /
+	 };
+	 */
 	return segLoadCommand(segIndex)->vmaddr + fSlide;
 }
 
@@ -1262,7 +1339,9 @@ void ImageLoaderMachO::doGetDependentLibraries(DependentLibraryInfo libs[])
 				case LC_LOAD_UPWARD_DYLIB:
 				{
 					const struct dylib_command* dylib = (struct dylib_command*)cmd;
+					
 					DependentLibraryInfo* lib = &libs[index++];
+					
 					lib->name = (char*)cmd + dylib->dylib.name.offset;
 					//lib->name = strdup((char*)cmd + dylib->dylib.name.offset);
 					lib->info.checksum = dylib->dylib.timestamp;
@@ -1437,7 +1516,7 @@ void ImageLoaderMachO::doRebase(const LinkContext& context)
 	// if loaded at preferred address, no rebasing necessary
 	if ( this->fSlide == 0 ) 
 		return;
-
+//先将代码段更改为可写状态
 #if TEXT_RELOC_SUPPORT
 	// if there are __TEXT fixups, temporarily make __TEXT writable
 	if ( fTextSegmentRebases ) 
@@ -1445,8 +1524,13 @@ void ImageLoaderMachO::doRebase(const LinkContext& context)
 #endif
 
 	// do actual rebasing
+	/*
+	 简单点说就是拿到segment_command_64->vmaddr，然后对齐+上一个偏移量
+	 也就是将系统分配给这个segment的虚拟内存地址加上一个偏移量
+	 */
 	this->rebase(context);
 			
+//先将代码段恢复为可不可写
 #if TEXT_RELOC_SUPPORT
 	// if there were __TEXT fixups, restore write protection
 	if ( fTextSegmentRebases ) 
@@ -2285,7 +2369,9 @@ void ImageLoaderMachO::segMakeWritable(unsigned int segIndex, const ImageLoader:
 	vm_prot_t protection = VM_PROT_WRITE | VM_PROT_READ;
 	if ( segExecutable(segIndex) && !segHasRebaseFixUps(segIndex) )
 		protection |= VM_PROT_EXECUTE;
+	//将虚拟内存中的是否可读写标志位protection更改为可读写
 	kern_return_t r = vm_protect(mach_task_self(), addr, size, setCurrentPermissions, protection);
+	
 	if ( r != KERN_SUCCESS ) {
         dyld::throwf("vm_protect(0x%08llX, 0x%08llX, false, 0x%02X) failed, result=%d for segment %s in %s",
             (long long)addr, (long long)size, protection, r, segName(segIndex), this->getPath());

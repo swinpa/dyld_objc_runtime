@@ -248,4 +248,6 @@ int main(int argc, const char * argv[]) {
 
 5. 当block被copy到堆上时，栈上的__Block_byref_xxx对象的__forwarding指针指向了堆上的的__Block_byref_xxx对象，堆上的__Block_byref_xxx中的__forwarding仍指向堆上的自己，这样不管是栈上还是堆上对变量的访问，都是访问的是堆上的
 
-6.  如果block捕获了休息的
+###这样理解block的捕获
+编辑器发现block内部使用了block外部的变量，那么编译器就帮你在block对象内部也声明一份一样的，那么后面block
+内部需要需要访问变量时，访问block内部的变量就可以了

@@ -92,7 +92,16 @@ objc_object::getIsa()
 
 /*
  Tagged Pointer专门用来存储小的对象，例如NSNumber和NSDate
- Tagged Pointer指针的值不再是地址了，而是真正的值。所以，实际上它不再是一个对象了，它只是一个披着对象皮的普通变量而已。所以，它的内存并不存储在堆中，也不需要 malloc 和 free。
+ Tagged Pointer指针的值不再是地址了，而是真正的值。所以，实际上它不再是一个对象了，它只是一个披着对象皮的普通变量而已。所以，它的内存并不存储在堆中，
+ 就是一个图普通的栈变量，不需要 malloc 和 free。
+ 
+ 第一位标识是否为TaggedPointer（为1表示是TaggedPointer）
+ 第2-4共3位用来指定对象类型（NSString，NSNumber，NSIndexPath，NSDate）
+ 
+ 第5-60共56位用来存放真正的数据
+ 第61-64共4位用来指定数据的类型，char,float,int,double这些
+ 1111 1111 1111 1111 1111 1111 1111 1111 1111 1111 1111 1111 1111 1111 1111 1111
+ 
  */
 inline bool 
 objc_object::isTaggedPointer() 

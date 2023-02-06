@@ -3266,7 +3266,8 @@ task_threads_internal(
 	i = j = 0;
 
 	for (thread = (thread_t)queue_first(&task->threads); i < actual;
-	    ++i, thread = (thread_t)queue_next(&thread->task_threads)) {
+	    ++i, thread = (thread_t)queue_next(&thread->task_threads))
+    {
 		thread_reference_internal(thread);
 		thread_list[j++] = thread;
 	}

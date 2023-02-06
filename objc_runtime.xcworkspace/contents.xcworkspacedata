@@ -47,9 +47,6 @@
          location = "group:mach-o">
       </FileRef>
       <FileRef
-         location = "group:mach-o.md">
-      </FileRef>
-      <FileRef
          location = "group:rvm&#x3001;Ruby&#x3001;gem&#x3001;CocoaPods.md">
       </FileRef>
       <Group

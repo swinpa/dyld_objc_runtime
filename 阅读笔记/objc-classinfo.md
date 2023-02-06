@@ -123,18 +123,31 @@ typedef struct objc_class *Class;
 struct objc_class : objc_object {
     // Class ISA;
     Class superclass; // 相当于 objc_class * superclass;
+    /*
+    用来缓存方法的
+    struct bucket_t {
+        MethodCacheIMP _imp;
+        cache_key_t _key;
+    }
+    struct cache_t {
+        struct bucket_t *_buckets;
+    }
+    */
     cache_t cache;             // formerly cache pointer and vtable
     /*
      存放对象相关数据的地方，比如成员变量
      	   struct class_data_bits_t {
 		    uintptr_t bits;
 		    class_rw_t* data() {
+                /*
+                bits指针的3到47位总共31位表示的是指向class_rw_t类型的类对象指针
+                通过这个类对象指针我们就能获取到类对象所存储的变量，方法列表等信息
+                */    
 		        return (class_rw_t *)(bits & FAST_DATA_MASK);
 		    }
 	   }
      */
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
-    
     class_rw_t *data() { 
         return bits.data();
     }

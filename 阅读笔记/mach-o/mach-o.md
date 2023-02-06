@@ -93,16 +93,62 @@ mach-o文件内容跟书内容可以这样对应
 
 ####MachOView解析mach-o
 
+MachOView 从Document.mm 中的
+
+```
+- (BOOL)readFromURL:(NSURL *)absoluteURL ofType:(NSString *)typeName error:(NSError **)outError
+
+```
+
+开始读入macho文件，以NSData的方式读入
+
+```
+dataController.fileData = [NSMutableData dataWithContentsOfURL:absoluteURL 
+                                                         options:NSDataReadingMappedIfSafe 
+                                                           error:outError];
+```
+
+NSData读取到macho文件后，通过
+
+```
+- (void)createLayouts:(MVNode *)parent
+             location:(uint32_t)location
+               length:(uint32_t)length
+```
+开始解析macho，解析当然是根据macho的文件格式进行解析
+
+```
+macho {
+	header,
+	load_command,
+	segment
+}
+1. 根据固定大小读取到mach_header
+2. 根据mach_header的描述读取load_command
+3. 根据load_command的描述读取segment
+```
+
+
+
+
 1. 首先可以肯定的是mach_header长度是固定的，可以通过以下方式获取
 
 		
 		struct mach_header_64 {
+			用来判断当前macho是fat_header，还是mach_header，还是mach_header_64
 			uint32_t	magic;		/* mach magic number identifier */
 			cpu_type_t	cputype;	/* cpu specifier */
 			cpu_subtype_t	cpusubtype;	/* machine specifier */
 			uint32_t	filetype;	/* type of file */
 			uint32_t	ncmds;		/* number of load commands */
 			uint32_t	sizeofcmds;	/* the size of all the load commands */
+			/*
+			一些标志位，如下
+				#define MH_NOUNDEFS 0x1     // 目前没有未定义的符号，不存在链接依赖
+				#define    MH_DYLDLINK  0x4     // 该文件是dyld的输入文件，无法被再次静态链接
+				#define MH_PIE 0x200000     // 加载程序在随机的地址空间，只在 MH_EXECUTE中使用
+				#define    MH_TWOLEVEL  0x80    // 两级名称空间
+			*/
 			uint32_t	flags;		/* flags */
 			uint32_t	reserved;	/* reserved */
 		};
@@ -113,6 +159,17 @@ mach-o文件内容跟书内容可以这样对应
 
 2. 通过固定长度读取到mach_header后，根据mach\_header的内容就可以得知接下来的load\_command的数量以及所有load\_command内容所占用的长度
 
+	machoview中是在DataController中调用
+	
+	```
+	-(void)createMachO64Layout:(MVNode *)node
+        mach_header_64:(struct mach_header_64 const *)mach_header_64
+	```
+	创建MachOLayout对象添加到layouts中
+	
+	然后再- (void)windowControllerDidLoadNib:(NSWindowController *)aController 中遍历layouts
+	执行[layout doMainTasks];开始解析
+	
 		struct load_command {
 			uint32_t cmd;		/* type of load command */
 			uint32_t cmdsize;	/* total size of command in bytes */
@@ -120,7 +177,7 @@ mach-o文件内容跟书内容可以这样对应
    
 3. 得到load\_command的数量以及大小后，就可以遍历获取到每条load\_command了，因为每条load\_command前面的信息都是固定的，它指定了该条load_command的类型以及该条load_command占用长度是多少。
 
-	所以遍历过程都是先读取load_command的内容，然后根据load_command指定的类型以及内容长度，读入对应类型的command内容
+	所以遍历过程都是先读取load_command的内容，然后根据load_command指定的类型以及内容长度，读入对应类型的command内容，segment_command是其中的一种load_comnand
 	
 		struct segment_command { /* for 32-bit architectures */
 			uint32_t	cmd;		/* LC_SEGMENT */
@@ -128,6 +185,11 @@ mach-o文件内容跟书内容可以这样对应
 			char		segname[16];	/* segment name */
 			uint32_t	vmaddr;		/* memory address of this segment */
 			uint32_t	vmsize;		/* memory size of this segment */
+			/*
+			表示在macho文件中的偏移量
+			根据这个就可以读取segment内的所有的section，根据section的描述
+			则可以读取所有的section内容
+			*/
 			uint32_t	fileoff;	/* file offset of this segment */
 			uint32_t	filesize;	/* amount to map from the file */
 			vm_prot_t	maxprot;	/* maximum VM protection */
@@ -135,5 +197,74 @@ mach-o文件内容跟书内容可以这样对应
 			uint32_t	nsects;		/* number of sections in segment */
 			uint32_t	flags;		/* flags */
 		};
+		
+		struct section { /* for 32-bit architectures */
+			char		sectname[16];	/* name of this section */
+			char		segname[16];	/* segment this section goes in */
+			uint32_t	addr;		/* memory address of this section */
+			//section 该section内容的大小
+			uint32_t	size;		/* size in bytes of this section */
+			//该section内容相对于macho文件的偏移量
+			uint32_t	offset;		/* file offset of this section */
+			uint32_t	align;		/* section alignment (power of 2) */
+			uint32_t	reloff;		/* file offset of relocation entries */
+			uint32_t	nreloc;		/* number of relocation entries */
+			uint32_t	flags;		/* flags (section type and attributes)*/
+			uint32_t	reserved1;	/* reserved (for offset or index) */
+			uint32_t	reserved2;	/* reserved (for count or sizeof) */
+		};
 
-4. 是的
+4. 在遍历解析load_command的过程中，如果load_command是segment_command的，那么在segment_command内部
+     
+     描述了该segment有多少section，然后循环读取section内容，因为section大小是固定的，所以可通过
+     
+     ```
+    uint32_t sectionloc = location + sizeof(struct segment_command) + nsect * sizeof(struct section);
+     
+     ```
+     就可以得到每个section开始的位置，然后读入sizeof(struct section)大小的section内容
+
+####58基于macho分析无用类
+
+1. 读取mach_header
+
+	```
+	mach_header_64 mhHeader;
+	[fileData getBytes:&mhHeader range:NSMakeRange(0, sizeof(mach_header_64))];
+	```
+
+2. 根据mach_header_64中描述的load_command数量以及大小读取load_command
+
+	```
+	unsigned long long currentLcLocation = sizeof(mach_header_64);
+	for (int i = 0; i < mhHeader.ncmds; i++) {
+		load_command *cmd = (load_command *)malloc(sizeof(load_command));
+		[fileData getBytes:cmd range:NSMakeRange(currentLcLocation, sizeof(load_command))];
+	}
+	```
+
+3. 如果load_command是segment_command，那么根据segment_command中描述的section数量读取对应的section
+
+	```
+	unsigned long long currentSecLocation = currentLcLocation + sizeof(segment_command_64);
+	for (int j = 0; j < segmentCommand.nsects; j++) {
+		section_64 sectionHeader;
+		[fileData getBytes:&sectionHeader range:NSMakeRange(currentSecLocation, sizeof(section_64))];
+		NSString *secName = [[NSString alloc] initWithUTF8String:sectionHeader.sectname];
+                    
+		//note classlist
+		if ([secName isEqualToString:DATA_CLASSLIST_SECTION] ||
+		    [secName isEqualToString:CONST_DATA_CLASSLIST_SECTION]) {
+		    classList = sectionHeader;
+		}
+		//note classref
+		if ([secName isEqualToString:DATA_CLASSREF_SECTION] ||
+		    [secName isEqualToString:CONST_DATA_CLASSREF_SECTION]) {
+		    classrefList = sectionHeader;
+		}
+	}
+	```
+4. 根据section的描述去读取section的内容
+
+
+###[fishhook](https://www.jianshu.com/p/9e1f4d771e35)

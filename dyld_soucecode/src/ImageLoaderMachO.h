@@ -98,6 +98,7 @@ public:
 	virtual bool						segExecutable(unsigned int) const;
 	virtual bool						segUnaccessible(unsigned int) const;
 	virtual bool						segHasPreferredLoadAddress(unsigned int) const;
+	//具体实现在ImageLoaderMachO.cpp中
 	virtual uintptr_t					segActualLoadAddress(unsigned int) const;
 	virtual uintptr_t					segPreferredLoadAddress(unsigned int) const;
 	virtual uintptr_t					segActualEndAddress(unsigned int) const;
@@ -203,7 +204,10 @@ protected:
 			
 	static uintptr_t			bindLazySymbol(const mach_header*, uintptr_t* lazyPointer);
 protected:
+	
+	//MARK: - 成员变量部分
 	uint64_t								fCoveredCodeLength;
+	//mach_header *
 	const uint8_t*							fMachOData;
 	const uint8_t*							fLinkEditBase; // add any internal "offset" to this to get mapped address
 	uintptr_t								fSlide;

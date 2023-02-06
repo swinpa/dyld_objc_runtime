@@ -7165,9 +7165,12 @@ addMethod(Class cls, SEL name, IMP imp, const char *types, bool replace)
     ASSERT(cls->isRealized());
 
     method_t *m;
+    
     if ((m = getMethodNoSuper_nolock(cls, name))) {
+        //在当前方法列表中查找到
         // already exists
         if (!replace) {
+            //add 的时候replace是false，所以会走这里
             result = m->imp(false);
         } else {
             result = _method_setImplementation(cls, m, imp);

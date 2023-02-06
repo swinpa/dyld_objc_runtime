@@ -417,8 +417,12 @@ void ImageLoader::link(const LinkContext& context, bool forceLazysBound, bool pr
 	uint64_t t2 = mach_absolute_time();
 	
 //++++++++++++++++++++Rebase begin+++++++++++++++++++++++++++++++++++++++
-	/*
-	 对需要修正地址进行 《地址+偏移量》？
+	/**
+	 对需要修正地址进行 《地址+偏移量》
+	 更具体一点说就是：
+	 简单点说就是拿到segment_command_64->vmaddr，然后对齐+上一个偏移量
+	 也就是将系统分配给这个segment的虚拟内存地址加上一个偏移量
+	  
 	 */
  	this->recursiveRebase(context);
 //++++++++++++++++++++Rebase end+++++++++++++++++++++++++++++++++++++++++
@@ -762,6 +766,10 @@ void ImageLoader::recursiveLoadLibraries(const LinkContext& context, bool prefli
 }
 /**
  对需要修正地址进行 《地址+偏移量》
+ 更具体一点说就是：
+ 简单点说就是拿到segment_command_64->vmaddr，然后对齐+上一个偏移量
+ 也就是将系统分配给这个segment的虚拟内存地址加上一个偏移量
+  
  */
 void ImageLoader::recursiveRebase(const LinkContext& context)
 { 
@@ -778,6 +786,13 @@ void ImageLoader::recursiveRebase(const LinkContext& context)
 			}
 				
 			// rebase this image
+			/**
+			 对需要修正地址进行 《地址+偏移量》
+			 更具体一点说就是：
+			 简单点说就是拿到segment_command_64->vmaddr，然后对齐+上一个偏移量
+			 也就是将系统分配给这个segment的虚拟内存地址加上一个偏移量
+			  
+			 */
 			doRebase(context);
 			
 			// notify
@@ -837,6 +852,9 @@ void ImageLoader::recursiveBind(const LinkContext& context, bool forceLazysBound
 					dependentImage->recursiveBind(context, forceLazysBound, neverUnload);
 			}
 			// bind this image
+			/*
+			 看ImageLoaderMachOClassic中的bind会直观一点
+			 */
 			this->doBind(context, forceLazysBound);	
 			// mark if lazys are also bound
 			if ( forceLazysBound || this->usablePrebinding(context) )
@@ -1068,6 +1086,7 @@ void ImageLoader::recursiveInitialization(const LinkContext& context, mach_port_
 				context.terminationRecorder(this);
 			
 			// let objc know we are about to initialize this image
+			// 通知objc当前image准备初始化
 			uint64_t t1 = mach_absolute_time();
 			fState = dyld_image_state_dependents_initialized;
 			oldState = fState;
@@ -1089,6 +1108,7 @@ void ImageLoader::recursiveInitialization(const LinkContext& context, mach_port_
 			bool hasInitializers = this->doInitialization(context);
 
 			// let anyone know we finished initializing this image
+			// 通知任何关心当前image的对象，当前image已经初始化完成
 			fState = dyld_image_state_initialized;
 			oldState = fState;
 			context.notifySingle(dyld_image_state_initialized, this);

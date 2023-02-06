@@ -104,10 +104,29 @@ dispatch_semaphore_signal(dispatch_semaphore_t dsema)
 	 dsema->dsema_value = dsema->dsema_value + 1
 	 return dsema->dsema_value
 	 也就是对信号量dispatch_semaphore_t 中的计数器属性dsema_value进行+1 操作，返回+1后的结果
+	 
+	 #define os_atomic_inc2o(p, f, m) \
+			 os_atomic_add2o(p, f, 1, m)
+	 
+	 #define os_atomic_add2o(p, f, v, m) \
+			 os_atomic_add(&(p)->f, (v), m)
+	 
+	 #define os_atomic_add(p, v, m) \
+			 _os_atomic_c11_op((p), (v), m, add, +)
+	 
+	 #define _os_atomic_c11_op(p, v, m, o, op) \
+			 ({ _os_atomic_basetypeof(p) _v = (v), _r = \
+			 __c11_atomic_fetch_##o(_os_atomic_c11_atomic(p), _v, \
+			 os_atomic_memory_order_##m); (typeof(_r))(_r op _v); })
+	 
 	 */
 	long value = os_atomic_inc2o(dsema, dsema_value, release);
 	if (likely(value > 0)) {
-		//如果dsema->dsema_value进行+1后的值大于0 则直接返回
+		/*
+		 如果dsema->dsema_value进行+1后的值大于0 则直接返回
+		 应该是>0 时没有其他线程因为该信号量而阻塞
+		 == 0 时已经通知阻塞线程返回了
+		*/
 		return 0;
 	}
 	if (unlikely(value == LONG_MIN)) {
@@ -132,6 +151,10 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema, dispatch_time_t timeou
 			}
 			// Fall through and try to undo what the fast path did to
 			// dsema->dsema_value
+			/*
+			 #define DISPATCH_TIME_NOW (0ull)
+			 #define DISPATCH_TIME_FOREVER (~0ull)
+			 */
 		case DISPATCH_TIME_NOW:
 			orig = dsema->dsema_value;
 			//死循环比较
@@ -186,7 +209,7 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema, dispatch_time_t timeou
 			}
 			// Another thread called semaphore_signal().
 			// Fall through and drain the wakeup.
-		case DISPATCH_TIME_FOREVER:
+		case DISPATCH_TIME_FOREVER://外部调用都是这个
 			/*
 			 也不知道这文章对不对得上Apple的实现：http://www.cs.fsu.edu/~baker/opsys/notes/semaphores.html
 			 */
@@ -217,8 +240,10 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema, dispatch_time_t timeou
  };
  */
 
-intptr_t
-dispatch_semaphore_wait(dispatch_semaphore_t dsema, dispatch_time_t timeout)
+/// <#Description#>
+/// @param dsema <#dsema description#>
+/// @param timeout 通常外部调用用的是#define DISPATCH_TIME_FOREVER (~0ull)
+intptr_t dispatch_semaphore_wait(dispatch_semaphore_t dsema, dispatch_time_t timeout)
 {
 	 /*
 	  dsema->dsema_value = dsema->dsema_value - 1

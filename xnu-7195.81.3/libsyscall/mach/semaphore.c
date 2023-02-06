@@ -54,6 +54,14 @@ semaphore_signal_thread(mach_port_t signal_semaphore, mach_port_t thread_act)
 kern_return_t
 semaphore_wait(mach_port_t wait_semaphore)
 {
+    /*
+     kern_return_t
+     semaphore_wait_trap(
+         struct semaphore_wait_trap_args *args)
+     {
+         return semaphore_wait_trap_internal(args->wait_name, thread_syscall_return);
+     }
+     */
 	return semaphore_wait_trap(wait_semaphore);
 }
 

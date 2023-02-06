@@ -1204,7 +1204,10 @@ grade:
 	}
 
 
-	/* reset local idea of thread, uthread, task */
+	/*
+     reset local idea of thread, uthread, task
+     通过imgp->ip_new_thread = fork_create_child(task,创建
+     */
 	thread = imgp->ip_new_thread;
 	uthread = get_bsdthread_info(thread);
 	task = new_task = get_threadtask(thread);
@@ -1225,8 +1228,11 @@ grade:
 	 * Actually load the image file we previously decided to load.
      * 真正去加载我们前面决定要加载的image文件
 	 */
-	lret = load_machfile(imgp, mach_header, thread, &map, &load_result);
-	if (lret != LOAD_SUCCESS) {
+	
+    lret = load_machfile(imgp, mach_header, thread, &map, &load_result);
+	
+    
+    if (lret != LOAD_SUCCESS) {
 		error = load_return_to_errno(lret);
 
 		KERNEL_DEBUG_CONSTANT(BSDDBG_CODE(DBG_BSD_PROC, BSD_PROC_EXITREASON_CREATE) | DBG_FUNC_NONE,
@@ -1895,6 +1901,7 @@ again:
 		*imgp->ip_origvattr = *imgp->ip_vattr;
 	}
 
+    //这里是不是将macho的数据写入imgp->ip_vdata中
 	error = vn_rdwr(UIO_READ, imgp->ip_vp, imgp->ip_vdata, PAGE_SIZE, 0,
 	    UIO_SYSSPACE, IO_NODELOCKED,
 	    vfs_context_ucred(imgp->ip_vfs_context),
@@ -1904,6 +1911,7 @@ again:
 	}
 
 	if (resid) {
+        //将imgp->ip_vdata + (PAGE_SIZE - resid)后面的初始化为0
 		memset(imgp->ip_vdata + (PAGE_SIZE - resid), 0x0, resid);
 	}
 

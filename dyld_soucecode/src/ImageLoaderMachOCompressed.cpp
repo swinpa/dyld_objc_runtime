@@ -104,8 +104,12 @@ static intptr_t read_sleb128(const uint8_t*& p, const uint8_t* end)
 
 
 // create image for main executable
-ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateMainExecutable(const macho_header* mh, uintptr_t slide, const char* path, 
-																		unsigned int segCount, unsigned int libCount, const LinkContext& context)
+ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateMainExecutable(const macho_header* mh,
+																				  uintptr_t slide,
+																				  const char* path,
+																				  unsigned int segCount,
+																				  unsigned int libCount,
+																				  const LinkContext& context)
 {
 	ImageLoaderMachOCompressed* image = ImageLoaderMachOCompressed::instantiateStart(mh, path, segCount, libCount);
 
@@ -117,7 +121,13 @@ ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateMainExecutabl
 		fgNextPIEDylibAddress = (uintptr_t)image->getEnd();
 
 	image->disableCoverageCheck();
+	/*
+	 解析load command，获取symbolTableStrings，symbolTable，dynSymbolTable
+	 解析LC_SEGMENT_COMMAND类型的load command中的section，判断有没有S_MOD_INIT_FUNC_POINTERS
+	 */
 	image->instantiateFinish(context);
+	// 这里就通知objc，image 已经 dyld_image_state_mapped了吗？？？
+	
 	image->setMapped(context);
 
 	if ( context.verboseMapping ) {
@@ -289,10 +299,34 @@ ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateFromMemory(co
 }
 
 
-ImageLoaderMachOCompressed::ImageLoaderMachOCompressed(const macho_header* mh, const char* path, unsigned int segCount, 
-																		uint32_t segOffsets[], unsigned int libCount)
- : ImageLoaderMachO(mh, path, segCount, segOffsets, libCount), fDyldInfo(NULL)
+
+ImageLoaderMachOCompressed::ImageLoaderMachOCompressed(const macho_header* mh,
+													   const char* path,
+													   unsigned int segCount,
+													   uint32_t segOffsets[],
+													   unsigned int libCount)
+: ImageLoaderMachO(mh, path, segCount, segOffsets, libCount), fDyldInfo(NULL)
 {
+	//带初始化列表的构造函数
+	/*
+	 //采用初始化列表
+	 class Student{
+	 private:
+		 char *m_name;
+		 int m_age;
+		 float m_score;
+	 public:
+		 Student(char *name, int age, float score);
+	 };
+	 //采用初始化列表
+	 Student::Student(char *name, int age, float score): m_name(name), m_age(age), m_score(score){
+		 //TODO:
+	 }
+	 如本例所示，定义构造函数时并没有在函数体中对成员变量一一赋值，其函数体为空（当然也可以有其他语句），而是在函数首部与函数体之间添加了一个冒号:
+	 后面紧跟m_name(name), m_age(age), m_score(score)语句，这个语句的意思相当于函数体内部的
+	 m_name = name; m_age = age; m_score = score;语句，也是赋值的意思。
+	 */
+	
 }
 
 ImageLoaderMachOCompressed::~ImageLoaderMachOCompressed()
@@ -304,15 +338,42 @@ ImageLoaderMachOCompressed::~ImageLoaderMachOCompressed()
 
 
 // construct ImageLoaderMachOCompressed using "placement new" with SegmentMachO objects array at end
-ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateStart(const macho_header* mh, const char* path, 
-																			unsigned int segCount, unsigned int libCount)
+ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateStart(const macho_header* mh,
+																		 const char* path,
+																		 unsigned int segCount,
+																		 unsigned int libCount)
 {
+	//计算需要malloc多大的内存块
 	size_t size = sizeof(ImageLoaderMachOCompressed) + segCount * sizeof(uint32_t) + libCount * sizeof(ImageLoader*);
+	// 申请size大小的内存块
+	/*
+	 static_cast 运算符语法
+	 static_cast <type-id> ( expression )
+	 
+	 void * malloc(size_t size);
+	 The malloc() function allocates size bytes of memory and returns a pointer to the allocated memory.
+	 
+	 所以下面就是将malloc(size)申请的内存返回的void* 强制转换成ImageLoaderMachOCompressed*类型
+	 
+	 */
 	ImageLoaderMachOCompressed* allocatedSpace = static_cast<ImageLoaderMachOCompressed*>(malloc(size));
-	if ( allocatedSpace == NULL )
+	
+	if ( allocatedSpace == NULL ) {
 		throw "malloc failed";
+	}
+		
 	uint32_t* segOffsets = ((uint32_t*)(((uint8_t*)allocatedSpace) + sizeof(ImageLoaderMachOCompressed)));
+	
+	//初始化
 	bzero(&segOffsets[segCount], libCount*sizeof(void*));	// zero out lib array
+	
+	/*
+	 定位new运算符用法
+	 new (A内存块) XXXClass
+	 在(A内存块)中申请一内存存放 XXXClass
+	 也就是new XXXClass 对象所在的内存在(A内存块)中
+	 */
+	// 在内存空间allocatedSpace中new一个ImageLoaderMachOCompressed对象
 	return new (allocatedSpace) ImageLoaderMachOCompressed(mh, path, segCount, segOffsets, libCount);
 }
 
@@ -321,6 +382,10 @@ ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateStart(const m
 void ImageLoaderMachOCompressed::instantiateFinish(const LinkContext& context)
 {
 	// now that segments are mapped in, get real fMachOData, fLinkEditBase, and fSlide
+	/*
+	 解析load command，获取symbolTableStrings，symbolTable，dynSymbolTable
+	 解析LC_SEGMENT_COMMAND类型的load command中的section，判断有没有S_MOD_INIT_FUNC_POINTERS
+	 */
 	this->parseLoadCmds(context);
 }
 
@@ -426,9 +491,11 @@ void ImageLoaderMachOCompressed::rebaseAt(const LinkContext& context, uintptr_t 
 	uintptr_t* locationToFix = (uintptr_t*)addr;
 	switch (type) {
 		case REBASE_TYPE_POINTER:
+			// 地址值 + 偏移量
 			*locationToFix += slide;
 			break;
 		case REBASE_TYPE_TEXT_ABSOLUTE32:
+			// 地址值 + 偏移量
 			*locationToFix += slide;
 			break;
 		default:
@@ -448,6 +515,16 @@ void ImageLoaderMachOCompressed::rebase(const LinkContext& context)
 {
 	CRSetCrashLogMessage2(this->getPath());
 	const uintptr_t slide = this->fSlide;
+	/*
+	 fLinkEditBase 以及 fDyldInfo 在
+	 ImageLoaderMachOCompressed::instantiateFinish() {
+		ImageLoaderMachO::parseLoadCmds(const LinkContext& context)
+	 }
+	 中解析load command 得到
+	 fLinkEditBase = (segment_command_64 *__LINKEDIT).vmaddr + fSlide - (segment_command_64 *__LINKEDIT).fileoff
+	 也就是__LINKEDIT 这个segment中对应字段计算得到
+	 fDyldInfo 则是 LC_DYLD_INFO 或者 LC_DYLD_INFO_ONLY这两个segment
+	 */
 	const uint8_t* const start = fLinkEditBase + fDyldInfo->rebase_off;
 	const uint8_t* const end = &start[fDyldInfo->rebase_size];
 	const uint8_t* p = start;
@@ -455,12 +532,54 @@ void ImageLoaderMachOCompressed::rebase(const LinkContext& context)
 	try {
 		uint8_t type = 0;
 		int segmentIndex = 0;
+		
+		/*
+		 struct segment_command_64 { // for 64-bit architectures /
+			 uint32_t	cmd;		// LC_SEGMENT_64 /
+			 uint32_t	cmdsize;	// includes sizeof section_64 structs /
+			 char		segname[16];	// segment name /
+			 uint64_t	vmaddr;		// memory address of this segment /
+			 uint64_t	vmsize;		// memory size of this segment /
+			 uint64_t	fileoff;	// file offset of this segment /
+			 uint64_t	filesize;	// amount to map from the file /
+			 vm_prot_t	maxprot;	// maximum VM protection /
+			 vm_prot_t	initprot;	// initial VM protection /
+			 uint32_t	nsects;		// number of sections in segment /
+			 uint32_t	flags;		// flags /
+		 };
+		 */
+		/*
+		 uintptr_t ImageLoaderMachO::segActualLoadAddress(unsigned int segIndex) const
+		 {
+			 return segLoadCommand(segIndex)->vmaddr + fSlide;
+		 }
+		 */
+		/*
+		 这个地址可能就是需要修正的地址
+		 也就是这个address其实就是segment_command_64->vmaddr + fslide 的值
+		 更新系统分配给这个segment的虚拟内存地址，原有的 + 偏移量
+		 */
 		uintptr_t address = segActualLoadAddress(0);
 		uintptr_t segmentEndAddress = segActualEndAddress(0);
 		uintptr_t count;
 		uintptr_t skip;
 		bool done = false;
 		while ( !done && (p < end) ) {
+			
+			/*
+			 #define REBASE_OPCODE_MASK					0xF0
+			 #define REBASE_IMMEDIATE_MASK					0x0F
+			 #define REBASE_OPCODE_DONE					0x00
+			 #define REBASE_OPCODE_SET_TYPE_IMM				0x10
+			 #define REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB		0x20
+			 #define REBASE_OPCODE_ADD_ADDR_ULEB				0x30
+			 #define REBASE_OPCODE_ADD_ADDR_IMM_SCALED			0x40
+			 #define REBASE_OPCODE_DO_REBASE_IMM_TIMES			0x50
+			 #define REBASE_OPCODE_DO_REBASE_ULEB_TIMES			0x60
+			 #define REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB			0x70
+			 #define REBASE_OPCODE_DO_REBASE_ULEB_TIMES_SKIPPING_ULEB	0x80
+			 */
+			
 			uint8_t immediate = *p & REBASE_IMMEDIATE_MASK;
 			uint8_t opcode = *p & REBASE_OPCODE_MASK;
 			++p;
@@ -487,8 +606,14 @@ void ImageLoaderMachOCompressed::rebase(const LinkContext& context)
 					break;
 				case REBASE_OPCODE_DO_REBASE_IMM_TIMES:
 					for (int i=0; i < immediate; ++i) {
-						if ( address >= segmentEndAddress ) 
+						if ( address >= segmentEndAddress ) {
+							/*
+							 在进行rebase前先判断地址是否有问题
+							 地址有问题，抛出异常
+							 */
 							throwBadRebaseAddress(address, segmentEndAddress, segmentIndex, start, end, p);
+						}
+						//这里才是进行rebase操作
 						rebaseAt(context, address, slide, type);
 						address += sizeof(uintptr_t);
 					}
@@ -497,17 +622,31 @@ void ImageLoaderMachOCompressed::rebase(const LinkContext& context)
 				case REBASE_OPCODE_DO_REBASE_ULEB_TIMES:
 					count = read_uleb128(p, end);
 					for (uint32_t i=0; i < count; ++i) {
-						if ( address >= segmentEndAddress ) 
+						if ( address >= segmentEndAddress ) {
+							/*
+							 在进行rebase前先判断地址是否有问题
+							 地址有问题，抛出异常
+							 */
 							throwBadRebaseAddress(address, segmentEndAddress, segmentIndex, start, end, p);
+						}
+						//这里才是进行rebase操作
 						rebaseAt(context, address, slide, type);
 						address += sizeof(uintptr_t);
 					}
 					fgTotalRebaseFixups += count;
 					break;
 				case REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB:
-					if ( address >= segmentEndAddress ) 
+					if ( address >= segmentEndAddress ) {
+						/*
+						 在进行rebase前先判断地址是否有问题
+						 地址有问题，抛出异常
+						 */
 						throwBadRebaseAddress(address, segmentEndAddress, segmentIndex, start, end, p);
+					}
+						
+					//这里才是进行rebase操作
 					rebaseAt(context, address, slide, type);
+					
 					address += read_uleb128(p, end) + sizeof(uintptr_t);
 					++fgTotalRebaseFixups;
 					break;
@@ -515,8 +654,14 @@ void ImageLoaderMachOCompressed::rebase(const LinkContext& context)
 					count = read_uleb128(p, end);
 					skip = read_uleb128(p, end);
 					for (uint32_t i=0; i < count; ++i) {
-						if ( address >= segmentEndAddress ) 
+						if ( address >= segmentEndAddress ) {
+							/*
+							 在进行rebase前先判断地址是否有问题
+							 地址有问题，抛出异常
+							 */
 							throwBadRebaseAddress(address, segmentEndAddress, segmentIndex, start, end, p);
+						}
+						//这里才是进行rebase操作
 						rebaseAt(context, address, slide, type);
 						address += skip + sizeof(uintptr_t);
 					}
@@ -896,7 +1041,7 @@ void ImageLoaderMachOCompressed::doBind(const LinkContext& context, bool forceLa
 		// don't need to bind
 	}
 	else {
-	
+// 跟rebase一下，先将对应的segment改成《可写》状态
 	#if TEXT_RELOC_SUPPORT
 		// if there are __TEXT fixups, temporarily make __TEXT writable
 		if ( fTextSegmentBinds ) 
@@ -905,7 +1050,7 @@ void ImageLoaderMachOCompressed::doBind(const LinkContext& context, bool forceLa
 	
 		// run through all binding opcodes
 		eachBind(context, &ImageLoaderMachOCompressed::bindAt);
-			
+// 跟rebase一下，bind完成后需要先将对应的segment改回《不可写》状态
 	#if TEXT_RELOC_SUPPORT
 		// if there were __TEXT fixups, restore write protection
 		if ( fTextSegmentBinds ) 

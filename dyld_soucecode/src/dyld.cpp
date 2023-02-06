@@ -1537,6 +1537,7 @@ void processDyldEnvironmentVariable(const char* key, const char* value, const ch
 		sEnv.DYLD_PRINT_LIBRARIES_POST_LAUNCH = true;
 	}
 	else if ( strcmp(key, "DYLD_BIND_AT_LAUNCH") == 0 ) {
+		//在link时需要该参数
 		sEnv.DYLD_BIND_AT_LAUNCH = true;
 	}
 	else if ( strcmp(key, "DYLD_FORCE_FLAT_NAMESPACE") == 0 ) {
@@ -2314,6 +2315,7 @@ static bool fatFindBest(const fat_header* fh, uint64_t* offset, uint64_t* len)
 	// just find first slice with matching architecture
 	const fat_arch* archs = (fat_arch*)(((char*)fh)+sizeof(fat_header));
 	for(uint32_t i=0; i < OSSwapBigToHostInt32(fh->nfat_arch); ++i) {
+		//找到跟main程序架构一致的，获取偏移量以及大小信息
 		if ( (cpu_type_t)OSSwapBigToHostInt32(archs[i].cputype) == sMainExecutableMachHeader->cputype) {
 			*offset = OSSwapBigToHostInt32(archs[i].offset);
 			*len = OSSwapBigToHostInt32(archs[i].size);
@@ -2558,7 +2560,9 @@ static bool isSimulatorBinary(const uint8_t* firstPage, const char* path)
 static ImageLoader* loadPhase6(int fd, const struct stat& stat_buf, const char* path, const LoadContext& context)
 {
 	//dyld::log("%s(%s)\n", __func__ , path);
+	//fat 文件中main程序架构对应的架构开始的位置
 	uint64_t fileOffset = 0;
+	//fat 文件中main程序架构对应的架构大小
 	uint64_t fileLength = stat_buf.st_size;
 
 	// validate it is a file (not directory)
@@ -2570,11 +2574,13 @@ static ImageLoader* loadPhase6(int fd, const struct stat& stat_buf, const char* 
 	
 	// min mach-o file is 4K
 	if ( fileLength < 4096 ) {
+		//读取动态库文件前4096字节数据
 		if ( pread(fd, firstPage, fileLength, 0) != (ssize_t)fileLength ) {
 			throwf("pread of short file failed: %d", errno);
 		}
 		shortPage = true;
 	} else {
+		//读取动态库文件前4096字节数据
 		if ( pread(fd, firstPage, 4096,0) != 4096 ) {
 			throwf("pread of first 4K failed: %d", errno);
 		}
@@ -2583,8 +2589,30 @@ static ImageLoader* loadPhase6(int fd, const struct stat& stat_buf, const char* 
 	// if fat wrapper, find usable sub-file
 	// 如果是一个fat格式的文件，找到对应的子文件
 	// 从fat文件中找到对应子文件的代码。
+	/*
+	 将动态库文件前4096字节内容强转为fat_header格式数据，用来判断动态库文件类型，是fat还是thin的
+	 相当于根据mach_header中的magic字段判断
+	 
+	 struct fat_header {
+		 uint32_t	magic;		// FAT_MAGIC /
+		 uint32_t	nfat_arch;	// number of structs that follow /
+	 };
+
+	 struct fat_arch {
+		 cpu_type_t	cputype;	/ cpu specifier (int) /
+		 cpu_subtype_t	cpusubtype;	/ machine specifier (int) /
+		 uint32_t	offset;		/ file offset to this object file /
+		 uint32_t	size;		/ size of this object file /
+		 uint32_t	align;		/ alignment as a power of 2 /
+	 };
+	 
+	*/
 	const fat_header* fileStartAsFat = (fat_header*)firstPage;
 	if ( fileStartAsFat->magic == OSSwapBigToHostInt32(FAT_MAGIC) ) {
+		/*
+		 如果是fat，那么找到最合适的arch
+		 从这里就能看到fat，其实就是将多个arch架构的文件放到一个文件中，通过文件偏移以及大小来就可以找到对应的arch
+		*/
 		if ( fatFindBest(fileStartAsFat, &fileOffset, &fileLength) ) {
 			if ( (fileOffset+fileLength) > (uint64_t)(stat_buf.st_size) ) {
 				throwf("truncated fat file.  file length=%llu, but needed slice goes to %llu",
@@ -4445,9 +4473,33 @@ static void printAllImages()
 
  调用image的link方法
  image的link方法主要做的事情是：
+ 1. rebase
+ 
  旧地址 + 偏移量 = 最终《实际地址》，《因为iOS系统有个ASLR随机地址偏移量？？？》
  this->recursiveRebase(context);
  
+ 在mach_loader.c --> load_machfile()中生成一个随机数
+ //Compute a random offset for ASLR, and an independent random offset for dyld.
+ if (!(imgp->ip_flags & IMGPF_DISABLE_ASLR)) {
+	 vm_map_get_max_aslr_slide_section(map, &aslr_section_offset, &aslr_section_size);
+	 aslr_section_offset = (random() % aslr_section_offset) * aslr_section_size;
+
+	 aslr_page_offset = random();
+	 aslr_page_offset %= vm_map_get_max_aslr_slide_pages(map);
+	 aslr_page_offset <<= vm_map_page_shift(map);
+
+	 dyld_aslr_page_offset = random();
+ 
+	 dyld_aslr_page_offset %= vm_map_get_max_loader_aslr_slide_pages(map);
+	 dyld_aslr_page_offset <<= vm_map_page_shift(map);
+	 aslr_page_offset += aslr_section_offset;
+ }
+ 再具体一点就是：
+ 
+  简单点说就是拿到segment_command_64->vmaddr，然后对齐+上一个偏移量
+  也就是将系统分配给这个segment的虚拟内存地址加上一个偏移量
+  
+ 2. bind
  《占位地址》转成《实际地址》，
  （编译阶段，调用方使用外部符号时，无法知道外部符号地址，故只能先给个临时的占位地址，在加载的时候才能确定地址）
  this->recursiveBind(context, forceLazysBound, neverUnload);
@@ -4641,6 +4693,8 @@ static void loadInsertedDylib(const char* path)
 		context.canBePIE			= false;
 		context.origin				= NULL;	// can't use @loader_path with DYLD_INSERT_LIBRARIES
 		context.rpath				= NULL;
+		
+		//根据动态库的地址加载动态库文件，并构成对应的ImageLoader对象
 		image = load(path, context);
 	}
 	catch (const char* msg) {
@@ -5150,6 +5204,9 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 	/*
 	 make initial allocations large enough that it is unlikely to need to be re-alloced
 	 尽可能大的初始化一堆容器
+	 注意sAllImages容器在运行期间还要用到，比如在某个时刻想要通过_dyld_image_count()接口获取image数量
+	 或者通过_dyld_get_image_header()获取某个image_header，通过_dyld_get_image_vmaddr_slide()获取
+	 image的slide，都是通过查询该容器sAllImages进行的
 	 */
 	sAllImages.reserve(INITIAL_IMAGE_COUNT);
 	sImageRoots.reserve(16);
@@ -5175,6 +5232,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		 
 		 根据_objc_init() 的调用栈来看，instantiateFromLoadedImage过程中还没有给runtime注册回调
 		 */
+//MARK: - 主程序实例化成ImageLoader
 		sMainExecutable = instantiateFromLoadedImage(mainExecutableMH, mainExecutableSlide, sExecPath);//加载MACHO到image
 		gLinkContext.mainExecutable = sMainExecutable;
 		gLinkContext.processIsRestricted = sProcessIsRestricted;
@@ -5228,7 +5286,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 	#if SUPPORT_VERSIONED_PATHS
 		checkVersionedPaths();
 	#endif
-
+//MARK: - 将依赖的动态库实例化成ImageLoader
 		// load any inserted libraries
 		// 类似于linux里面的LD_PRELOAD
 		if	( sEnv.DYLD_INSERT_LIBRARIES != NULL ) {
@@ -5241,6 +5299,11 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 				 主要做的事情就是：读取mach-o 文件的load command 中的信息，然后使用这些信息实例化ImageLoader
 				 然后调用addImage(image);将image添加到sAllImages中
 				 sAllImages.push_back(image);
+				 
+				 最终通过在dyld.cpp /
+				 static ImageLoader* loadPhase5open(const char* path, const LoadContext& context, const struct stat& stat_buf, std::vector<const char*>* exceptions)
+				 
+				 打开文件,然后调用ImageLoader* ImageLoaderMachO::instantiateFromFile()进行实例化
 				 */
 				loadInsertedDylib(*lib);
 			}
@@ -5255,6 +5318,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		//+++++++++++++++++
 		//
 		//
+//MARK: - 链接主程序
 //++++++++++++++++++++++++《主程序链接》开始++++++++++++++++++++++++++++++++++
 		link(sMainExecutable, sEnv.DYLD_BIND_AT_LAUNCH, true, ImageLoader::RPathChain(NULL, NULL));
 //++++++++++++++++++++++++《主程序链接》开始++++++++++++++++++++++++++++++++++
@@ -5287,6 +5351,7 @@ _main(const macho_header* mainExecutableMH, uintptr_t mainExecutableSlide,
 		 
 		 静态链接：在一个文件中可能会到其他文件，因此，还需要将编译生成的目标文件和系统提供的文件组合到一起，这个过程就是链接。经过链接，最后生成可执行文件。
 		 */
+//MARK: - 链接动态库
 //++++++++++++++++++++++++《动态库链接》开始++++++++++++++++++++++++++++++++++
 		if ( sInsertedDylibCount > 0 ) {
 			for(unsigned int i=0; i < sInsertedDylibCount; ++i) {

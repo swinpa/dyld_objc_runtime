@@ -5148,11 +5148,13 @@ Method class_getInstanceMethod(Class cls, SEL sel)
 #warning fixme build and search caches
         
     // Search method lists, try method resolver, etc.
+    //这有可能会在父类方法列表中查找，找到会放到缓存中
     lookUpImpOrNil(cls, sel, nil, 
                    NO/*initialize*/, NO/*cache*/, YES/*resolver*/);
 
 #warning fixme build and search caches
 
+    //这有可能会在父类方法列表中查找，找到会放到缓存中
     return _class_getMethod(cls, sel);
 }
 
@@ -5383,8 +5385,11 @@ IMP lookUpImpOrForward(Class cls, SEL sel, id inst,
 IMP lookUpImpOrNil(Class cls, SEL sel, id inst, 
                    bool initialize, bool cache, bool resolver)
 {
+    //这有可能会在父类方法列表中查找
     IMP imp = lookUpImpOrForward(cls, sel, inst, initialize, cache, resolver);
-    if (imp == _objc_msgForward_impcache) return nil;
+    if (imp == _objc_msgForward_impcache) {
+        return nil;
+    }
     else return imp;
 }
 
@@ -7096,7 +7101,7 @@ void *objc_destructInstance(id obj)
             //删除关联对象
             _object_remove_assocations(obj);
         }
-        //弱指针处理
+        //引用计数，弱指针处理
         obj->clearDeallocating();
     }
 
@@ -7114,7 +7119,8 @@ object_dispose(id obj)
 {
     if (!obj) return nil;
 
-    objc_destructInstance(obj);    
+    objc_destructInstance(obj);
+    //这里才是真正的释放内存的接口
     free(obj);
 
     return nil;
