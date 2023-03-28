@@ -752,6 +752,9 @@ template <bool Debug> class recursive_mutex_tt;
 #   define LOCKDEBUG 0
 #endif
 
+/*
+ 在C++中，using = 是一种类型别名定义方式，可以使用它来为一个类型定义一个新的别名。使用using =可以使代码更加简洁易读。
+ */
 using spinlock_t = mutex_tt<LOCKDEBUG>;
 using mutex_t = mutex_tt<LOCKDEBUG>;
 using monitor_t = monitor_tt<LOCKDEBUG>;
