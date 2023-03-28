@@ -50,8 +50,9 @@ dispatch_once_f(dispatch_once_t *val, void *ctxt, dispatch_function_t func)
 
 ####dispatch_once注意事项
 1. 通过上面源码可以看到token不能赋值，因为内部token需要跟~0比较，赋值了影响比较
-	
+	     
 	```
+    #define DLOCK_ONCE_DONE        (~(uintptr_t)0) 相当于~0=-1;   
 	if (likely(v == DLOCK_ONCE_DONE)) {
 		return;
 	}

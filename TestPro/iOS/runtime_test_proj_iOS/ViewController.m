@@ -28,6 +28,9 @@
         
     });
          
+    [self.view setNeedsLayout];
+    [self.view layoutIfNeeded];
+    [self.view setNeedsDisplay];
     NSTimer *t = [NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(viewDidLoad) userInfo:nil repeats:true];
     [self.view performSelector:@"" onThread:[NSThread mainThread] withObject:nil waitUntilDone:true];
     

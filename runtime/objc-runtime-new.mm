@@ -1806,7 +1806,10 @@ static void moveIvars(class_ro_t *ro, uint32_t superSize)
     *(uint32_t *)&ro->instanceSize += diff;
 }
 
-
+/*
+ reconcile [ˈrekənsaɪl]
+ v. 调和，使协调一致；（使）和解，（使）恢复友好关系
+ */
 static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro_t*& ro) 
 {
     class_rw_t *rw = cls->data();

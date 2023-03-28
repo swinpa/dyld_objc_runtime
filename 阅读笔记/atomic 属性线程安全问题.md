@@ -113,7 +113,7 @@ int objc_sync_exit(id obj)
 
 	struct SyncList {
 	    SyncData *data;
-	    spinlock_t lock;
+	    spinlock_t lock;//由于有线程优先级翻转的问题，所以现在底层替换层了os_unfair_lock
 	    constexpr SyncList() : data(nil), lock(fork_unsafe_lock) { }
 	};
 	```

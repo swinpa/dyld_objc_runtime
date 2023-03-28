@@ -43,6 +43,7 @@ p.age = 100;
 	1. 用来欺骗外部，对象的class没有变
 	2. 在setterInt: 方法中，通过[self class] 能拿到原本的LWPerson类，再通过[LWPerson instanceMethodForSelector: _cmd]; 能获取LWPerson 原本的setter方法 setAge:从而使用setAge进行赋值，也就是NSKVONotifying_LWPerson 中setAge:对应的IMP为setterInt: 的IMP，LWPerson 对应的仍是原本的setAge:的IMP
 
+    第二点才是重写class的根本目的吧
 
 ###GNUSTep 中overrideSetterFor: (NSString*)aKey 逻辑
 

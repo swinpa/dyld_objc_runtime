@@ -410,8 +410,7 @@ dispatch_group_leave(dispatch_group_t dg)
 {
 	// The value is incremented on a 64bits wide atomic so that the carry for
 	// the -1 -> 0 transition increments the generation atomically.
-	uint64_t new_state, old_state = os_atomic_add_orig2o(dg, dg_state,
-			DISPATCH_GROUP_VALUE_INTERVAL, release);
+	uint64_t new_state, old_state = os_atomic_add_orig2o(dg, dg_state, DISPATCH_GROUP_VALUE_INTERVAL, release);
 	uint32_t old_value = (uint32_t)(old_state & DISPATCH_GROUP_VALUE_MASK);
 
 	if (unlikely(old_value == DISPATCH_GROUP_VALUE_1)) {
@@ -428,8 +427,7 @@ dispatch_group_leave(dispatch_group_t dg)
 				new_state &= ~DISPATCH_GROUP_HAS_NOTIFS;
 			}
 			if (old_state == new_state) break;
-		} while (unlikely(!os_atomic_cmpxchgv2o(dg, dg_state,
-				old_state, new_state, &old_state, relaxed)));
+		} while (unlikely(!os_atomic_cmpxchgv2o(dg, dg_state, old_state, new_state, &old_state, relaxed)));
 		return _dispatch_group_wake(dg, old_state, true);
 	}
 
@@ -444,8 +442,7 @@ dispatch_group_enter(dispatch_group_t dg)
 {
 	// The value is decremented on a 32bits wide atomic so that the carry
 	// for the 0 -> -1 transition is not propagated to the upper 32bits.
-	uint32_t old_bits = os_atomic_sub_orig2o(dg, dg_bits,
-			DISPATCH_GROUP_VALUE_INTERVAL, acquire);
+	uint32_t old_bits = os_atomic_sub_orig2o(dg, dg_bits, DISPATCH_GROUP_VALUE_INTERVAL, acquire);
 	uint32_t old_value = old_bits & DISPATCH_GROUP_VALUE_MASK;
 	if (unlikely(old_value == 0)) {
 		_dispatch_retain(dg); // <rdar://problem/22318411>

@@ -24,6 +24,7 @@ mach-o文件的文件内容分为3大部分，分别是
         			
         __LINKEDIT段(link editor在链接时候创建生成,包含了符号表(symtab)、间接符号表(dysymtab)、字符串表(string table)等)（这个段为动态链接做准备的）
         
+        
         每个segment(段)中跟据内容的不同又可以细分成不同的section，比如：
             
             代码段
@@ -268,3 +269,39 @@ macho {
 
 
 ###[fishhook](https://www.jianshu.com/p/9e1f4d771e35)
+
+```
+在程序运行时，动态链接的 C 函数dynamic(...)地址记录在DATA segment下的la_symbol_ptr中；
+初始时，程序只知道dynamic函数的符号名而不知道函数的实现地址；首次调用时，程序通过TEXT segment
+中的stub_helper取得绑定信息，通过dyld_stub_binder来更新la_symbol_ptr中的符号实现地址；
+这样，再次调用时，就可以通过la_symbol_ptr直接找到dynamic函数的实现；
+如果我们需要替换dynamic函数的实现，只需要修改__la_symbol_ptr即可
+
+
+是不是可以理解成调用动态库函数dynamic(...)的时候会去la_symbol_ptr中获取函数符号对应的函数地址进行调用
+如果首次调用的时候，la_symbol_ptr中还没有函数符号对应的地址，那么就通过stub_helper，dyld_stub_binder
+从而查询得到动态库函数的地址，然后调用，并且将其缓存到la_symbol_ptr中，那么下次再调用的时候，在la_symbol_ptr
+中就能命中该动态库函数的地址了。fishhook的本质就是替换了la_symbol_ptr中符号对应的函数地址
+
+
+然而是这样的：
+la_symbol_ptr 中存放了符号在indirect symbol table 中的起始下标index，而indirect symbol table又记录了symbol在
+符号表（symbol table）中的下标，通过indirect symbol table中记录的下标去符号表（symbol table）对应的位置就能
+查询得到符号的信息（符号名，符号对应的地址），然后进行修改吗？
+
+更具体的在QMCMHProject项目中写了部分笔记
+
+```
+
+
+
+* 简单来说可能就是
+
+```
+1. 通过_dyld_register_func_for_add_image监听image map加载完成，然后替换
+```
+
+
+
+
+

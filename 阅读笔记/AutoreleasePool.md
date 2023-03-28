@@ -72,7 +72,20 @@ int main(int argc, char * argv[]) {
 ```
 
 * 可以看出，在代码块前面，在栈中创建了一个pool结构体对象，因为是结构体对象，所以该变量在栈上，在代码块结束后会被释放，而该结构体对象在构造函数中会调用objc_autoreleasePoolPush()创建或获取AutoreleasePoolPage对象，那么代码块中的autorelease对象会被加入到该PoolPage中
-	
+
+    ```
+    {
+        AutoreleasePoolPage *page = hotPage();
+        if (page && !page->full()) {
+            return page->add(obj);//还没满就添加到next 中
+        } else if (page) {
+            return autoreleaseFullPage(obj, page);
+        } else {
+            return autoreleaseNoPage(obj);
+        }
+    }
+    ```
+    
 	#####经过如下调用栈
 	
 	```
