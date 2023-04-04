@@ -1124,6 +1124,10 @@ struct _class_ro_t {
 	const struct _prop_list_t *properties;
 };
 
+/*
+ 可以看成_class_t是对具体类_class_ro_t的包装
+ 给_class_ro_t类的操作提供了额外的信息
+ */
 struct _class_t {
 	struct _class_t *isa;
 	struct _class_t *superclass;
@@ -1256,6 +1260,9 @@ extern "C" unsigned long int OBJC_IVAR_$_Man$_name __attribute__ ((used, section
 extern "C" unsigned long int OBJC_IVAR_$_Man$_phone __attribute__ ((used, section ("__DATA,__objc_ivar"))) = __OFFSETOFIVAR__(struct Man, _phone);
 extern "C" unsigned long int OBJC_IVAR_$_Man$_extention_Age __attribute__ ((used, section ("__DATA,__objc_ivar"))) = __OFFSETOFIVAR__(struct Man, _extention_Age);
 
+/*
+ 这里看出类中的变量列表只包含当前类的变量，没包含父类中的变量
+ */
 static struct /*_ivar_list_t*/ {
 	unsigned int entsize;  // sizeof(struct _prop_t)
 	unsigned int count;
@@ -1318,8 +1325,26 @@ static struct _class_ro_t _OBJC_METACLASS_RO_$_Man __attribute__ ((used, section
 	0, 
 };
 
+/*
+ struct _class_ro_t {
+     unsigned int flags;
+     //-----------确定了成员变量的地址空间----------------
+     unsigned int instanceStart;
+     unsigned int instanceSize;
+     //---------------------------
+     const unsigned char *ivarLayout;
+     const char *name;
+     const struct _method_list_t *baseMethods;
+     const struct _objc_protocol_list *baseProtocols;
+     const struct _ivar_list_t *ivars;
+     const unsigned char *weakIvarLayout;
+     const struct _prop_list_t *properties;
+ };
+ */
+
 static struct _class_ro_t _OBJC_CLASS_RO_$_Man __attribute__ ((used, section ("__DATA,__objc_const"))) = {
-	0, __OFFSETOFIVAR__(struct Man, private_Money),
+	0,
+    __OFFSETOFIVAR__(struct Man, private_Money),//这里表示从private_Money变量开始
     sizeof(struct Man_IMPL), 
 	0, 
 	"Man",

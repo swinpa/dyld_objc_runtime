@@ -276,6 +276,9 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
         // Locate the __OBJC segment
         size_t info_size = 0;
         unsigned long seg_size;
+        /*
+         从mach-o 中的"__objc_imageinfo"段中获取数据
+         */
         const objc_image_info *image_info = _getObjcImageInfo(mhdr,&info_size);
         const uint8_t *objc_segment = getsegmentdata(mhdr,SEG_OBJC,&seg_size);
         if (!objc_segment  &&  !image_info) return NULL;
@@ -456,6 +459,7 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
     // Perform first-time initialization if necessary.
     // This function is called before ordinary library initializers. 
     // fixme defer initialization until an objc-using image is found?
+    // 首次进入时进行初始化
     if (firstTime) {
         preopt_init();
     }
