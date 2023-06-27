@@ -34,7 +34,7 @@
 		    (imgp->ip_flags & IMGPF_IS_64BIT_DATA),
 		    FALSE)
 		 
-	2. 内核通过在exec_mach_imgact内创建进程后会调用内核加载器load_machfile()加载macho
+	2. 内核通过在execoad_machfile()加载macho
 		
 	   内核加载器只关心几条load command，如LC_SEGMENT，LC_LOAD_DYLDINKER
 		

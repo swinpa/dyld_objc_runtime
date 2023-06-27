@@ -422,6 +422,7 @@ struct locstamped_category_list_t {
 
 // Values for class_ro_t->flags
 // These are emitted by the compiler and are part of the ABI.
+// 这些由编译器发出并且是 ABI 的一部分。
 // Note: See CGObjCNonFragileABIMac::BuildClassRoTInitializer in clang
 // class is a metaclass
 #define RO_META               (1<<0)
@@ -447,6 +448,12 @@ struct locstamped_category_list_t {
 // class is in an unloadable bundle - must never be set by compiler
 #define RO_FROM_BUNDLE        (1<<29)
 // class is unrealized future class - must never be set by compiler
+/*
+ 意思是：该类还没经过realized？在后面再进行realized？(在第一次使用该类时才进行realized？比如第一次发送消息？第一次获取该类？
+ objc_getClass(char *aClassName)),或者说是第一次look_up_class(const char *name,..）
+ 因为在第一次[[NSObject alloc] init];时会通过objc_getClass("NSObject") 的方式获取到类对象，然后发送alloc 消息
+ 在未来才进行realized的标识，这应该只有懒加载的类才是这样的
+ */
 #define RO_FUTURE             (1<<30)
 // class is realized - must never be set by compiler
 #define RO_REALIZED           (1<<31)
@@ -455,6 +462,7 @@ struct locstamped_category_list_t {
 // These are not emitted by the compiler and are never used in class_ro_t. 
 // Their presence should be considered in future ABI versions.
 // class_t->data is class_rw_t, not class_ro_t
+// 这应该是类似于#define RO_FUTURE             (1<<30)，懒加载的类标识
 #define RW_REALIZED           (1<<31)
 // class is unresolved future class
 #define RW_FUTURE             (1<<30)
@@ -908,6 +916,7 @@ struct class_rw_t {
     uint32_t flags;
     uint32_t version;
 
+    //编译期间的类信息
     const class_ro_t *ro;
 
     //类realize后(realizeClass()执行后)，所有的实例方法都放在该变量中，包括分类中定义的
@@ -952,6 +961,10 @@ struct class_rw_t {
 struct class_data_bits_t {
 
     // Values are the FAST_ flags above.
+    /*
+     这是一个指针，该指针中既保存了指向类对象的指针（第3-47位内容），也保存了其他一些标识信息
+     有点类似于tagpoint那样，一个指针不仅仅是指针，还保存这数据
+     */
     uintptr_t bits;
 private:
     bool getBit(uintptr_t bit)
@@ -1204,7 +1217,13 @@ public:
     }
 };
 
-
+/**
+ typedef struct objc_class *Class;
+ 该类的所有对象通过在运行时进行allocation的到
+ 同时他的class_rw_t也是运行时进行allocation的到，所以是读写的
+ 跟_class_t不一样，_class_t是编译期确定
+ 是不是这样理解的呢？？？？
+ */
 struct objc_class : objc_object {
     // Class ISA;
     Class superclass;
@@ -1228,6 +1247,10 @@ struct objc_class : objc_object {
      */
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
 
+    /*
+     返回类对象信息的指针
+     简单点说就是一个指针，这个指针指向的内存中保存了类信息，这些类信息就是class_rw_t所描述的内容
+     */
     class_rw_t *data() { 
         return bits.data();
     }
@@ -1489,6 +1512,38 @@ struct objc_class : objc_object {
      字节对齐
      在 struct 中，编译器为 struct 的每个成员按其自然边界（alignment）分配空间。各个成员按照它们被声明的顺序在内存中顺序存储，
      第一个成员的地址和整个结构的地址相同。一般来说字节对齐有两个作用。一是便于 CPU 快速访问，二是合理的利用字节对齐可以有效地节省存储空间
+     
+     【内存对齐规则】
+     每个特定平台上的编译器都有自己的默认“对齐系数”（也叫对齐模数）。gcc中默认#pragma pack(4)，可以通过预编译命令#pragma pack(n)，
+     n = 1,2,4,8,16来改变这一系数。
+     有效对其值：是给定值#pragma pack(n)和结构体中最长数据类型长度中较小的那个。有效对齐值也叫对齐单位。
+     了解了上面的概念后，我们现在可以来看看内存对齐需要遵循的规则：
+     (1) 结构体第一个成员的偏移量（offset）为0，以后每个成员相对于结构体首地址的 offset 都是该成员大小与有效对齐值中较小那个的整数倍，如有需要编译器会在成员之间加上填充字节。
+     (3) 结构体的总大小为 有效对齐值 的整数倍，如有需要编译器会在最末一个成员之后加上填充字节。
+
+     //32位系统
+     #pragma pack(4) 的情况
+     #include<stdio.h>
+     struct
+     {
+         int i;
+         char c1;
+         char c2;
+     }x1;   4 + 1 + 1 < 4*2, 所以是8，用4byte足以装下C1，C2
+
+     struct{
+         char c1;
+         int i;
+         char c2;
+     }x2;   C1(4) + i(4) + C2(4) = 12
+     C1 占1byte，但是存储i时，C1 剩余的3byte 不足以存储i,所以从新开辟一个4byte存储, 后面C2也是1byte,但是最终也是对齐4byte
+
+     struct{
+         char c1;
+         char c2;
+         int i;
+     }x3;  8 类似X1
+     如果是#pragma pack(2)，那么就是 6,8,6
      
     */
     uint32_t alignedInstanceSize() {

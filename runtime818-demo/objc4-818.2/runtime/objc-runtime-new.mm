@@ -1830,6 +1830,7 @@ static void removeNamedClass(Class cls, const char *name)
 * Returns the classname => future class map for unrealized future classes.
 * Locking: runtimeLock must be held by the caller
 * 这是运行时才创建的类吗？？？？
+*
 * 因为是在objc_getFutureClass() 中进行look_up_class(name, YES, NO);查询后，没查询到对应的类
 * 才会调用_objc_allocateFutureClass 创建一个类（objc_class）对象添加到该map（future_named_class_map）中
 **********************************************************************/
@@ -1838,7 +1839,9 @@ static NXMapTable *futureNamedClasses()
 {
     runtimeLock.assertLocked();
     
-    if (future_named_class_map) return future_named_class_map;
+    if (future_named_class_map) {
+        return future_named_class_map;
+    }
 
     // future_named_class_map is big enough for CF's classes and a few others
     future_named_class_map = 
@@ -1868,6 +1871,7 @@ static void addFutureNamedClass(const char *name, Class cls)
         _objc_inform("FUTURE: reserving %p for %s", (void*)cls, name);
     }
 
+    // 申请
     class_rw_t *rw = objc::zalloc<class_rw_t>();
     class_ro_t *ro = (class_ro_t *)calloc(sizeof(class_ro_t), 1);
     ro->name.store(strdupIfMutable(name), std::memory_order_relaxed);
@@ -3019,6 +3023,7 @@ Class _objc_allocateFutureClass(const char *name)
     mutex_locker_t lock(runtimeLock);
 
     Class cls;
+    //future_named_class_map
     NXMapTable *map = futureNamedClasses();
 
     if ((cls = (Class)NXMapGet(map, name))) {
@@ -3026,6 +3031,10 @@ Class _objc_allocateFutureClass(const char *name)
         return cls;
     }
 
+    /*
+     allocation一块objc_class大小的内存
+     在addFutureNamedClass中才申请objc_class->bit 指向的那块具体类信息的内存
+     */
     cls = _calloc_class(sizeof(objc_class));
     addFutureNamedClass(name, cls);
 
@@ -3727,7 +3736,18 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
              typedef struct objc_class *Class;
              
              objc_class 基本等同于_class_t
+             
+             union isa_t {
+                 uintptr_t bits;
+                 Class cls;
+             }
+             
              objc_class 定义如下：struct objc_class : objc_object {
+                 //isa_t isa;
+                 Class superclass;
+                 cache_t cache;             // formerly cache pointer and vtable
+                 class_data_bits_t bits;
+             }
              */
             
             Class cls = (Class)classlist[i];
@@ -3859,6 +3879,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // Realize non-lazy classes (for +load methods and static instances)
     // Realize 非懒加载的类（带+load方法的类）
     for (EACH_HEADER) {
+        //获取非懒加载的所有类列表
         classref_t const *classlist = hi->nlclslist(&count);
         for (i = 0; i < count; i++) {
             Class cls = remapClass(classlist[i]);

@@ -865,7 +865,6 @@ class AutoreleasePoolPage
     static size_t const COUNT = SIZE / sizeof(id);
 
     magic_t const magic;
-    id *next;
     pthread_t const thread;//保存了当前页所在的线程
     AutoreleasePoolPage * const parent;
     AutoreleasePoolPage *child;

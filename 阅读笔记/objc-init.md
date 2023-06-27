@@ -1,6 +1,16 @@
 ##runtime初始化以及类分类初始化过程
 ####主要做了两件事：
-	1. 注册类(类完整性处理：将类的ro移到rw中，将分类信息合并到类中，其目的应该是将类对应的方法存放到一个地方，方便消息转发时查找)
+	1. map_image
+	   类完整性处理：
+	   1. class_rw_t内存申请，并将class_rw_t->ro指向编译期间的ro内存，如果有需要（父类的instanceSize大于当前类的
+	      instanceStart），需要重新申请ro的内存，并调整变量列表ivar_list_t * ivars;中的变量的偏移量以及instanceStart，
+	      instanceSize，
+	      这一步在realizeClass中进行
+	   2. 将class_ro_t中的方法列表，协议列表，属性列表拷贝一份到class_rw_t中
+	      将分类信息合并到类中（分类的方法列表合并到类的methods中），其目的应该是将类对应的方法存放到一个地方，
+	      方便消息转发时查找
+          这一步在methodizeClass中进行
+	
 	2. 执行+load方法
 
 ####过程大致如下：
@@ -23,7 +33,7 @@ map_images()
 ```
 调用栈大致如上，比较重要的几步就是realizeClass(cls)，reconcileInstanceVariables(cls, supercls, ro)，methodizeClass(cls)
 
-* realizeClass(cls)阶段会设置类的class_rw_t数据，其实就是 alloc 一份class_rw_t，然后 将编译阶段确定好的类信息ro(class_ro_t)赋值给class_rw_t中的ro,然后将class_data_bits_t bits 指向片申请的class_rw_t内存空间
+* realizeClass(cls)阶段会设置类的class_rw_t数据，其实就是 alloc 一份class_rw_t，然后 将编译阶段确定好的类信息ro(class_ro_t)赋值给class_rw_t中的ro,然后将class_data_bits_t bits 指向那片申请的class_rw_t内存空间
 * 完成class_rw_t内存空间申请并赋值给类(objc_class)中的class_data_bits_t bits后，需要修正ro中当前类的成员变量的offset，因为在编译期间ro中只保存了当前类的成员变量的offset，并没有父类的成员变量的offset，所以需要在运行时，将父类的成员变量的offset放在当前类的成员变量的offset前面，所以这时就调用了reconcileInstanceVariables修正ro中成员变量的offset
 * realizeClass(cls)中第二步需要做的就是，将分类中的方法，协议，属性添加到类中方法，协议，属性列表，添加顺序是倒序的，所以后编译的会在列表前面，另一个就是分类列表会在类的方法列表的前面，这就是为什么同名方法会先调用后编译的分类方法，或者说分类方法会比类方法先被调用。
 * realizeClass(cls)过程中会
@@ -31,4 +41,4 @@ map_images()
 	* 遍历分类的类方法，并将其添加到类的isa的methods列表中
 	* 《也就是说，实例方法保存在类中，类方法保存在元类中》
 
-##### class\_rw\_t以及class\_ro\_t中并没有类方法列表，只有methods，baseMethodList，所以类方法不存在类对象中，存在于元类的对象(也就是类，类也是一个对象)中的methods，baseMethodList，这个在编译期间已经确定的
+##### class\_rw\_t以及class\_ro\_t中并没有类方法列表，只有methods，baseMethodList，所以类方法不存在类对象中，存在于元类的对象(也就是类也是一个对象)中的methods，baseMethodList，这个在编译期间已经确定的

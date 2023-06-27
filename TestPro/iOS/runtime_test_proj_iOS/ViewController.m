@@ -33,7 +33,21 @@
     [self.view setNeedsDisplay];
     NSTimer *t = [NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(viewDidLoad) userInfo:nil repeats:true];
     [self.view performSelector:@"" onThread:[NSThread mainThread] withObject:nil waitUntilDone:true];
+    NSThread *th = [[NSThread alloc] initWithBlock:^{
+        
+    }];
+    [self performSelector:@selector(doSomething)];
+    [self performSelectorInBackground:@selector(doSomething) withObject:nil];
+    NSOperationQueue *q = [[NSOperationQueue alloc] init];
     
+    dispatch_queue_t *queue = dispatch_queue_create(<#const char * _Nullable label#>, <#dispatch_queue_attr_t  _Nullable attr#>)
+    
+    dispatch_async(<#dispatch_queue_t  _Nonnull queue#>, <#^(void)block#>)
+    
+    dispatch_apply(1, dispatch_get_main_queue(), ^(size_t iteration) {
+        
+    });
+    sleep(0);
 }
 
 + (void)swizzSysMethod:(NSString *)systemSelector swizzSel:(NSString *)swizzSelector andClass:(Class)class {
@@ -98,6 +112,10 @@
          */
         method_exchangeImplementations(originalMethod, swizzledMethod);
     }
+}
+
+- (void)doSomething {
+    NSLog(@"do some thing");
 }
 
 @end

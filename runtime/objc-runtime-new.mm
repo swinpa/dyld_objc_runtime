@@ -524,7 +524,8 @@ static void addClassTableEntry(Class cls, bool addMeta = true) {
     assert(!NXHashMember(allocatedClasses, cls));
 
     if (!isKnownClass(cls))
-        NXHashInsert(allocatedClasses, cls); //加载过才进入
+        // 如果共享缓存，或者allocatedClasses，dataSegmentsContain中都没有添加过，那么就添加到allocatedClasses中
+        NXHashInsert(allocatedClasses, cls); //
     if (addMeta)
         addClassTableEntry(cls->ISA(), false);
 }
@@ -1297,7 +1298,9 @@ static void addFutureNamedClass(const char *name, Class cls)
         _objc_inform("FUTURE: reserving %p for %s", (void*)cls, name);
     }
 
+    // 申请存放类信息的class_rw_t大小的内存
     class_rw_t *rw = (class_rw_t *)calloc(sizeof(class_rw_t), 1);
+    // 申请存放原始类信息的class_ro_t大小的内存
     class_ro_t *ro = (class_ro_t *)calloc(sizeof(class_ro_t), 1);
     ro->name = strdupIfMutable(name);
     rw->ro = ro;
@@ -1313,6 +1316,7 @@ static void addFutureNamedClass(const char *name, Class cls)
 * popFutureNamedClass
 * Removes the named class from the unrealized future class list, 
 * because it has been realized.
+* 将类名为name 的类从unrealized 的类列表中移除，因为他已经进行了realized操作
 * Returns nil if the name is not used by a future class.
 * Locking: runtimeLock must be held by the caller
 **********************************************************************/
@@ -1806,9 +1810,11 @@ static void moveIvars(class_ro_t *ro, uint32_t superSize)
     *(uint32_t *)&ro->instanceSize += diff;
 }
 
-/*
+/**
  reconcile [ˈrekənsaɪl]
  v. 调和，使协调一致；（使）和解，（使）恢复友好关系
+ 1. 修正类中的ivar_list_t * ivars变量列表中的所有变量的偏移量
+ 2. 修正uint32_t instanceStart;以及uint32_t instanceSize;
  */
 static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro_t*& ro) 
 {
@@ -1908,11 +1914,15 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
                          cls->nameForLogging(), ro->instanceStart, 
                          super_ro->instanceSize);
         }
-        //这里扩展成员变量的内存空间
+        /*
+         这里扩展成员变量的内存空间
+         1.申请一块新的内存(class_ro_t)，然后将旧的class_rw_t->ro所指向的内存，通过内存拷贝的方式，拷贝到新申请的内存中
+         */
         class_ro_t *ro_w = make_ro_writeable(rw);
         ro = rw->ro;
         /*
          这里将当前类的成员变量移到父类成员变量后面（其实是更新当前类的成员变量的offset,将offset变更到父类的instanceSize 后面）
+         2. 更新当前类的instanceSize，以及instanceStart
          */
         moveIvars(ro_w, super_ro->instanceSize);
         gdb_objc_class_changed(cls, OBJC_CLASS_IVARS_CHANGED, ro->name);
@@ -1930,7 +1940,9 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
 
 /**
 * 主要做一下几件事情:
-* 1，申请 rw (class_rw_t) 的内存空间， 并将rw 的 ro 指向 编译器确定了的 ro 内存空间，然后将申请的class 中的rw 指向申请的 rw。
+* 1，申请 (class_rw_t) 内存空间，并通过rw 指针指向这片内存空间， 将class_rw_t 的 ro 指向 编译器确定了的 ro 内存空间，
+* 然后将rw指针赋值给class中的bit中用来保存class_rw_t指针的3-47位，也就是class->bit 中的3-47位保存了指向class_rw_t内存空间的指针
+* 这片内存空间是运行时allocation的，所以是可读写的。
 * 《《很重要》》
  根据父类的ro空间，为当前类的ro扩展父类的成员变量的内存空间，并且把当前类的成员变量的offset更新到父类成员变量的空间后面
  （其实编译期间当前类的instanceSize 已经包含了父类的空间大小，只是offset没做好处理，而在这里主要就是offset的处理）
@@ -1971,16 +1983,49 @@ static Class realizeClass(Class cls)
     bool isMeta;
 
     if (!cls) return nil;
-    if (cls->isRealized()) return cls;
+    if (cls->isRealized()) {
+        return cls;
+    }
     assert(cls == remapClass(cls));
 
     /*
      fixme verify class is not in an un-dlopened part of the shared cache?
      调整class 中的rw（class_rw_t） 数据
+     struct _class_t {这是编译阶段的类数据结构，
+         struct _class_t *isa;
+         struct _class_t *superclass;
+         void *cache;
+         void *vtable;
+         struct _class_ro_t *ro;
+     };
+     union isa_t {
+         uintptr_t bits;
+         Class cls;
+     }
+
+     这其实跟运行时的struct objc_class : objc_object {
+         //isa_t isa;//这里展开就是uintptr_t bits;Class cls;
+         uintptr_t bits;
+         Class cls;
+         Class superclass;
+         cache_t cache;
+         class_data_bits_t bits;
+     }
+     是差不多一致的
+     也就是通过ro = (const class_ro_t *)cls->data(); 从_class_t 中获取struct _class_ro_t *ro;字段应该可以的
      */
     ro = (const class_ro_t *)cls->data();//编译器已确定的ro 在之前只有ro
-    if (ro->flags & RO_FUTURE) {
-        // 这可能是运行时动态生成的类
+    if (ro->flags & RO_FUTURE) {//第一次使用时才进行realized，而不是应用启动时就进行realized
+        /*
+         class is unrealized future class - must never be set by compiler
+         意思是：该类还没经过realized？在后面再进行realized？
+         #define RO_FUTURE             (1<<30)
+         
+         objc_getFutureClass(const char *name)过程中
+         如果look_up_class(const char *name, ..)查询不到时，通过Class _objc_allocateFutureClass(const char *name)接口
+         进行创建对应的class，并添加到future_named_class_map中，这些类就是RO_FUTURE类型的类
+         
+         */
         // This was a future class. rw data is already allocated.
         rw = cls->data();
         ro = cls->data()->ro;
@@ -1988,14 +2033,17 @@ static Class realizeClass(Class cls)
     } else {
         // 编译期间确定的用户声明的类
         // Normal class. Allocate writeable class data.
-        //为class 申请rw 的空间
+        //为class 申请class_rw_t的大小的内存空间，并通过rw指针指向该片空间
         rw = (class_rw_t *)calloc(sizeof(class_rw_t), 1);
-        //将rw->ro 指向编译期已确定的ro内存
+        //将rw->ro 指向编译期已确定的ro内存，这可能是处在只读数据段内
         rw->ro = ro;
         rw->flags = RW_REALIZED|RW_REALIZING;
         /*
-         将申请的rw 内存设置给class
-         也就是将rw数据保存到objc_class->bits 中，此时rw 中只有ro数据，也就是原始的编译器确定下来的ro数据
+         将指向新申请的class_rw_t大小的内存空间的指针rw赋值给class
+         也就是将指针rw保存到objc_class->bits中用来指向保存类信息的3-47位内容，
+         （objc_class->bits指针中的3-47位内容是一个指向类信息的指针，这个指针的值就是rw
+         换句话就是objc_class->bits（3-47位） == rw ）
+         此时rw 中只有ro数据，也就是原始的编译器确定下来的ro数据
          */
         cls->setData(rw);
     }
@@ -2069,6 +2117,7 @@ static Class realizeClass(Class cls)
 #endif
 
     // Update superclass and metaclass in case of remapping
+    // 设置当前类的父类
     cls->superclass = supercls;
     cls->initClassIsa(metacls);
 
@@ -2081,6 +2130,10 @@ static Class realizeClass(Class cls)
          《《很重要》》
          根据父类的ro空间，为当前类的ro扩展父类的成员变量的内存空间，并且把当前类的成员变量的offset更新到父类成员变量的空间后面
          （其实编译期间当前类的instanceSize 已经包含了父类的空间大小，只是offset没做好处理，而在这里主要就是offset的处理）
+         
+         也就是当前类的class_ro_t中的相应信息
+         1. 修正类中的ivar_list_t * ivars变量列表中的所有变量的偏移量
+         2. 修正uint32_t instanceStart;以及uint32_t instanceSize;
          */
         reconcileInstanceVariables(cls, supercls, ro);
     }
@@ -2411,7 +2464,7 @@ bool mustReadClasses(header_info *hi)
 /***********************************************************************
 * readClass
 * Read a class and metaclass as written by a compiler.（读取被编译器写的class 和 metaclass）
-* Returns the new class pointer. This could be: 
+* Returns the new class pointer. This could be: 返回新类指针
 * - cls
 * - nil  (cls has a missing weak-linked superclass)
 * - something else (space for this class was reserved by a future class)
@@ -2420,6 +2473,28 @@ bool mustReadClasses(header_info *hi)
 * mustReadClasses(). Do not change this function without updating that one.
 *
 * Locking: runtimeLock acquired by map_images or objc_readClassPair
+ 
+ struct _class_t {
+     struct _class_t *isa;
+     struct _class_t *superclass;
+     void *cache;
+     void *vtable;
+     struct _class_ro_t *ro;
+ };
+ union isa_t {
+     uintptr_t bits;
+     Class cls;
+ }
+ struct objc_class : objc_object {
+     isa_t isa;
+     Class superclass;
+     cache_t cache;             // formerly cache pointer and vtable
+     //存放对象相关数据的地方，比如成员变量
+     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
+     class_rw_t *data() { return bits.data();}
+  }
+ 传进来的是_class_t，返回的是Class（objc_class）
+ typedef struct objc_class *Class;
 **********************************************************************/
 Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
 {
@@ -2459,7 +2534,14 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
 #endif
 
     Class replacing = nil;
+    /*
+     从future_named_class_map中获取对应的class
+     future_named_class_map中的class是在objc_getFutureClass(const char *name)过程中
+     如果look_up_class(const char *name, ..)查询不到时，通过Class _objc_allocateFutureClass(const char *name)接口
+     进行创建对应的class，并添加到future_named_class_map中，
+     */
     if (Class newCls = popFutureNamedClass(mangledName)) {
+        // 如果cls是通过_objc_allocateFutureClass()在运行时生成的
         // This name was previously allocated as a future class.
         // Copy objc_class to future class's struct.
         // Preserve future's rw data block.
@@ -2470,32 +2552,57 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
                         cls->nameForLogging());
         }
         /*
-         获取objc_class 中的class_rw_t 数据
-         保存旧数据rw
+         获取objc_class中指向类信息内存块的class_rw_t类型指针rw
+         //old_ro 则是编译期间的类信息内存块指针
+         因为newCls是通过allocated生成的future class（在_objc_allocateFutureClass中创建），
+         所以他的class_rw_t *rw = newCls->data();
+         所指向的内存是可读写的？？也许还没有值，但这片内存是可读写的
          */
         class_rw_t *rw = newCls->data();
         const class_ro_t *old_ro = rw->ro;
         /*
+         void* memcpy(void *restrict dst, const void *restrict src, size_t n);
          通过内存拷贝，将需要readClass 的cls 的数据覆盖在newCls上
+         因为从上面的注释来看newCls是之前通过allocated生成的future class，也就是之前allocated的内存块
+         还没有具体的class数据，所以需要把cls的数据填充到该内存块内
          */
         memcpy(newCls, cls, sizeof(objc_class));
         
         /*
-         将class_rw_t 中的ro(class_ro_t) 指向objc_class 中的 data(class_rw_t)部分数据
-         将旧的rw 中的ro 指向新的需要readClass 的cls的 ro 上，此时rw 中保存的methods，properties，protocols
-         还是旧的
+         因为是内存拷贝，所以
+         此时的(class_ro_t *)newCls->data(); 相当于(class_ro_t *)cls->data()
+         因此通过allocated生成的future class中的rw->ro 指向了(class_ro_t *)cls->data()
          */
         rw->ro = (class_ro_t *)newCls->data();
         
-        //将rw 更新到将需要readClass 的cls上，也就是整个过程相当于只更新了rw->ro 部分数据
+        //将rw更新到通过allocated生成的future classs上
         newCls->setData(rw);
         freeIfMutable((char *)old_ro->name);
+        /*
+         释放掉通过allocated生成的future class中旧的rw->ro指向的内存
+         因为此时的rw->ro已经指向了(class_ro_t *)cls->data()
+        */
         free((void *)old_ro);
         
         addRemappedClass(cls, newCls);
         
         replacing = cls;
         cls = newCls;
+        
+        /*
+         所以整个过程是不是可以这样子理解？？？
+         1. 运行时初始化的时候通过allocated生成一块objc_class类型的内存块（也就是future class）
+            在readClass的时候，将从mach-o读取到的_class_t类型的数据内存拷贝到这份内存块中
+         
+         2.在allocated生成objc_class类型内存块的同时，也会生成一块用来保存class_rw_t信息的内存块
+           并且是通过objc_class->bit指向这块内存的
+           所以在1中进行类内存拷贝后，需要恢复objc_class->bit这个字段，同时将生成的class_rw_t内存块中的
+           rw->ro字段指向原始的（编译器）类信息内存块rw->ro = (class_ro_t *)newCls->data();
+         
+           因为class_rw_t是运行时生成，所以可读写但是原始的类信息rw->ro不变
+           那么在后续的操作中就可以对运行时生成的class_rw_t进行读写操作，比如将分类的方法添加进来
+         */
+        
     }
     
     if (headerIsPreoptimized  &&  !replacing) {
@@ -2504,6 +2611,7 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
         // assert(cls == getClass(name));
         assert(getClass(mangledName));
     } else {
+        // 主要还是要进入这个分支的
         addNamedClass(cls, mangledName, replacing);
         addClassTableEntry(cls);
     }
@@ -2762,7 +2870,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
              void *vtable;
              struct _class_ro_t *ro;
          };
-         
+         union isa_t {
+             uintptr_t bits;
+             Class cls;
+         }
          struct Class {
              isa_t isa;
              Class superclass;
@@ -2803,7 +2914,12 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
              &OBJC_CLASS_$_Person,
              &OBJC_CLASS_$_Man,
          };
-         
+         */
+        /*
+         从mach-o 中读取"__objc_classlist"段内容，该段内容就是所有的类信息
+         读取到的应该是_class_t类型数据
+         这里获取到的应该是所有懒加载的类，不需要在启动时对齐进行realized
+         在第一次发送消息执行到lookUpImpOrForward()这一步时才调用realizeClass(cls)对类进行处理
          */
         classref_t *classlist = _getObjc2ClassList(hi, &count);
         if (! mustReadClasses(hi)) {
@@ -2819,9 +2935,8 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         for (i = 0; i < count; i++) {
             Class cls = (Class)classlist[i];
             /*
-             读取被编译器写的class 和 metaclass,主要是存放到一些map 上
-             主要做的事情是：
-             将编译阶段的_class_t->ro 中的数据拷贝到运行阶段的Class->bits 上
+             读取被编译器写的_class_t,将其保存在gdb_objc_realized_classes中
+             在这里调用readClass对cls操作主要作用是将cls添加到gdb_objc_realized_classes中
              */
             Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
 
@@ -2929,6 +3044,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     /*
      Realize non-lazy classes (for +load methods and static instances)
      non-lazy classes 也就是有 +load 的类
+     处理非懒加载的类，非懒加载的类需要在启动时进行realize，因为启动过程中会调用对应的+load方法
      */
     for (EACH_HEADER) {//应用启动时，主要跑了这里对class进行fix,也就是realizeClass
         classref_t *classlist = 
@@ -2953,7 +3069,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
             }
 #endif
             
-            addClassTableEntry(cls); //如果第一次加载相当于 无法加入 因为 没有allocate?
+            addClassTableEntry(cls); //将cls添加到allocatedClasseshash表中
+            /*
+             启动过程中的重点在这里
+             */
             realizeClass(cls);
         }
     }
@@ -4456,7 +4575,10 @@ class_copyIvarList(Class cls, unsigned int *outCount)
     
     if ((ivars = cls->data()->ro->ivars)  &&  ivars->count) {
         result = (Ivar *)malloc((ivars->count+1) * sizeof(Ivar));
-        
+        /*
+         对于一个有范围的集合而言，由程序员来说明循环的范围是多余的，有时候还会容易犯错误。因此C++11中引入了基于范围的for循环。
+         for循环后的括号由冒号“ :”分为两部分:第一部分是范围内用于迭代的变量，第二部分则表示被迭代的范围。
+         */
         for (auto& ivar : *ivars) {
             if (!ivar.offset) continue;  // anonymous bitfield
             result[count++] = &ivar;

@@ -61,7 +61,9 @@ namespace {
 union isa_t {
     isa_t() { }
     isa_t(uintptr_t value) : bits(value) { }
-
+    /*
+     typedef struct objc_class *Class;
+     */
     Class cls;
     uintptr_t bits;
 #if defined(ISA_BITFIELD)
@@ -104,6 +106,9 @@ private:
 public:
 
     // ISA() assumes this is NOT a tagged pointer object
+    /*
+     typedef struct objc_class *Class;
+     */
     Class ISA();
 
     // getIsa() allows this to be a tagged pointer object

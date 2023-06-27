@@ -73,6 +73,7 @@ struct _category_t {
 ####运行时阶段：
 
 ```
+objc.h
 typedef struct objc_class *Class;
 
 struct objc_class {

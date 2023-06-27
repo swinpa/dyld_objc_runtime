@@ -1237,6 +1237,45 @@ void ImageLoaderMachOClassic::doBindExternalRelocations(const LinkContext& conte
 	/*
 	 loop through all external relocation records and bind each
 	 遍历所有的外部地址记录，然后绑定
+	 
+	 struct relocation_info {
+		int32_t	r_address;	// offset in the section to what is being
+						relocated /
+		uint32_t     r_symbolnum:24,	// symbol index if r_extern == 1 or section ordinal if r_extern == 0 /
+		r_pcrel:1, 	// was relocated pc relative already /
+		r_length:2,	// 0=byte, 1=word, 2=long, 3=quad /
+		r_extern:1,	// does not include value of sym referenced /
+		r_type:4;	// if not 0, machine specific relocation type /
+	 };
+	 
+	 class ImageLoaderMachOClassic : public ImageLoaderMachO {
+		 const struct dysymtab_command*			fDynamicInfo;
+	 }
+	 struct dysymtab_command {
+		 uint32_t cmd;	// LC_DYSYMTAB /
+		 uint32_t cmdsize;	// sizeof(struct dysymtab_command) /
+		 uint32_t ilocalsym;	/ index to local symbols /
+		 uint32_t nlocalsym;	/ number of local symbols /
+		 uint32_t iextdefsym;/ index to externally defined symbols /
+		 uint32_t nextdefsym;/ number of externally defined symbols /
+		 uint32_t iundefsym;	/ index to undefined symbols /
+		 uint32_t nundefsym;	/ number of undefined symbols /
+		 uint32_t tocoff;	/ file offset to table of contents /
+		 uint32_t ntoc;	/ number of entries in table of contents /
+		 uint32_t modtaboff;	/ file offset to module table /
+		 uint32_t nmodtab;	/ number of module table entries /
+		 uint32_t extrefsymoff;	/ offset to referenced symbol table /
+		 uint32_t nextrefsyms;	/ number of referenced symbol table entries /
+		 uint32_t indirectsymoff; / file offset to the indirect symbol table /
+		 uint32_t nindirectsyms;  / number of indirect symbol table entries /
+		 
+		 uint32_t extreloff;	/ offset to external relocation entries /
+		 uint32_t nextrel;	/ number of external relocation entries /
+		 
+		 uint32_t locreloff;	/ offset to local relocation entries /
+		 uint32_t nlocrel;	/ number of local relocation entries /
+	 };
+	 
 	 */
 	const relocation_info* const relocsStart = (struct relocation_info*)(&fLinkEditBase[fDynamicInfo->extreloff]);
 	const relocation_info* const relocsEnd = &relocsStart[fDynamicInfo->nextrel];
@@ -1971,7 +2010,17 @@ void ImageLoaderMachOClassic::doBind(const LinkContext& context, bool forceLazys
 		 1) external relocations are used for data initialized to external symbols
 		 外部重定位用于将数据初始化为外部符号
 		 模块间的函数调用和数据访问，都是通过got间接寻址
+		 
+		 External
+		 adj.
+		 外部的，外面的；对外的，与外国有关的；外来的，外聘的；（药品等类似物质）外用的
+		 
+		 Relocations
+		 重定位（Relocation）是链接符号引用和符号定义的过程。比如，当一个程序调用一个函数的时候，相关的调用必须在执行时把控制传送到正确的目标地址。
+		 
 		 */
+		
+		
 		this->doBindExternalRelocations(context);
 		
 		/*

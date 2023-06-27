@@ -20,7 +20,7 @@ mach-o文件的文件内容分为3大部分，分别是
         		
         		Mach-O文件本身是不存在__PAGEZERO的，在Mach-O文件被加载到虚拟内存之后，
         		系统会给Mach-O文件分配一个__PAGEZERO，它的开始位置是0x000000000，
-        		结束位置是0x100000000。并且它的大小是固定的
+        		结束位置是0x100000000（4294 9672 96）。并且它的大小是固定的
         			
         __LINKEDIT段(link editor在链接时候创建生成,包含了符号表(symtab)、间接符号表(dysymtab)、字符串表(string table)等)（这个段为动态链接做准备的）
         
@@ -289,7 +289,7 @@ la_symbol_ptr 中存放了符号在indirect symbol table 中的起始下标index
 符号表（symbol table）中的下标，通过indirect symbol table中记录的下标去符号表（symbol table）对应的位置就能
 查询得到符号的信息（符号名，符号对应的地址），然后进行修改吗？
 
-更具体的在QMCMHProject项目中写了部分笔记
+更具体的在QMCMHProject项目中（KSCrash_fishhook.c）写了部分笔记
 
 ```
 

@@ -76,7 +76,13 @@ objc_object::isClass()
 inline Class 
 objc_object::getIsa() 
 {
-    if (!isTaggedPointer()) return ISA();
+    if (!isTaggedPointer()) {
+        /*
+         不是TaggedPointer
+         objc_object->isa->cls
+         */
+        return ISA();
+    }
 
     uintptr_t ptr = (uintptr_t)this;
     if (isExtTaggedPointer()) {
