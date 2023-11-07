@@ -11,7 +11,7 @@
 	      方便消息转发时查找
           这一步在methodizeClass中进行
 	
-	2. 执行+load方法
+	2. load_images（执行+load方法）
 
 ####过程大致如下：
 * 在dyld完成链接后会执行可执行文件的初始化方法（initializeMainExecutable）

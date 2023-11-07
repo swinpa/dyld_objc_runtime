@@ -2190,6 +2190,7 @@ objc_autoreleaseReturnValue(id obj)
 {
     /*
      判断是否需要进行返回值优化
+     Optimized  ˈɒptɪmaɪzd 使最优化；充分利用
      */
     if (prepareOptimizedReturn(ReturnAtPlus1)) {
         return obj;

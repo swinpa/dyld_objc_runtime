@@ -511,6 +511,7 @@ object_cxxConstructFromClass(id obj, Class cls)
         _objc_inform("CXX: calling C++ constructors for class %s", 
                      cls->nameForLogging());
     }
+    //调用 SEL_cxx_construct进行C++构造函数
     if ((*ctor)(obj)) return obj;  // ctor called and succeeded - ok
 
     // This class's ctor was called and failed. 

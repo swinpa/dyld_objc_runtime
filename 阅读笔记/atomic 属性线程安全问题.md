@@ -1,7 +1,27 @@
 ##@property (atomic, assign) NSInteger number; atomic 线程安全问题
+##@property (atomic, copy) NSString *name;
 
 * 属性访问底层实现
 
+```
+name 属性的setter（setName:）方法在编译的时候会编译成_I_Man_setName_
+{(struct objc_selector *)"setName:", "v24@0:8@16", (void *)_I_Man_setName_},
+
+
+static void _I_Man_setName_(Man * self, SEL _cmd, NSString *name) { 
+    //在生成的setter方法中调用objc_setProperty方法，而且根据property指定的atomic，还是nonatomic
+    objc_setProperty (self, _cmd, __OFFSETOFIVAR__(struct Man, _name), (id)name, 0, 1); 
+}
+
+
+void objc_setProperty(id self, SEL _cmd, ptrdiff_t offset, id newValue, BOOL atomic, signed char shouldCopy) 
+{
+    bool copy = (shouldCopy && shouldCopy != MUTABLE_COPY);
+    bool mutableCopy = (shouldCopy == MUTABLE_COPY);
+    reallySetProperty(self, _cmd, newValue, offset, atomic, copy, mutableCopy);
+}
+
+```
 
 ```
 static inline void reallySetProperty(id self, SEL _cmd, id newValue, ptrdiff_t offset, bool atomic, bool copy, bool mutableCopy)
@@ -104,6 +124,14 @@ int objc_sync_exit(id obj)
 * 底层还有一个全局的hash表（static StripedMap<SyncList> sDataLists;）这里的设计类似弱引用的设计，也是通过hash表 + 列表的方案解决hash冲突
 	
 	```
+     typedef struct os_unfair_recursive_lock_s {
+        os_unfair_lock ourl_lock;
+        uint32_t ourl_count;
+    } os_unfair_recursive_lock, *os_unfair_recursive_lock_t;
+       
+     class recursive_mutex_tt : nocopy_t {
+        os_unfair_recursive_lock mLock;
+    }   
 	typedef struct alignas(CacheLineSize) SyncData {
 	    struct SyncData* nextData;
 	    DisguisedPtr<objc_object> object;

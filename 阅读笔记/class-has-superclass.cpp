@@ -3431,7 +3431,12 @@ struct Man_IMPL {
 
 
 static NSString * _I_Man_pPhone(Man * self, SEL _cmd) { return (*(NSString **)((char *)self + OBJC_IVAR_$_Man$_pPhone)); }
-static void _I_Man_setPPhone_(Man * self, SEL _cmd, NSString *pPhone) { objc_setProperty (self, _cmd, __OFFSETOFIVAR__(struct Man, _pPhone), (id)pPhone, 0, 1); }
+static void _I_Man_setPPhone_(Man * self, SEL _cmd, NSString *pPhone) {
+    /*
+     void objc_setProperty(id self, SEL _cmd, ptrdiff_t offset, id newValue, BOOL atomic, signed char shouldCopy) 
+     */
+    objc_setProperty (self, _cmd, __OFFSETOFIVAR__(struct Man, _pPhone), (id)pPhone, 0, 1);
+}
 
 static NSString * _I_Man_exGirlName(Man * self, SEL _cmd) { return (*(NSString **)((char *)self + OBJC_IVAR_$_Man$_exGirlName)); }
 static void _I_Man_setExGirlName_(Man * self, SEL _cmd, NSString *exGirlName) { objc_setProperty (self, _cmd, __OFFSETOFIVAR__(struct Man, _exGirlName), (id)exGirlName, 0, 1); }

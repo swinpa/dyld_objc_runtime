@@ -9,9 +9,11 @@
 #import "ViewController.h"
 #import <objc/runtime.h>
 #include <mach-o/dyld.h>
-#import <CoreImage/CoreImage.h>>
+#import <CoreImage/CoreImage.h>
 
 #include <pthread.h>
+
+#import <StoreKit/StoreKit.h>
 
 @interface ViewController ()
 
@@ -38,16 +40,15 @@
     }];
     [self performSelector:@selector(doSomething)];
     [self performSelectorInBackground:@selector(doSomething) withObject:nil];
-    NSOperationQueue *q = [[NSOperationQueue alloc] init];
+    CFRunLoopRef rl;
+    CFRunLoopWakeUp(rl);
+    [self.view setNeedsLayout];
+    [self.view layoutIfNeeded];
     
-    dispatch_queue_t *queue = dispatch_queue_create(<#const char * _Nullable label#>, <#dispatch_queue_attr_t  _Nullable attr#>)
+    [self.view.layer setTimeOffset:0];
     
-    dispatch_async(<#dispatch_queue_t  _Nonnull queue#>, <#^(void)block#>)
+    NSOperation *s;
     
-    dispatch_apply(1, dispatch_get_main_queue(), ^(size_t iteration) {
-        
-    });
-    sleep(0);
 }
 
 + (void)swizzSysMethod:(NSString *)systemSelector swizzSel:(NSString *)swizzSelector andClass:(Class)class {

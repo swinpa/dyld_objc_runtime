@@ -90,7 +90,7 @@
 /* Initial cache bucket count. INIT_CACHE_SIZE must be a power of two. */
 enum {
     INIT_CACHE_SIZE_LOG2 = 2,
-    INIT_CACHE_SIZE      = (1 << INIT_CACHE_SIZE_LOG2)
+    INIT_CACHE_SIZE      = (1 << INIT_CACHE_SIZE_LOG2) //将1左移2位，结果为4。
 };
 
 static void cache_collect_free(struct bucket_t *data, mask_t capacity);
@@ -379,8 +379,10 @@ bucket_t *allocateBuckets(mask_t newCapacity)
     // Allocate one extra bucket to mark the end of the list.
     // This can't overflow mask_t because newCapacity is a power of 2.
     // fixme instead put the end mark inline when +1 is malloc-inefficient
-    bucket_t *newBuckets = (bucket_t *)
-        calloc(cache_t::bytesForCapacity(newCapacity), 1);
+    /*
+     申请缓存空间
+     */
+    bucket_t *newBuckets = (bucket_t *)calloc(cache_t::bytesForCapacity(newCapacity), 1);
 
     bucket_t *end = cache_t::endMarker(newBuckets, newCapacity);
 
@@ -527,22 +529,26 @@ bucket_t * cache_t::find(cache_key_t k, id receiver)
 
     bucket_t *b = buckets();
     mask_t m = mask();
-    // 根据key 跟 mask 进行hash计算得到下标
+    // 根据key(sel指针)进行hash计算得到下标
     mask_t begin = cache_hash(k, m);
     mask_t i = begin;
     do {
         /*
-         b[i].key() == 0 说明在hash表中[i]下标处的bucket中还《没缓存》有IMP
-         b[i].key() == k 说明在hash表中[i]下标处的bucket中已经《缓存》有cmd的IMP
+         b[i].key() == 0 说明在hash表中[i]下标处的bucket中还《没缓存》有IMP（还没使用该块内存）
+         b[i].key() == k 说明在hash表中[i]下标处的bucket中已经《缓存》有cmd的IMP（说明缓存命中）
          */
         if (b[i].key() == 0  ||  b[i].key() == k) {
+            //找到合适的就返回
             return &b[i];
         }
     } while ((i = cache_next(i, m)) != begin);/* 开放定址法进行下一个hash值的计算，用来解决hash冲突
                                                解决hash冲突的方案之一：开放定址法
-                                               从发生冲突的那个单元起，按照一定的次序，从哈希表中找到一个空闲的单元。然后把发生冲突的元素存入到该单元的一种方法
+                                               从发生冲突的那个单元起，按照一定的次序，从哈希表中找到一个空闲的单元。
+                                               然后把发生冲突的元素存入到该单元的一种方法
+                                               
                                                又细分为线性探查法:
-                                                    它从发生冲突的单元起，依次判断下一个单元是否为空，当达到最后一个单元时，再从表首依次判断。直到碰到空闲的单元或者探查完全部单元为止。
+                                                    它从发生冲突的单元起，依次判断下一个单元是否为空，当达到最后一个单元时，再从表首依次判断。
+                                               直到碰到空闲的单元或者探查完全部单元为止。
                                                
     */
 
@@ -581,14 +587,20 @@ static void cache_fill_nolock(Class cls, SEL sel, IMP imp, id receiver)
     if (cache_getImp(cls, sel)) return;
 
     cache_t *cache = getCache(cls);
+    //以sel指针作为key
     cache_key_t key = getKey(sel);
 
     // Use the cache as-is if it is less than 3/4 full
     mask_t newOccupied = cache->occupied() + 1;
     mask_t capacity = cache->capacity();
+    /*
+     在添加到缓存之前会判断是否需要扩容
+     1，应该是在首次给对象缓存时，需要申请缓存
+     2，当缓存使用空间大于3/4时就需要扩容空间
+     */
     if (cache->isConstantEmptyCache()) {
         // Cache is read-only. Replace it.
-        cache->reallocate(capacity, capacity ?: INIT_CACHE_SIZE);
+        cache->reallocate(capacity, capacity ?: INIT_CACHE_SIZE);//INIT_CACHE_SIZE == 4
     }
     else if (newOccupied <= capacity / 4 * 3) {
         // Cache is less than 3/4 full. Use it as-is.
@@ -601,8 +613,14 @@ static void cache_fill_nolock(Class cls, SEL sel, IMP imp, id receiver)
     // Scan for the first unused slot and insert there.
     // There is guaranteed to be an empty slot because the 
     // minimum size is 4 and we resized at 3/4 full.
+    /*
+     根据key(sel)在hash表中找到一块可以存储的bucket
+     */
     bucket_t *bucket = cache->find(key, receiver);
-    if (bucket->key() == 0) cache->incrementOccupied();
+    if (bucket->key() == 0) {
+        //说明该还没被占用，那么接下来会被占用，所以需要自增occupied
+        cache->incrementOccupied();
+    }
     bucket->set(key, imp);
 }
 

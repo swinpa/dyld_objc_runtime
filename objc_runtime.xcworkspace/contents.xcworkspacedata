@@ -26,6 +26,12 @@
       location = "group:&#x9605;&#x8bfb;&#x7b14;&#x8bb0;"
       name = "&#x9605;&#x8bfb;&#x7b14;&#x8bb0;">
       <FileRef
+         location = "group:cache&#x7b14;&#x8bb0;.md">
+      </FileRef>
+      <FileRef
+         location = "group:Runtime.md">
+      </FileRef>
+      <FileRef
          location = "group:&#x51fd;&#x6570;&#x8c03;&#x7528;&#x6808;.md">
       </FileRef>
       <FileRef

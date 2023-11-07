@@ -251,7 +251,7 @@ xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc -fobjc-arc -fobjc-runtime=io
 
 ### 调用顺序
 
-* 在运行时，mapImage阶段，分类中的方法，协议，属性会被添加到类中方法，协议，属性列表中，添加顺序是倒序的，所以后编译的会在列表前面，
+* 在运行时，map_image阶段，分类中的方法，协议，属性会被添加到类中方法，协议，属性列表中，添加顺序是倒序的，所以后编译的会在列表前面，
 另一个就是分类列表会在类的方法列表的前面，这就是为什么同名方法会先调用后编译的分类方法，或者说分类方法会比类方法先被调用。
 
 ### +load方法调用顺序
@@ -261,7 +261,11 @@ xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc -fobjc-arc -fobjc-runtime=io
     类的+load方法
     在prepare类的+load方法时，是通过递归的方式，所以父类的+load方法会在列表的前面，因此，调用顺序是
     
-    父类+load -> 当前类+load -> 先编译的分类+load -> 后编译的分类+load
+    
+    父类+load -> 当前类+load -> 后编译的分类+load -> 先编译的分类+load
+    
+    并不会区分是父类的分类还是子类的分类，是按照分类编译顺序
+    
 
 ### 分类跟主类都有同名方法，那怎么才能调用到主类方法而非分类方法？
 

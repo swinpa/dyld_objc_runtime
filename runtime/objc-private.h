@@ -58,6 +58,11 @@ namespace {
 
 #include "isa.h"
 
+/*
+ union 是一种特殊的数据结构，允许在同一内存位置存储不同的数据类型。
+ union 中的成员共享同一块内存，但只有一个成员可以保存值。这样可以节省内存，
+ 但需要注意正确使用，以避免不正确的数据访问。
+ */
 union isa_t {
     isa_t() { }
     isa_t(uintptr_t value) : bits(value) { }

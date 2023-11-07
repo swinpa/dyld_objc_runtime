@@ -535,6 +535,22 @@ struct locstamped_category_list_t {
 #elif 1
 // Leaks-compatible version that steals low bits only.
 
+/*
+ 在 iOS 的 runtime 中，.cxx_construct 是一个函数符号，用于 C++ 对象的构造函数调用。
+ 
+ 在 C++ 中，对象的构造函数负责初始化对象的成员变量和执行其他必要的初始化操作。而在 Objective-C 和 Objective-C++ 中，
+ 如果一个类中包含了 C++ 对象作为成员变量，那么在创建该类的实例时，需要手动调用这些 C++ 对象的构造函数进行初始化。
+
+ .cxx_construct 函数是在 iOS 的 runtime 中用于执行这些 C++ 对象的构造函数调用的。当创建一个包含 C++ 对象的 Objective-C
+ 或 Objective-C++ 对象时，runtime 会在适当的时机调用 .cxx_construct 函数，以确保 C++ 对象得到正确的初始化。
+
+ .cxx_construct 的实现由 Objective-C++ 运行时提供，它会遍历对象的成员变量列表，逐个调用 C++ 对象的构造函数。这样，
+ 就可以在 Objective-C 或 Objective-C++ 对象的构造过程中正确初始化包含的 C++ 对象。
+
+ 需要注意的是，.cxx_construct 函数是由 runtime 自动调用的，开发者一般无需手动干预或直接调用该函数。它在底层处理了 C++
+ 对象的构造过程，以保证对象的正确初始化。
+ */
+
 // class or superclass has .cxx_construct implementation
 #define RW_HAS_CXX_CTOR       (1<<18)
 // class or superclass has .cxx_destruct implementation
@@ -632,6 +648,9 @@ struct class_ro_t {
      这里存放了一份strong类型的成员变量
      也就是说如果成员变量是strong类型，那么会在这里存储一份
      ivars 列表中存储了所有的变量，包括普通的，weak的，strong的？
+     
+     _class_lookUpIvar(Class cls, Ivar ivar, ptrdiff_t& ivarOffset,objc_ivar_memory_management_t& memoryManagement)
+     中就是通过获取ivarLayout来得到变量的内存管理方式是否是strong
      */
     const uint8_t * ivarLayout;// <- 记录了哪些是 strong 的 ivar
     
@@ -1244,6 +1263,13 @@ struct objc_class : objc_object {
          Class nextSiblingClass;
          char *demangledName;
      * }
+     * struct _class_t {
+     *   struct _class_t *isa;
+     *   struct _class_t *superclass;
+     *   void *cache;
+     *   void *vtable;
+     *   struct _class_ro_t *ro;
+     * };
      */
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
 

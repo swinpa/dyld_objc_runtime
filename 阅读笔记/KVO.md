@@ -26,6 +26,24 @@ p.age = 100;
 3.   处理setter方法（用来在setter方法中添加willchangevalueforkey, didchangevalueforkey等代码来通知外部observer，具体是重写setter方法还是进行消息转发呢）
 
 	```
+ 
+    @interface    GSKVOSetter : NSObject
+    - (void) setter: (void*)val;
+    - (void) setterChar: (unsigned char)val;
+    - (void) setterDouble: (double)val;
+    - (void) setterFloat: (float)val;
+    - (void) setterInt: (unsigned int)val;
+    - (void) setterLong: (unsigned long)val;
+    #ifdef  _C_LNG_LNG
+    - (void) setterLongLong: (unsigned long long)val;
+    #endif
+    - (void) setterShort: (unsigned short)val;
+    - (void) setterRange: (NSRange)val;
+    - (void) setterPoint: (NSPoint)val;
+    - (void) setterSize: (NSSize)val;
+    - (void) setterRect: (NSRect)rect;
+    @end
+
 	这里我用了“处理setter”这种说法，而不像网上很多的文章的说法“重写setter”是因为我个人的理解是：
 	KVO是发生在运行时的，运行时没有重写这概念了，只可以通过运行时方式将setter重新指向别的已有的IMP中
 	那么在GNUSTep的KVO源码中可以看到在完成第二步后会调用overrideSetterFor的方法将setter方法关联到

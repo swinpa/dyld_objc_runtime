@@ -2736,7 +2736,7 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
     // Reconcile v. 调和，使协调一致；（使）和解，（使）恢复友好关系；调停，调解（争吵）；使顺从于，使接受；核对，查核（账目）
     // This may reallocate class_ro_t, updating our ro variable.
     if (supercls  &&  !isMeta) {
-        // 调整class的内存布局（instanceStart 与 instancesize）
+        // 调整class的内存布局（instanceStart 与 instancesize，以及Ivar中的offset）
         reconcileInstanceVariables(cls, supercls, ro);
     }
 

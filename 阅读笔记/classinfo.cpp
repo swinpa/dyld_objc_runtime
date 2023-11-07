@@ -1346,12 +1346,12 @@ static struct _class_ro_t _OBJC_CLASS_RO_$_Man __attribute__ ((used, section ("_
 	0,
     __OFFSETOFIVAR__(struct Man, private_Money),//这里表示从private_Money变量开始
     sizeof(struct Man_IMPL), 
-	0, 
+	0,//const unsigned char *ivarLayout;
 	"Man",
 	(const struct _method_list_t *)&_OBJC_$_INSTANCE_METHODS_Man,
 	0, 
-	(const struct _ivar_list_t *)&_OBJC_$_INSTANCE_VARIABLES_Man,
-	0, 
+	(const struct _ivar_list_t *)&_OBJC_$_INSTANCE_VARIABLES_Man,//const struct _ivar_list_t *ivars;
+	0,//const unsigned char *weakIvarLayout;
 	(const struct _prop_list_t *)&_OBJC_$_PROP_LIST_Man,
 };
 

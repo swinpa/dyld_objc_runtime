@@ -98,8 +98,8 @@ objc_object::getIsa()
 
 /*
  Tagged Pointer专门用来存储小的对象，例如NSNumber和NSDate
- Tagged Pointer指针的值不再是地址了，而是真正的值。所以，实际上它不再是一个对象了，它只是一个披着对象皮的普通变量而已。所以，它的内存并不存储在堆中，
- 就是一个图普通的栈变量，不需要 malloc 和 free。
+ Tagged Pointer指针的值不再是地址了，而是真正的值。所以，实际上它不再是一个对象了，它只是一个披着对象皮的普通变量而已。所以，
+ 它的内存并不存储在堆中，就是一个图普通的栈变量，不需要 malloc 和 free。
  
  第一位标识是否为TaggedPointer（为1表示是TaggedPointer）
  第2-4共3位用来指定对象类型（NSString，NSNumber，NSIndexPath，NSDate）
@@ -1111,6 +1111,12 @@ callerAcceptsOptimizedReturn(const void * const ra0)
 #endif
     ra1 += 6l + (long)*(const unaligned_int32_t *)(ra1 + 2);
     sym = (const void **)ra1;
+    
+    /*
+     它检验了主调方在返回值之后是否紧接着调用了objc_retainAutoreleasedReturnValue，如果是，就知道了外部是ARC环境，
+     反之就走没被优化的老逻辑。
+     */
+    
     if (*sym != objc_retainAutoreleasedReturnValue  &&  
         *sym != objc_unsafeClaimAutoreleasedReturnValue) 
     {
@@ -1209,6 +1215,11 @@ prepareOptimizedReturn(ReturnDisposition disposition)
     assert(getReturnDisposition() == ReturnAtPlus0);
 
     //__builtin_return_address 使用说明： https://www.zhaixue.cc/c-arm/c-arm-builtin.html
+    /*
+     __builtin_return_address
+     这个内建函数原型是char *__builtin_return_address(int level)，
+     作用是获取函数的返回地址，参数表示层数，如__builtin_return_address(0)表示当前函数体返回地址，传1是调用这个函数的外层函数的返回值地址
+     */
     if (callerAcceptsOptimizedReturn(__builtin_return_address(0))) {
         if (disposition) setReturnDisposition(disposition);
         return true;
