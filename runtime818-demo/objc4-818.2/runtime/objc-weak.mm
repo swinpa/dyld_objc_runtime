@@ -468,6 +468,8 @@ weak_clear_no_lock(weak_table_t *weak_table, id referent_id)
 {
     objc_object *referent = (objc_object *)referent_id;
 
+    //获取对象所对应的weak_entry_t（weak_entry_t中有与之所关联的所有的弱引用变量（确切来说是弱引用变量地址））
+    
     weak_entry_t *entry = weak_entry_for_referent(weak_table, referent);
     if (entry == nil) {
         /// XXX shouldn't happen, but does with mismatched CF/objc
@@ -489,8 +491,13 @@ weak_clear_no_lock(weak_table_t *weak_table, id referent_id)
     }
     
     for (size_t i = 0; i < count; ++i) {
+        //弱引用变量地址
         objc_object **referrer = referrers[i];
         if (referrer) {
+            /*
+             取弱引用变量地址中存储的值，也就是对象的地址
+             判断是否跟当前对象一致，如果是就将弱引用变量的值置成nil
+             */
             if (*referrer == referent) {
                 *referrer = nil;
             }
@@ -504,7 +511,6 @@ weak_clear_no_lock(weak_table_t *weak_table, id referent_id)
             }
         }
     }
-    
     weak_entry_remove(weak_table, entry);
 }
 

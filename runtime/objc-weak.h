@@ -123,6 +123,7 @@ struct weak_entry_t {
 /**
  * The global weak references table. Stores object ids as keys,
  * and weak_entry_t structs as their values.
+ * weak_table_t 也是一个hash表，也是根据引用对象的地址进行hash计算得到对应的index
  */
 struct weak_table_t {
     /*

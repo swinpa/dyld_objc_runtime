@@ -331,6 +331,9 @@ weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
     size_t begin = hash_pointer(referent) & weak_table->mask;
     size_t index = begin;
     size_t hash_displacement = 0;
+    /*
+     开放定址法的方式找到当前对象对应的weak_entry_t所在的index
+     */
     while (weak_table->weak_entries[index].referent != referent) {
         index = (index+1) & weak_table->mask;
         if (index == begin) bad_weak_table(weak_table->weak_entries);
@@ -339,7 +342,7 @@ weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
             return nil;
         }
     }
-    
+    //返回当前对象对应的weak_entry_t
     return &weak_table->weak_entries[index];
 }
 

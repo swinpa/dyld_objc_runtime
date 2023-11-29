@@ -81,6 +81,10 @@ struct weak_entry_t {
     DisguisedPtr<objc_object> referent;
     union {
         struct {
+            /*
+             用来存放弱引用变量的地址
+             
+             */
             weak_referrer_t *referrers;
             uintptr_t        out_of_line_ness : 2;
             uintptr_t        num_refs : PTR_MINUS_2;
