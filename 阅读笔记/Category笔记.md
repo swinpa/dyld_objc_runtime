@@ -63,6 +63,9 @@ ObjectAssociationMap 中找到关联信息
 ###分类为什么不可以添加属性(成员变量)？
 要回答这个问题，个人觉得应该从以下两个点回答
 
+####分类的方法属性最终需要在运行时初始化（map_image）阶段整合到类中，而类的大小instanceSize是在编译期间确定了
+的所以无法在运行时更改该类属性
+
 * 1，分类的本质(category_t)以及类的成员变量怎么存储，何时存储
 *  2，分类设计的目的
 
@@ -248,6 +251,37 @@ xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc main.m
 // ARC
 xcrun -sdk iphoneos clang -arch arm64 -rewrite-objc -fobjc-arc -fobjc-runtime=ios-8.0.0 main.m
 这会生成main.cpp
+
+
+### category 是如何加载到对象的方法列表（methods ）中的？
+
+1. 在map_image -> read_image 阶段会读取mach-o 中的objc_catlist段内容
+  然后将category跟他对应的class进行映射，关系如下
+  
+  ```
+category_map = {
+     /*
+     相当于
+     class_A : [class_A_category1, class_A_category2, class_A_category3]
+     */ 
+	class_A : category_list,
+	class_B : category_list
+}
+ category_list = [category_t,category_t,category_t]
+```
+
+2. 然后在remethodizeClass阶段就根据cls获取它对应的category_list（ [category_t,category_t,category_t] ）
+3. 然后倒序遍历该category_list，并把对应的方法添加到一个临时的列表中（目的将category_list倒序一下）
+	这样在Xcode-> build phases -> compile source 中靠下面的会被先调用(从上往下链接，)
+	
+	
+	注意：
+	build phases -> compile source中的顺序不是编译顺序，是链接顺序（从上往下开始链接）
+	(在Xcode的编译链接日志里面可以验证这一点)
+	编译顺序也不是Xcode中文件目录结构的顺序，
+	而是文件被添加到工程时的顺序（后面添加的文件先被编译）
+
+4. 分类列表倒序完后就把列表插入到cls 的methods 的前面
 
 ### 调用顺序
 

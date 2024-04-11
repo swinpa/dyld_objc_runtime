@@ -308,6 +308,7 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
         size_t count = 0;
         if (_getObjc2ClassList(hi, &count)) {//相当于调用getDataSection<classref_t>(mhdr, "__objc_classlist", nil, outCount);
             totalClasses += (int)count;
+            //不在dyld 缓存中
             if (!inSharedCache) unoptimizedTotalClasses += count;
         }
     }
@@ -473,8 +474,10 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
     hCount = 0;
 
     // Count classes. Size various table based on the total.
+    // 类的总数，通过读取mach-o 中的__objc_classlist段得到
     int totalClasses = 0;
-    //optimized ['ɒptɪmaɪzd] 使最优化；充分利用
+    // optimized ['ɒptɪmaɪzd] 使最优化；充分利用
+    // 未处理过的类的总数 = 不在dyld共享缓存中的类的数量，其实跟totalClasses一样，只是在累加时先判断是否在dyld的共享缓存中
     int unoptimizedTotalClasses = 0;
     {
         uint32_t i = mhCount;

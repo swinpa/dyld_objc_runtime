@@ -776,6 +776,25 @@ extern const fork_unsafe_lock_t fork_unsafe_lock;
 template <bool Debug>
 class mutex_tt : nocopy_t {
     //代替OSSpinLock 的锁
+    //在objc/include/os/lock_private.h中有如下说明
+    /*!
+     * @typedef os_lock_unfair_s
+     *
+     * @abstract
+     * os_lock variant equivalent to os_unfair_lock. Does not spin on contention but
+     * waits in the kernel to be woken up by an unlock. The lock value contains
+     * ownership information that the system may use to attempt to resolve priority
+     * inversions.
+     *
+     * @discussion
+     * Intended as a replacement for os_lock_spin_s or OSSpinLock. Like with
+     * OSSpinLock there is no attempt at fairness or lock ordering, e.g. an unlocker
+     * can potentially immediately reacquire the lock before a woken up waiter gets
+     * an opportunity to attempt to acquire the lock, so starvation is possibile.
+     *
+     * Must be initialized with OS_LOCK_UNFAIR_INIT
+     */
+    
     os_unfair_lock mLock;
  public:
     constexpr mutex_tt() : mLock(OS_UNFAIR_LOCK_INIT) {

@@ -864,11 +864,18 @@ class AutoreleasePoolPage
     
     static size_t const COUNT = SIZE / sizeof(id);
 
+    //16 byte
     magic_t const magic;
+    id *next;
+    //4byte
     pthread_t const thread;//保存了当前页所在的线程
+    //4byte
     AutoreleasePoolPage * const parent;
+    //4byte
     AutoreleasePoolPage *child;
+    //4byte
     uint32_t const depth;
+    //4byte
     uint32_t hiwat;
 
     // SIZE-sizeof(*this) bytes of contents follow
@@ -2315,6 +2322,7 @@ void arr_init(void)
     return [self class] == cls;
 }
 
+//会遍历整个继承链
 + (BOOL)isKindOfClass:(Class)cls {
     for (Class tcls = object_getClass((id)self); tcls; tcls = tcls->superclass) {
         if (tcls == cls) return YES;

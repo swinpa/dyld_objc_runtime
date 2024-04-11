@@ -1375,6 +1375,13 @@ extern "C" __declspec(dllexport) struct _class_t OBJC_CLASS_$_Man __attribute__ 
 	0, // unused, was (void *)&_objc_empty_vtable,
 	&_OBJC_CLASS_RO_$_Man,
 };
+/*
+ 每个类都有一个对应的元类，元类的实例是类对象。类对象存储了类的实例方法和属性，
+ 而元类则存储了类方法（类的静态方法）和元类对象的方法。
+ 
+ 元类的isa指向根元类
+ 元类的父类指向《类的父类》的元类
+ */
 static void OBJC_CLASS_SETUP_$_Man(void ) {
 	OBJC_METACLASS_$_Man.isa = &OBJC_METACLASS_$_NSObject;
 	OBJC_METACLASS_$_Man.superclass = &OBJC_METACLASS_$_Person;
@@ -1383,6 +1390,24 @@ static void OBJC_CLASS_SETUP_$_Man(void ) {
 	OBJC_CLASS_$_Man.superclass = &OBJC_CLASS_$_Person;
 	OBJC_CLASS_$_Man.cache = &_objc_empty_cache;
 }
+
+/*
+ #pragma section(".objc_inithooks$B", long, read, write):
+ 这行代码使用了#pragma section预处理指令，用于将代码放置在指定的内存段中。
+ 其中，.objc_inithooks$B是段的名称，long表示段的对齐方式，read, write表示段可以被读取和写入。
+ 
+ __declspec(allocate(".objc_inithooks$B")): 这行代码使用了__declspec关键字（通常在Windows平台上使用），
+ 表示将变量或函数分配到指定的内存段.objc_inithooks$B中。
+ static void *OBJC_CLASS_SETUP[] = { ... };: 这段代码定义了一个静态数组OBJC_CLASS_SETUP，
+ 数组元素是void *类型的指针，用于存储类初始化相关的信息。
+ &OBJC_CLASS_SETUP_$_Person和&OBJC_CLASS_SETUP_$_Man：
+ 这两个表达式分别取得了OBJC_CLASS_SETUP_$_Person和OBJC_CLASS_SETUP_$_Man的地址，
+ 这些符号通常是由编译器生成的，用于表示Objective-C类的初始化信息。
+ 
+ 综合起来，这段代码的作用是将类Person和Man的初始化信息存储到名为.objc_inithooks$B的内存段中，
+ 这些信息可能包括类的构造函数指针等。这种做法常用于Objective-C的底层实现，用于存放类的初始化函数、构造函数等。
+ */
+
 #pragma section(".objc_inithooks$B", long, read, write)
 __declspec(allocate(".objc_inithooks$B")) static void *OBJC_CLASS_SETUP[] = {
 	(void *)&OBJC_CLASS_SETUP_$_Person,

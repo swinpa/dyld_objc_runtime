@@ -221,6 +221,7 @@ static void weak_entry_insert(weak_table_t *weak_table, weak_entry_t *new_entry)
     size_t begin = hash_pointer(new_entry->referent) & (weak_table->mask);
     size_t index = begin;
     size_t hash_displacement = 0;
+    //hash查找，找到合适的weak_entry_t
     while (weak_entries[index].referent != nil) {
         index = (index+1) & weak_table->mask;
         if (index == begin) bad_weak_table(weak_entries);
